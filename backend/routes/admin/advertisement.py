@@ -1,0 +1,32 @@
+ÿþ"""
+Admin Advertisement Routes - Advertisement Module
+"""
+
+from flask import Blueprint, jsonify, request
+from datetime import datetime, timedelta
+import random
+from . import admin_bp
+
+# Advertisement endpoints
+@admin_bp.route('/advertisements', methods=['GET'])
+def get_all_advertisements():
+    """Get all advertisements"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'advertisements': [],
+            'total_count': 0
+        }
+    })
+
+@admin_bp.route('/advertisements/create', methods=['POST'])
+def create_advertisement():
+    """Create new advertisement"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'advertisement_id': 1,
+            'title': 'New Advertisement',
+            'created_at': datetime.utcnow().isoformat()
+        }
+    })

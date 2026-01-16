@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Frontend Token</title>
+</head>
+<body>
+    <h1>Clear Frontend Token</h1>
+    <p>This page will clear the old admin token from localStorage.</p>
+    <button onclick="clearTokens()">Clear Tokens</button>
+    <div id="result"></div>
+    
+    <script>
+        function clearTokens() {
+            // Clear all admin tokens
+            localStorage.removeItem('kamioi_admin_token');
+            localStorage.removeItem('kamioi_token');
+            localStorage.removeItem('authToken');
+            
+            document.getElementById('result').innerHTML = 
+                '<p style="color: green;">✅ Tokens cleared! Please refresh the main application.</p>';
+        }
+    </script>
+</body>
+</html>

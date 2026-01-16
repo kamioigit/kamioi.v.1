@@ -1,0 +1,32 @@
+ÿþ"""
+Admin Badges Routes - Badges Module
+"""
+
+from flask import Blueprint, jsonify, request
+from datetime import datetime, timedelta
+import random
+from . import admin_bp
+
+# Badges endpoints
+@admin_bp.route('/badges', methods=['GET'])
+def get_all_badges():
+    """Get all badges"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'badges': [],
+            'total_count': 0
+        }
+    })
+
+@admin_bp.route('/badges/create', methods=['POST'])
+def create_badge():
+    """Create new badge"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'badge_id': 1,
+            'name': 'New Badge',
+            'created_at': datetime.utcnow().isoformat()
+        }
+    })

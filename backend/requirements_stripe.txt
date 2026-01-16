@@ -1,0 +1,7 @@
+# Stripe Integration Requirements
+# Install these packages in your virtual environment
+
+stripe>=13.0.0
+APScheduler>=3.10.0
+
+

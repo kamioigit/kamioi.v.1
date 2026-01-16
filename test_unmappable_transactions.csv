@@ -1,0 +1,13 @@
+date,merchant,category,amount,description
+2024-01-15,OBSCURE_LOCAL_SHOP,unknown,45.67,Purchase at local store #12345
+2024-01-16,XYZQWERTY_BOUTIQUE,other,89.99,Unique boutique purchase - item not recognized
+2024-01-17,ABCDEF_RESTAURANT,food,125.50,Restaurant payment - no merchant match found
+2024-01-18,RANDOM_SERVICE_PROVIDER,services,234.00,Service payment to unknown merchant
+2024-01-19,UNKNOWN_VENDOR_001,unknown,67.23,Transaction with unrecognized vendor
+2024-01-20,TEST_MERCHANT_ABC,other,156.78,Test merchant not in database
+2024-01-21,MYSTERY_STORE_XYZ,shopping,298.45,Shopping at unregistered merchant
+2024-01-22,UNMAPPED_BUSINESS,services,345.67,Business transaction - no ticker available
+2024-01-23,OBSCURE_CAFE,food,23.45,Coffee shop not in merchant database
+2024-01-24,NO_MATCH_MERCHANT,unknown,178.90,Transaction requiring manual mapping
+
+

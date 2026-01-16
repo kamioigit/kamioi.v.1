@@ -1,0 +1,60 @@
+{
+  "name": "kamioi-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:analyze": "vite build --mode analyze",
+    "build:prod": "vite build --mode production",
+    "preview": "vite preview",
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 2000",
+    "check-syntax": "node check-syntax.js",
+    "optimize": "npm run build && npm run analyze-bundle",
+    "analyze-bundle": "npx vite-bundle-analyzer dist",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:performance": "lighthouse http://localhost:4000 --view",
+    "test:accessibility": "playwright test tests/accessibility",
+    "test:security": "echo 'Security testing requires OWASP ZAP or similar tool'",
+    "test:coverage": "echo 'Coverage testing requires additional setup'"
+  },
+  "dependencies": {
+    "@stripe/stripe-js": "^8.3.0",
+    "@tanstack/react-query": "^5.90.9",
+    "apexcharts": "^4.0.0",
+    "axios": "^1.12.2",
+    "clsx": "^2.0.0",
+    "firebase": "^12.3.0",
+    "framer-motion": "^12.23.22",
+    "jspdf": "^3.0.3",
+    "jspdf-autotable": "^5.0.2",
+    "lucide-react": "^0.263.1",
+    "react": "^18.2.0",
+    "react-apexcharts": "^1.7.0",
+    "react-dom": "^18.2.0",
+    "react-helmet-async": "^2.0.5",
+    "react-router-dom": "^6.30.1",
+    "recharts": "^3.2.1",
+    "socket.io-client": "^4.8.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.27",
+    "@types/react-dom": "^18.0.10",
+    "@vitejs/plugin-react": "^4.0.3",
+    "autoprefixer": "^10.4.14",
+    "eslint": "^8.45.0",
+    "eslint-plugin-react": "^7.32.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.3",
+    "postcss": "^8.4.27",
+    "tailwindcss": "^3.3.3",
+    "vite": "^7.1.10"
+  }
+}

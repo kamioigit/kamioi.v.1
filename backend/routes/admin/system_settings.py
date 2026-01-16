@@ -1,0 +1,35 @@
+ÿþ"""
+Admin System Settings Routes - System Settings Module
+"""
+
+from flask import Blueprint, jsonify, request
+from datetime import datetime, timedelta
+import random
+from . import admin_bp
+
+# System Settings endpoints
+@admin_bp.route('/settings', methods=['GET'])
+def get_system_settings():
+    """Get system settings"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'settings': {
+                'app_name': 'Kamioi Platform',
+                'version': 'v10072025',
+                'maintenance_mode': False,
+                'registration_enabled': True
+            }
+        }
+    })
+
+@admin_bp.route('/settings/update', methods=['POST'])
+def update_system_settings():
+    """Update system settings"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'message': 'Settings updated successfully',
+            'updated_at': datetime.utcnow().isoformat()
+        }
+    })

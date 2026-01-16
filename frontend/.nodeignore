@@ -1,0 +1,18 @@
+# Ignore Flow/TypeScript source files
+**/*.flow.js
+**/*.original.js
+**/src/**/*.js
+**/dist/*.esm.*
+
+# Ignore source maps and other non-executable files
+**/*.map
+**/*.d.ts
+**/*.ts
+**/*.tsx
+
+# Ignore test files
+**/test/**
+**/tests/**
+**/__tests__/**
+**/*.test.js
+**/*.spec.js

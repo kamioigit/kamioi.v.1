@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear localStorage</title>
+</head>
+<body>
+    <h1>Clearing localStorage...</h1>
+    <div id="status"></div>
+    
+    <script>
+        function clearLocalStorage() {
+            const status = document.getElementById('status');
+            
+            try {
+                // List of keys to clear
+                const keysToRemove = [
+                    'kamioi_user',
+                    'kamioi_token',
+                    'authToken',
+                    'kamioi_holdings',
+                    'kamioi_goals',
+                    'kamioi_recommendations',
+                    'kamioi_notifications',
+                    'kamioi_total_roundups',
+                    'kamioi_total_fees_paid',
+                    'kamioi_transactions',
+                    'kamioi_portfolio_value',
+                    'kamioi_admin_reports',
+                    'kamioi_family_users',
+                    'kamioi_business_users',
+                    'kamioi_tutorial_completed',
+                    'kamioi_theme_mode',
+                    'kamioi_notifications_data'
+                ];
+                
+                let clearedCount = 0;
+                
+                // Clear specific keys
+                keysToRemove.forEach(key => {
+                    if (localStorage.getItem(key)) {
+                        localStorage.removeItem(key);
+                        clearedCount++;
+                    }
+                });
+                
+                // Clear any profile images
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('profile_image_')) {
+                        localStorage.removeItem(key);
+                        clearedCount++;
+                    }
+                }
+                
+                status.innerHTML = `
+                    <p>✅ localStorage cleared successfully!</p>
+                    <p>📊 Cleared ${clearedCount} items</p>
+                    <p>🔄 All user data, tokens, and settings reset</p>
+                    <p>🎯 Ready for fresh testing</p>
+                `;
+                
+                console.log('localStorage cleared:', clearedCount, 'items');
+                
+            } catch (error) {
+                status.innerHTML = `<p>❌ Error clearing localStorage: ${error.message}</p>`;
+                console.error('Error clearing localStorage:', error);
+            }
+        }
+        
+        // Run on page load
+        window.onload = clearLocalStorage;
+    </script>
+</body>
+</html>
+

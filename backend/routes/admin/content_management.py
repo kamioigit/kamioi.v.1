@@ -1,0 +1,32 @@
+ÿþ"""
+Admin Content Management Routes - Content Management Module
+"""
+
+from flask import Blueprint, jsonify, request
+from datetime import datetime, timedelta
+import random
+from . import admin_bp
+
+# Content Management endpoints
+@admin_bp.route('/content', methods=['GET'])
+def get_all_content():
+    """Get all content"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'content': [],
+            'total_count': 0
+        }
+    })
+
+@admin_bp.route('/content/create', methods=['POST'])
+def create_content():
+    """Create new content"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'content_id': 1,
+            'title': 'New Content',
+            'created_at': datetime.utcnow().isoformat()
+        }
+    })

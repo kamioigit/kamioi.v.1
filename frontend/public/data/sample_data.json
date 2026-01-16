@@ -1,0 +1,69 @@
+﻿{
+    "holdings":  [
+                     {
+                         "value":  1279.25,
+                         "day_change":  1.25,
+                         "avg_cost":  95.5,
+                         "current_price":  102.34,
+                         "allocation":  10.2,
+                         "asset":  "SBUX",
+                         "shares":  12.5
+                     },
+                     {
+                         "value":  1512.79,
+                         "day_change":  0.89,
+                         "avg_cost":  165.3,
+                         "current_price":  172.89,
+                         "allocation":  12,
+                         "asset":  "AAPL",
+                         "shares":  8.75
+                     }
+                 ],
+    "portfolio_overview":  {
+                               "active_holdings":  15,
+                               "cash_balance":  1250.75,
+                               "monthly_performance":  2.34,
+                               "today_change":  1.25,
+                               "total_value":  12567.89
+                           },
+    "transactions":  [
+                         {
+                             "id":  "txn_001",
+                             "ticker":  "SBUX",
+                             "purchase_amount":  5.25,
+                             "merchant":  "Starbucks",
+                             "investable_amount":  2,
+                             "timestamp":  "2024-01-15T09:15:00",
+                             "total_debit":  7.5,
+                             "status":  "settled",
+                             "parent_company":  "Starbucks Corporation",
+                             "fee_amount":  0.25
+                         },
+                         {
+                             "id":  "txn_002",
+                             "ticker":  "AMZN",
+                             "purchase_amount":  12.5,
+                             "merchant":  "Amazon",
+                             "investable_amount":  2,
+                             "timestamp":  "2024-01-15T10:30:00",
+                             "total_debit":  14.75,
+                             "status":  "settled",
+                             "parent_company":  "Amazon.com Inc.",
+                             "fee_amount":  0.25
+                         }
+                     ],
+    "recent_activity":  [
+                            {
+                                "amount":  25,
+                                "timestamp":  "2024-01-15T10:30:00",
+                                "description":  "SBUX fractional purchase",
+                                "type":  "investment"
+                            },
+                            {
+                                "amount":  -5.25,
+                                "timestamp":  "2024-01-15T09:15:00",
+                                "description":  "Coffee at Starbucks",
+                                "type":  "purchase"
+                            }
+                        ]
+}

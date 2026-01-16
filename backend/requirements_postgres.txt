@@ -1,0 +1,12 @@
+# PostgreSQL Dependencies for Phase 1 Migration
+# Install with: pip install -r requirements_postgres.txt
+
+# PostgreSQL adapter
+psycopg2-binary>=2.9.9
+
+# SQLAlchemy for connection pooling and ORM
+SQLAlchemy>=2.0.0
+
+# Optional: For async support (future)
+# asyncpg>=0.29.0
+

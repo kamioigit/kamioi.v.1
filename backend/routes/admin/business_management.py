@@ -1,0 +1,48 @@
+ÿþ"""
+Admin Business Management Routes - Business Management Module
+"""
+
+from flask import Blueprint, jsonify, request
+from datetime import datetime, timedelta
+import random
+from . import admin_bp
+
+# Business Management endpoints
+@admin_bp.route('/businesses', methods=['GET'])
+def get_all_businesses():
+    """Get all businesses"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'businesses': [],
+            'total_count': 156,
+            'active_businesses': 150,
+            'inactive_businesses': 6
+        }
+    })
+
+@admin_bp.route('/businesses/<int:business_id>', methods=['GET'])
+def get_business(business_id):
+    """Get specific business"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'id': business_id,
+            'name': 'Business Name',
+            'type': 'LLC',
+            'members': [],
+            'is_active': True,
+            'created_at': datetime.utcnow().isoformat()
+        }
+    })
+
+@admin_bp.route('/businesses/<int:business_id>/members', methods=['GET'])
+def get_business_members(business_id):
+    """Get business members"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'business_id': business_id,
+            'members': []
+        }
+    })

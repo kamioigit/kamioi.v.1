@@ -1,0 +1,311 @@
+# Admin Dashboard API Endpoint Audit Report
+
+**Generated**: 2025-10-20 14:08:06
+
+## Summary
+
+- **Total Backend Endpoints**: 198
+- **Total Frontend API Calls**: 87
+- **Total Issues**: 0
+
+## Backend Endpoints
+
+- `/api/admin/advertisements/campaigns` (GET)
+- `/api/admin/ai/analytics` (GET)
+- `/api/admin/ai/fee-optimization` (GET)
+- `/api/admin/ai/market-update` (POST)
+- `/api/admin/ai/tier-updates` (POST)
+- `/api/admin/ai/user-recommendations/<int:user_id>` (GET)
+- `/api/admin/auth/login` (POST)
+- `/api/admin/auth/logout` (POST)
+- `/api/admin/badges` (GET)
+- `/api/admin/blog/ai-seo-optimize` (POST)
+- `/api/admin/blog/posts` (POST)
+- `/api/admin/blog/posts/<int:post_id>` (DELETE)
+- `/api/admin/bulk-upload` (POST)
+- `/api/admin/business-stress-test/categories` (GET)
+- `/api/admin/business-stress-test/status` (GET)
+- `/api/admin/business-users` (GET)
+- `/api/admin/content/pages` (GET)
+- `/api/admin/crm/contacts` (GET)
+- `/api/admin/database/alerts-slos` (GET)
+- `/api/admin/database/clear-table` (POST)
+- `/api/admin/database/connectivity-matrix` (GET)
+- `/api/admin/database/data-quality` (GET)
+- `/api/admin/database/migrations-drift` (GET)
+- `/api/admin/database/performance` (GET)
+- `/api/admin/database/schema` (GET)
+- `/api/admin/database/stats` (GET)
+- `/api/admin/database/test-sandbox` (GET)
+- `/api/admin/database/warehouse-sync` (GET)
+- `/api/admin/employees` (GET)
+- `/api/admin/employees/<int:employee_id>` (PUT, DELETE)
+- `/api/admin/family-users` (GET)
+- `/api/admin/feature-flags` (GET)
+- `/api/admin/google-analytics` (GET)
+- `/api/admin/ledger/consistency` (GET)
+- `/api/admin/llm-center/analytics` (GET)
+- `/api/admin/llm-center/approve` (POST)
+- `/api/admin/llm-center/approve-all-pending` (POST)
+- `/api/admin/llm-center/approve-mapping` (POST)
+- `/api/admin/llm-center/approved-mappings` (GET)
+- `/api/admin/llm-center/auto-mappings` (GET)
+- `/api/admin/llm-center/bulk-approve` (POST)
+- `/api/admin/llm-center/bulk-reject` (POST)
+- `/api/admin/llm-center/mappings` (GET)
+- `/api/admin/llm-center/pending-mappings` (GET)
+- `/api/admin/llm-center/processing-stats` (GET)
+- `/api/admin/llm-center/queue` (GET)
+- `/api/admin/llm-center/reject` (POST)
+- `/api/admin/llm-center/reject-mapping` (POST)
+- `/api/admin/manual-submit` (POST)
+- `/api/admin/messaging/campaigns` (GET)
+- `/api/admin/ml/analytics` (GET)
+- `/api/admin/ml/metrics` (GET)
+- `/api/admin/ml/models` (GET)
+- `/api/admin/ml/performance` (GET)
+- `/api/admin/ml/predictions` (GET)
+- `/api/admin/modules` (GET)
+- `/api/admin/notifications` (GET)
+- `/api/admin/performance/storage` (GET)
+- `/api/admin/pipelines/events` (GET)
+- `/api/admin/replication/backups` (GET)
+- `/api/admin/security/access` (GET)
+- `/api/admin/settings/analytics` (GET)
+- `/api/admin/settings/fees` (GET)
+- `/api/admin/settings/notifications` (GET)
+- `/api/admin/settings/security` (GET)
+- `/api/admin/settings/system` (GET)
+- `/api/admin/system-health` (GET)
+- `/api/admin/system-reset` (POST)
+- `/api/admin/train-model` (POST)
+- `/api/admin/transactions` (GET)
+- `/api/admin/upload/image` (POST)
+- `/api/admin/user-metrics` (GET)
+- `/api/admin/users` (GET)
+- `/api/admin/vector-store/embeddings` (GET)
+- `/api/admin/vector-store/health` (GET)
+- `/api/blog/posts` (GET)
+- `/api/blog/posts/<slug>` (GET)
+- `/api/business/ai-insights` (GET)
+- `/api/business/analytics` (GET)
+- `/api/business/auth/login` (POST)
+- `/api/business/budget` (GET)
+- `/api/business/customers` (GET)
+- `/api/business/dashboard/overview` (GET)
+- `/api/business/departments` (GET)
+- `/api/business/employees` (GET)
+- `/api/business/expenses` (GET)
+- `/api/business/export/analytics` (GET)
+- `/api/business/export/employees` (GET)
+- `/api/business/export/portfolio` (GET)
+- `/api/business/export/transactions` (GET)
+- `/api/business/fees` (GET)
+- `/api/business/goals` (GET)
+- `/api/business/notifications` (GET)
+- `/api/business/notifications/manage` (POST, PUT, DELETE)
+- `/api/business/orders` (GET)
+- `/api/business/portfolio` (GET)
+- `/api/business/products` (GET)
+- `/api/business/profile` (GET, PUT)
+- `/api/business/reports` (GET)
+- `/api/business/revenue` (GET)
+- `/api/business/roundups` (GET)
+- `/api/business/settings` (GET, PUT)
+- `/api/business/settings/account` (GET, PUT)
+- `/api/business/settings/data` (GET, PUT)
+- `/api/business/settings/notifications` (GET, PUT)
+- `/api/business/settings/security` (GET, PUT)
+- `/api/business/stock-status` (GET)
+- `/api/business/submit-mapping` (POST)
+- `/api/business/team/members` (GET)
+- `/api/business/transactions` (GET)
+- `/api/family/ai-insights` (GET)
+- `/api/family/auth/login` (POST)
+- `/api/family/budget` (GET)
+- `/api/family/expenses` (GET)
+- `/api/family/export/members` (GET)
+- `/api/family/export/portfolio` (GET)
+- `/api/family/export/transactions` (GET)
+- `/api/family/fees` (GET)
+- `/api/family/goals` (GET)
+- `/api/family/leaderboard` (GET)
+- `/api/family/mapping-history` (GET)
+- `/api/family/members` (GET)
+- `/api/family/notifications` (GET)
+- `/api/family/portfolio` (GET)
+- `/api/family/profile` (GET, PUT)
+- `/api/family/rewards` (GET)
+- `/api/family/roundups` (GET)
+- `/api/family/savings` (GET)
+- `/api/family/settings` (GET, PUT)
+- `/api/family/statements` (GET)
+- `/api/family/stock-status` (GET)
+- `/api/family/submit-mapping` (POST)
+- `/api/family/transactions` (GET)
+- `/api/financial/analytics` (GET)
+- `/api/financial/balance-sheet` (GET)
+- `/api/financial/cash-flow` (GET)
+- `/api/financial/user-analytics` (GET)
+- `/api/learning/feedback-pipeline` (POST)
+- `/api/learning/model-update` (POST)
+- `/api/learning/quality-check` (POST)
+- `/api/llm-center/get-ml-status` (GET)
+- `/api/llm-center/trigger-ml-learning` (POST)
+- `/api/llm-data/configure` (POST)
+- `/api/llm-data/event-stats` (GET)
+- `/api/llm-data/feature-store` (GET)
+- `/api/llm-data/get-center-status` (GET)
+- `/api/llm-data/initialize-system` (POST)
+- `/api/llm-data/rebuild-cache` (POST)
+- `/api/llm-data/refresh-features` (POST)
+- `/api/llm-data/search` (POST)
+- `/api/llm-data/system-status` (GET)
+- `/api/llm-data/update-center-metrics` (POST)
+- `/api/llm-data/vector-embeddings` (GET)
+- `/api/llm/confidence-score` (POST)
+- `/api/llm/global-state` (GET)
+- `/api/llm/learn` (POST)
+- `/api/llm/retrain` (POST)
+- `/api/llm/update-global-state` (POST)
+- `/api/lookup/ticker` (GET)
+- `/api/messages/admin/all` (GET)
+- `/api/ml/export` (GET)
+- `/api/ml/feedback` (POST)
+- `/api/ml/get-data-health` (GET)
+- `/api/ml/learn` (POST)
+- `/api/ml/recognize` (POST)
+- `/api/ml/retrain` (POST)
+- `/api/ml/stats` (GET)
+- `/api/ml/update-data-metrics` (POST)
+- `/api/quality/auto-check` (POST)
+- `/api/quality/get-metrics` (GET)
+- `/api/quality/set-thresholds` (POST)
+- `/api/transactions` (POST)
+- `/api/transactions/auto-map` (POST)
+- `/api/transactions/bulk-upload` (POST)
+- `/api/transactions/process` (POST)
+- `/api/user/ai-insights` (GET)
+- `/api/user/ai/insights` (GET)
+- `/api/user/ai/recommendations` (GET)
+- `/api/user/auth/google` (POST)
+- `/api/user/auth/login` (POST)
+- `/api/user/auth/register` (POST)
+- `/api/user/export/portfolio` (GET)
+- `/api/user/export/transactions` (GET)
+- `/api/user/fees` (GET)
+- `/api/user/fees/total` (GET)
+- `/api/user/goals` (GET)
+- `/api/user/notifications` (GET)
+- `/api/user/portfolio` (GET)
+- `/api/user/profile` (GET, PUT)
+- `/api/user/register` (POST)
+- `/api/user/rewards` (GET)
+- `/api/user/roundups` (GET)
+- `/api/user/roundups/total` (GET)
+- `/api/user/settings` (GET, PUT)
+- `/api/user/statements` (GET)
+- `/api/user/stock-status` (GET)
+- `/api/user/submit-mapping` (POST)
+- `/api/user/transactions` (GET)
+
+## Frontend API Calls
+
+- `http://localhost:5000/api/financial/analytics?period=${selectedPeriod}` (Accounting2.jsx) - fetch
+- `/api/ads/admin/campaigns` (AdManagement.jsx) - fetch
+- `/api/ads/admin/analytics` (AdManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/analytics/recommendation-clicks` (AdminAnalytics.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/system-health` (AdminDashboardTree.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/transactions?t=${timestamp}` (AdminTransactions.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/llm-center/mappings` (AdminTransactions.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/advertisements/campaigns` (AdvertisementModule.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/ai/analytics` (AIAnalytics.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/ai/tier-updates` (AIAnalytics.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/ai/market-update` (AIAnalytics.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/badges` (BadgesGamification.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/badges` (BadgesGamification.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/badges/${badgeId}` (BadgesGamification.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/badges/award-queue/${awardId}` (BadgesGamification.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/badges/${badgeId}` (BadgesGamification.jsx) - fetch
+- `http://localhost:5000/api/admin/blog/ai-seo-optimize` (BlogEditor.jsx) - fetch
+- `http://localhost:5000/api/admin/upload/image` (BlogEditor.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/businesses/${businessId}/team` (BusinessManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/businesses/${businessId}/portfolio` (BusinessManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/businesses/${businessId}/goals` (BusinessManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/businesses/${businessId}/analytics` (BusinessManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/businesses/${businessId}/reports` (BusinessManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/businesses/${businessId}/activity` (BusinessManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/businesses/${businessId}/settings` (BusinessManagement.jsx) - fetch
+- `http://localhost:5000${endpoint}` (ConsolidatedUserManagement.jsx) - fetch
+- `http://localhost:5000/api/admin/user-metrics` (ConsolidatedUserManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/content/pages` (ContentManagement.jsx) - fetch
+- `http://localhost:5000/api/admin/blog/posts` (ContentManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/content` (ContentManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/content/${id}` (ContentManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/seo-settings` (ContentManagement.jsx) - fetch
+- `http://localhost:5000/api/admin/employees` (EmployeeManagement.jsx) - fetch
+- `http://localhost:5000/api/admin/employees` (EmployeeManagement.jsx) - fetch
+- `http://localhost:5000/api/admin/employees/${editingEmployee.id}` (EmployeeManagement.jsx) - fetch
+- `http://localhost:5000/api/admin/employees/${employeeId}` (EmployeeManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/families/${familyId}/members` (FamilyManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/families/${familyId}/portfolio` (FamilyManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/families/${familyId}/goals` (FamilyManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/families/${familyId}/ai-insights` (FamilyManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/families/${familyId}/analytics` (FamilyManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/families/${familyId}/activity` (FamilyManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/families/${familyId}/notifications` (FamilyManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/financial/analytics?period=${selectedPeriod}` (FinancialAnalytics.jsx) - fetch
+- `http://127.0.0.1:5000/api/financial/cash-flow?period=${selectedPeriod}` (FinancialAnalytics.jsx) - fetch
+- `http://127.0.0.1:5000/api/financial/balance-sheet?period=${selectedPeriod}` (FinancialAnalytics.jsx) - fetch
+- `http://127.0.0.1:5000/api/financial/user-analytics` (FinancialAnalytics.jsx) - fetch
+- `/api/financial/simulate-transaction` (FinancialAnalytics.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/financial/export` (FinancialAnalytics.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/google-analytics` (GoogleAnalytics.jsx) - fetch
+- `http://localhost:5000/api/admin/llm-center/queue?limit=10&t=${Date.now()}` (LLMCenter.jsx) - fetch
+- `http://localhost:5000/api/admin/llm-center/analytics` (LLMCenter.jsx) - fetch
+- `http://localhost:5000/api/admin/llm-center/pending-mappings?limit=20` (LLMCenter.jsx) - fetch
+- `http://localhost:5000/api/admin/llm-center/approved-mappings?limit=20` (LLMCenter.jsx) - fetch
+- `http://localhost:5000/api/admin/llm-center/approve-mapping` (LLMCenter.jsx) - fetch
+- `http://localhost:5000/api/admin/llm-center/reject-mapping` (LLMCenter.jsx) - fetch
+- `http://localhost:5000/api/admin/llm-center/mappings?search=${encodeURIComponent(searchQuery)}&limit=10&page=${pageNum}&t=${Date.now()}` (LLMCenter.jsx) - fetch
+- `http://localhost:5000/api/admin/train-model` (LLMCenter.jsx) - fetch
+- `http://localhost:5000/api/admin/llm-center/approve-all-pending` (LLMCenter.jsx) - fetch
+- `http://localhost:5000/api/admin/database/clear-table` (LLMCenter.jsx) - fetch
+- `http://localhost:5000/api/admin/bulk-upload` (LLMCenter.jsx) - fetch
+- `http://localhost:5000/api/admin/manual-submit` (LLMCenter.jsx) - fetch
+- `http://localhost:5000/api/llm-data/system-status` (LLMDataManagement.jsx) - fetch
+- `http://localhost:5000/api/llm-data/event-stats` (LLMDataManagement.jsx) - fetch
+- `http://localhost:5000/api/llm-data/vector-embeddings` (LLMDataManagement.jsx) - fetch
+- `http://localhost:5000/api/llm-data/feature-store` (LLMDataManagement.jsx) - fetch
+- `http://localhost:5000/api/llm-data/initialize-system` (LLMDataManagement.jsx) - fetch
+- `http://localhost:5000/api/llm-data/search` (LLMDataManagement.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/llm/mapping-queues` (LLMMappingCenter.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/llm/mapping-stats` (LLMMappingCenter.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/llm/mappings/${mappingId}` (LLMMappingCenter.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/llm/bulk-actions` (LLMMappingCenter.jsx) - fetch
+- `http://localhost:5000/api/ml/stats` (MLDashboard.jsx) - fetch
+- `http://localhost:5000/api/ml/recognize` (MLDashboard.jsx) - fetch
+- `http://localhost:5000/api/ml/learn` (MLDashboard.jsx) - fetch
+- `http://localhost:5000/api/ml/feedback` (MLDashboard.jsx) - fetch
+- `http://localhost:5000/api/ml/retrain` (MLDashboard.jsx) - fetch
+- `http://localhost:5000/api/ml/export` (MLDashboard.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/messaging/campaigns` (NotificationsCenter.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/messaging/campaigns` (NotificationsCenter.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/messaging/send` (NotificationsCenter.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/settings/fees` (SystemSettings.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/settings/system` (SystemSettings.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/settings/fees` (SystemSettings.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/settings/system` (SystemSettings.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/transactions` (TransactionsReconciliation.jsx) - fetch
+- `http://127.0.0.1:5000/api/admin/transactions/reconciliation` (TransactionsReconciliation.jsx) - fetch
+
+## Issues Found
+
+- No issues found - all frontend calls have matching backend endpoints
+
+## Recommendations
+
+1. Fix any missing endpoints
+2. Update frontend calls to use correct endpoints
+3. Add proper error handling
+4. Add loading states for API calls

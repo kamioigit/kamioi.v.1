@@ -1,0 +1,44 @@
+ÿþ"""
+Admin Feature Flags Routes - Feature Flags Module
+"""
+
+from flask import Blueprint, jsonify, request
+from datetime import datetime, timedelta
+import random
+from . import admin_bp
+
+# Feature Flags endpoints
+@admin_bp.route('/feature-flags', methods=['GET'])
+def get_feature_flags():
+    """Get all feature flags"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'flags': [
+                {
+                    'id': 1,
+                    'name': 'round_up_investing',
+                    'enabled': True,
+                    'description': 'Enable round-up investing feature'
+                },
+                {
+                    'id': 2,
+                    'name': 'ai_insights',
+                    'enabled': True,
+                    'description': 'Enable AI insights feature'
+                }
+            ]
+        }
+    })
+
+@admin_bp.route('/feature-flags/<int:flag_id>/toggle', methods=['POST'])
+def toggle_feature_flag(flag_id):
+    """Toggle feature flag"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'flag_id': flag_id,
+            'enabled': True,
+            'updated_at': datetime.utcnow().isoformat()
+        }
+    })

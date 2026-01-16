@@ -1,0 +1,47 @@
+ÿþ"""
+Admin Family Management Routes - Family Management Module
+"""
+
+from flask import Blueprint, jsonify, request
+from datetime import datetime, timedelta
+import random
+from . import admin_bp
+
+# Family Management endpoints
+@admin_bp.route('/families', methods=['GET'])
+def get_all_families():
+    """Get all families"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'families': [],
+            'total_count': 89,
+            'active_families': 85,
+            'inactive_families': 4
+        }
+    })
+
+@admin_bp.route('/families/<int:family_id>', methods=['GET'])
+def get_family(family_id):
+    """Get specific family"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'id': family_id,
+            'name': 'Family Name',
+            'members': [],
+            'is_active': True,
+            'created_at': datetime.utcnow().isoformat()
+        }
+    })
+
+@admin_bp.route('/families/<int:family_id>/members', methods=['GET'])
+def get_family_members(family_id):
+    """Get family members"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'family_id': family_id,
+            'members': []
+        }
+    })

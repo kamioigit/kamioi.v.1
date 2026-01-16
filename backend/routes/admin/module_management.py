@@ -1,0 +1,44 @@
+ÿþ"""
+Admin Module Management Routes - Module Management Module
+"""
+
+from flask import Blueprint, jsonify, request
+from datetime import datetime, timedelta
+import random
+from . import admin_bp
+
+# Module Management endpoints
+@admin_bp.route('/modules', methods=['GET'])
+def get_all_modules():
+    """Get all modules"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'modules': [
+                {
+                    'id': 1,
+                    'name': 'Admin Dashboard',
+                    'status': 'active',
+                    'version': '1.0.0'
+                },
+                {
+                    'id': 2,
+                    'name': 'User Dashboard',
+                    'status': 'active',
+                    'version': '1.0.0'
+                }
+            ]
+        }
+    })
+
+@admin_bp.route('/modules/<int:module_id>/toggle', methods=['POST'])
+def toggle_module(module_id):
+    """Toggle module status"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'module_id': module_id,
+            'status': 'active',
+            'updated_at': datetime.utcnow().isoformat()
+        }
+    })

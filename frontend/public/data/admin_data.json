@@ -1,0 +1,38 @@
+﻿{
+    "users":  [
+                  {
+                      "id":  "user_001",
+                      "name":  "John Doe",
+                      "portfolio_value":  12567.89,
+                      "last_active":  "2024-01-15",
+                      "join_date":  "2024-01-01",
+                      "email":  "john@example.com",
+                      "status":  "active"
+                  },
+                  {
+                      "id":  "user_002",
+                      "name":  "Jane Smith",
+                      "portfolio_value":  8567.23,
+                      "last_active":  "2024-01-15",
+                      "join_date":  "2024-01-05",
+                      "email":  "jane@example.com",
+                      "status":  "active"
+                  },
+                  {
+                      "id":  "user_003",
+                      "name":  "Bob Wilson",
+                      "portfolio_value":  23456.78,
+                      "last_active":  "2024-01-10",
+                      "join_date":  "2023-12-15",
+                      "email":  "bob@example.com",
+                      "status":  "inactive"
+                  }
+              ],
+    "platform_stats":  {
+                           "new_this_week":  67,
+                           "aum":  12567890,
+                           "total_users":  1250,
+                           "daily_fees":  312.45,
+                           "active_today":  342
+                       }
+}

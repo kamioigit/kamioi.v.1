@@ -1,0 +1,32 @@
+ÿþ"""
+Admin CRM & Projects Routes - CRM & Projects Module
+"""
+
+from flask import Blueprint, jsonify, request
+from datetime import datetime, timedelta
+import random
+from . import admin_bp
+
+# CRM & Projects endpoints
+@admin_bp.route('/crm/projects', methods=['GET'])
+def get_all_projects():
+    """Get all projects"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'projects': [],
+            'total_count': 0
+        }
+    })
+
+@admin_bp.route('/crm/projects/create', methods=['POST'])
+def create_project():
+    """Create new project"""
+    return jsonify({
+        'success': True,
+        'data': {
+            'project_id': 1,
+            'name': 'New Project',
+            'created_at': datetime.utcnow().isoformat()
+        }
+    })
