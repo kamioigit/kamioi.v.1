@@ -4,7 +4,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { useNotifications } from '../../hooks/useNotifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query' // 🚀 PERFORMANCE FIX: Import React Query
 
-const MLDashboard = ({ user }) => {
+const MLDashboard = () => {
   const { addNotification } = useNotifications()
   const queryClient = useQueryClient() // 🚀 PERFORMANCE FIX: For cache invalidation
   const { isLightMode } = useTheme()
@@ -26,6 +26,11 @@ const MLDashboard = ({ user }) => {
     userConfidence: 0.8
   })
   const [activeTab, setActiveTab] = useState('overview')
+
+  const getRatePercent = (rate) => {
+    if (typeof rate !== 'number') return 0
+    return Math.round(rate * 100)
+  }
 
   // 🚀 PERFORMANCE FIX: Use React Query for ML stats - proper caching, no unnecessary reloads
   const { data: mlStatsData, isLoading: isLoadingMLStats, error: mlStatsError, refetch: refetchMLStats } = useQuery({
@@ -405,7 +410,7 @@ const MLDashboard = ({ user }) => {
                   <div className="ml-4">
                     <p className={`text-sm font-medium ${isLightMode ? 'text-gray-600' : 'text-gray-300'}`}>Model Version</p>
                     <p className={`text-2xl font-bold ${isLightMode ? 'text-gray-900' : 'bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent'}`}>
-                      {mlStats?.modelVersion || 'v1.0.0'}
+                      {mlStats?.modelVersion || '—'}
                     </p>
                   </div>
                 </div>
@@ -433,7 +438,7 @@ const MLDashboard = ({ user }) => {
                   <div className="ml-4">
                     <p className={`text-sm font-medium ${isLightMode ? 'text-gray-600' : 'text-gray-300'}`}>Accuracy Rate</p>
                     <p className={`text-2xl font-bold ${isLightMode ? 'text-gray-900' : 'bg-gradient-to-r from-orange-400 to-orange-300 bg-clip-text text-transparent'}`}>
-                      {Math.round((mlStats?.accuracyRate || 0.85) * 100)}%
+                      {getRatePercent(mlStats?.accuracyRate)}%
                     </p>
                   </div>
                 </div>
@@ -461,7 +466,7 @@ const MLDashboard = ({ user }) => {
                   <div>
                     <p className={`text-sm font-medium ${isLightMode ? 'text-gray-600' : 'text-gray-300'}`}>Success Rate</p>
                     <p className={`text-2xl font-bold mt-1 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
-                      {Math.round((mlStats?.successRate || 0.92) * 100)}%
+                      {getRatePercent(mlStats?.successRate)}%
                     </p>
                   </div>
                   <CheckCircle className={`w-8 h-8 ${isLightMode ? 'text-green-600' : 'text-green-400'}`} />

@@ -7,7 +7,7 @@ import { useData } from '../../context/DataContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useNotifications } from '../../hooks/useNotifications'
 
-const AdminPortfolio = ({ user }) => {
+const AdminPortfolio = () => {
   const { addNotification } = useNotifications()
   const [timeRange, setTimeRange] = useState('1m')
    const { isLightMode } = useTheme()
@@ -15,6 +15,8 @@ const AdminPortfolio = ({ user }) => {
   const [showAnalytics, setShowAnalytics] = useState(false)
   const itemsPerPage = 10
   const { portfolioValue, holdings } = useData()
+  const performanceSeries = portfolioValue > 0 ? [portfolioValue] : []
+  const performanceLabels = portfolioValue > 0 ? ['Today'] : []
 
   // Pagination logic
   const safeHoldings = Array.isArray(holdings) ? holdings : []
@@ -174,11 +176,11 @@ const AdminPortfolio = ({ user }) => {
                     height={250}
                     series={[{
                       name: 'Admin Portfolio Value',
-                      data: [portfolioValue * 0.8, portfolioValue * 0.85, portfolioValue * 0.9, portfolioValue * 0.95, portfolioValue]
+                      data: performanceSeries
                     }]}
                     options={{
                       xaxis: {
-                        categories: ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Today'],
+                        categories: performanceLabels,
                         labels: {
                           style: {
                             colors: isLightMode ? '#374151' : '#ffffff'

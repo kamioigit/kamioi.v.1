@@ -19,6 +19,15 @@ const Analytics = () => {
     }
   }
 
+  const newUsers = analyticsData.userGrowth.length
+    ? analyticsData.userGrowth[analyticsData.userGrowth.length - 1]?.value || 0
+    : 0
+  const revenueTotal = analyticsData.revenue.reduce((sum, item) => sum + (item?.value || 0), 0)
+  const growthRate = analyticsData.userGrowth.length > 1
+    ? ((newUsers - (analyticsData.userGrowth[0]?.value || 0)) / Math.max(analyticsData.userGrowth[0]?.value || 1, 1)) * 100
+    : 0
+  const revenueProgress = revenueTotal > 0 ? 100 : 0
+
   return (
     <div className="space-y-6">
       {/* Analytics Header */}
@@ -53,11 +62,11 @@ const Analytics = () => {
               <Users className="w-8 h-8 text-blue-400" />
               <div>
                 <p className="text-gray-400 text-sm">New Users</p>
-                <p className="text-2xl font-bold text-white">324</p>
+                <p className="text-2xl font-bold text-white">{newUsers}</p>
               </div>
             </div>
             <div className="w-full bg-gray-700 rounded-full h-2">
-              <div className="bg-blue-500 h-2 rounded-full" style={{ width: '85%' }}></div>
+              <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(Math.max(growthRate, 0), 100)}%` }}></div>
             </div>
           </div>
 
@@ -66,11 +75,11 @@ const Analytics = () => {
               <DollarSign className="w-8 h-8 text-green-400" />
               <div>
                 <p className="text-gray-400 text-sm">Revenue</p>
-                <p className="text-2xl font-bold text-white">$28,450</p>
+                <p className="text-2xl font-bold text-white">${revenueTotal.toLocaleString()}</p>
               </div>
             </div>
             <div className="w-full bg-gray-700 rounded-full h-2">
-              <div className="bg-green-500 h-2 rounded-full" style={{ width: '72%' }}></div>
+              <div className="bg-green-500 h-2 rounded-full" style={{ width: `${revenueProgress}%` }}></div>
             </div>
           </div>
 
@@ -79,11 +88,11 @@ const Analytics = () => {
               <TrendingUp className="w-8 h-8 text-purple-400" />
               <div>
                 <p className="text-gray-400 text-sm">Growth Rate</p>
-                <p className="text-2xl font-bold text-white">+12.5%</p>
+                <p className="text-2xl font-bold text-white">{growthRate.toFixed(1)}%</p>
               </div>
             </div>
             <div className="w-full bg-gray-700 rounded-full h-2">
-              <div className="bg-purple-500 h-2 rounded-full" style={{ width: '65%' }}></div>
+              <div className="bg-purple-500 h-2 rounded-full" style={{ width: `${Math.min(Math.max(growthRate, 0), 100)}%` }}></div>
             </div>
           </div>
         </div>
