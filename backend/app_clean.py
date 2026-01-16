@@ -59,6 +59,12 @@ CORS(
     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 )
 
+# Allow CORS preflight requests without auth checks
+@app.before_request
+def handle_cors_preflight():
+    if request.method == 'OPTIONS':
+        return ('', 200)
+
 # Database setup
 DB_PATH = os.path.join(os.path.dirname(__file__), 'kamioi.db')
 
