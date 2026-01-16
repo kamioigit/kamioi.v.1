@@ -44,9 +44,20 @@ except ImportError as e:
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app, origins=['http://localhost:3764', 'http://127.0.0.1:3764', 'http://localhost:3765', 'http://127.0.0.1:3765', 'http://localhost:5000', 'http://127.0.0.1:5000'], 
-     allow_headers=['Content-Type', 'Authorization'], 
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+CORS(
+    app,
+    origins=[
+        'http://localhost:3764',
+        'http://127.0.0.1:3764',
+        'http://localhost:3765',
+        'http://127.0.0.1:3765',
+        'http://localhost:5000',
+        'http://127.0.0.1:5000',
+        'https://kamioi-v-1.vercel.app'
+    ],
+    allow_headers=['Content-Type', 'Authorization'],
+    methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+)
 
 # Database setup
 DB_PATH = os.path.join(os.path.dirname(__file__), 'kamioi.db')
