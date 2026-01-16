@@ -55,7 +55,7 @@ CORS(
         'http://127.0.0.1:5000',
         'https://kamioi-v-1.vercel.app'
     ],
-    allow_headers=['Content-Type', 'Authorization'],
+    allow_headers=['Content-Type', 'Authorization', 'X-Admin-Token', 'X-User-Token'],
     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 )
 
@@ -64,6 +64,39 @@ CORS(
 def handle_cors_preflight():
     if request.method == 'OPTIONS':
         return ('', 200)
+
+# Admin dashboard overview
+@app.route('/api/admin/dashboard/overview', methods=['GET'])
+def admin_dashboard_overview():
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(*) FROM users")
+        total_users = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM transactions")
+        total_transactions = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM transactions")
+        total_amount = cursor.fetchone()[0]
+
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'total_users': total_users,
+                'total_transactions': total_transactions,
+                'total_amount': total_amount
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # Database setup
 DB_PATH = os.path.join(os.path.dirname(__file__), 'kamioi.db')
@@ -166,9 +199,16 @@ def initialize_database():
                 name TEXT NOT NULL,
                 role TEXT DEFAULT 'admin',
                 password TEXT NOT NULL,
+                permissions TEXT DEFAULT '[]',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # Add permissions column if missing
+        try:
+            cursor.execute("ALTER TABLE admins ADD COLUMN permissions TEXT DEFAULT '[]'")
+        except sqlite3.OperationalError:
+            pass
 
         # Seed a default admin if none exist (use env overrides when provided)
         cursor.execute("SELECT COUNT(*) AS count FROM admins")
@@ -639,23 +679,42 @@ def admin_get_transactions():
         
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-              SELECT t.id, t.amount, t.status, t.date, t.merchant, t.category, 
-                     t.description, t.round_up, t.total_debit, t.fee, t.account_type, t.ticker,
-                     u.name as user_name, u.email as user_email, u.role as user_role
-              FROM transactions t
-              JOIN users u ON t.user_id = u.id
-              WHERE 
-                  LOWER(t.merchant) NOT LIKE '%test%' AND 
-                  LOWER(t.description) NOT LIKE '%test%' AND
-                  LOWER(t.merchant) NOT LIKE '%fake%' AND 
-                  LOWER(t.description) NOT LIKE '%fake%' AND
-                  LOWER(t.merchant) NOT LIKE '%mock%' AND 
-                  LOWER(t.description) NOT LIKE '%mock%' AND
-                  t.id NOT IN (333, 332, 320)
-              ORDER BY t.date DESC
-              LIMIT 100
-          """)
+        try:
+            cursor.execute("""
+                  SELECT t.id, t.amount, t.status, t.date, t.merchant, t.category, 
+                         t.description, t.round_up, t.total_debit, t.fee, t.account_type, t.ticker,
+                         u.name as user_name, u.email as user_email, u.role as user_role
+                  FROM transactions t
+                  JOIN users u ON t.user_id = u.id
+                  WHERE 
+                      LOWER(t.merchant) NOT LIKE '%test%' AND 
+                      LOWER(t.description) NOT LIKE '%test%' AND
+                      LOWER(t.merchant) NOT LIKE '%fake%' AND 
+                      LOWER(t.description) NOT LIKE '%fake%' AND
+                      LOWER(t.merchant) NOT LIKE '%mock%' AND 
+                      LOWER(t.description) NOT LIKE '%mock%' AND
+                      t.id NOT IN (333, 332, 320)
+                  ORDER BY t.date DESC
+                  LIMIT 100
+              """)
+        except sqlite3.OperationalError:
+            cursor.execute("""
+                  SELECT t.id, t.amount, t.status, t.date, t.merchant, t.category, 
+                         t.description, t.round_up, t.total_debit, t.fee, t.account_type,
+                         u.name as user_name, u.email as user_email, u.role as user_role
+                  FROM transactions t
+                  JOIN users u ON t.user_id = u.id
+                  WHERE 
+                      LOWER(t.merchant) NOT LIKE '%test%' AND 
+                      LOWER(t.description) NOT LIKE '%test%' AND
+                      LOWER(t.merchant) NOT LIKE '%fake%' AND 
+                      LOWER(t.description) NOT LIKE '%fake%' AND
+                      LOWER(t.merchant) NOT LIKE '%mock%' AND 
+                      LOWER(t.description) NOT LIKE '%mock%' AND
+                      t.id NOT IN (333, 332, 320)
+                  ORDER BY t.date DESC
+                  LIMIT 100
+              """)
         transactions = cursor.fetchall()
         conn.close()
         
@@ -680,7 +739,7 @@ def admin_get_transactions():
                 'round_up': txn['round_up'] or 0,
                 'total_debit': txn['total_debit'] or txn['amount'],
                 'fee': txn['fee'] or 0,
-                'ticker': txn['ticker'],
+                'ticker': txn['ticker'] if 'ticker' in txn.keys() else None,
                 'account_type': txn['account_type'],
                 'user_name': txn['user_name'],
                 'user_email': txn['user_email'],
@@ -706,7 +765,10 @@ def admin_get_employees():
         
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, email, role, permissions FROM admins")
+        try:
+            cursor.execute("SELECT id, name, email, role, permissions FROM admins")
+        except sqlite3.OperationalError:
+            cursor.execute("SELECT id, name, email, role FROM admins")
         employees = cursor.fetchall()
         conn.close()
         
@@ -717,7 +779,7 @@ def admin_get_employees():
                 'name': emp['name'],
                 'email': emp['email'],
                 'role': emp['role'],
-                'permissions': emp['permissions']
+                'permissions': emp['permissions'] if 'permissions' in emp.keys() else '[]'
             })
         
         return jsonify({
