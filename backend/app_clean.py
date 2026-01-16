@@ -151,6 +151,30 @@ def initialize_database():
                 google_photo_url TEXT
             )
         """)
+
+        # Create admins table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS admins (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                role TEXT DEFAULT 'admin',
+                password TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Seed a default admin if none exist (use env overrides when provided)
+        cursor.execute("SELECT COUNT(*) AS count FROM admins")
+        admin_count = cursor.fetchone()['count']
+        if admin_count == 0:
+            admin_email = (os.getenv('ADMIN_EMAIL') or 'info@kamioi.com').strip().lower()
+            admin_password = os.getenv('ADMIN_PASSWORD') or 'admin123'
+            password_hash = hashlib.sha256(admin_password.encode()).hexdigest()
+            cursor.execute(
+                "INSERT INTO admins (email, name, role, password) VALUES (?, ?, ?, ?)",
+                (admin_email, 'Main Admin', 'superadmin', password_hash)
+            )
         
         # Add Google-specific columns if they don't exist
         try:
