@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 const AdminDatabaseManagement = () => {
   const { admin, isInitialized, loading: authLoading } = useAuth();
+  const { isLightMode } = useTheme();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -168,8 +170,8 @@ const AdminDatabaseManagement = () => {
   };
 
   const StatCard = ({ title, value, color = 'blue' }) => (
-    <div className={`bg-gray-800 rounded-lg p-4 border border-gray-700`}>
-      <div className="text-gray-400 text-sm mb-1">{title}</div>
+    <div className={`rounded-lg p-4 ${isLightMode ? 'bg-white border border-gray-200' : 'bg-white/5 border border-white/10'}`}>
+      <div className={`${getSubtextClass()} text-sm mb-1`}>{title}</div>
       <div className={`text-2xl font-bold text-${color}-400`}>{value.toLocaleString()}</div>
     </div>
   );
@@ -179,7 +181,7 @@ const AdminDatabaseManagement = () => {
     const confirmationKey = (dataType) => `${accountType}_${dataType}`;
     
     return (
-      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+      <div className={getCardClass()}>
         <h3 className={`text-xl font-bold mb-4 text-${color}-400 capitalize`}>{role}</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
           <StatCard title="Users" value={data.users} color={color} />
@@ -308,35 +310,43 @@ const AdminDatabaseManagement = () => {
     );
   };
 
+  const getTextColor = () => (isLightMode ? 'text-gray-800' : 'text-white')
+  const getSubtextClass = () => (isLightMode ? 'text-gray-600' : 'text-gray-400')
+  const getCardClass = () => `glass-card p-6 ${isLightMode ? 'bg-white/80 border border-gray-200' : 'border border-white/10'}`
+
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
+    <div className="space-y-6">
       <ConfirmModal />
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Database Management</h1>
+      <div className={getCardClass()}>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className={`text-3xl font-bold ${getTextColor()}`}>Database Management</h1>
+            <p className={`${getSubtextClass()} mt-1`}>Review and manage system data</p>
+          </div>
           <button
             onClick={loadStats}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center gap-2"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
           >
             Refresh
           </button>
         </div>
+      </div>
 
-        {/* Total Statistics */}
-        {stats && (
-          <>
-            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
-              <h2 className="text-2xl font-bold mb-4 text-white">Total Database Statistics</h2>
+      {/* Total Statistics */}
+      {stats && (
+        <>
+          <div className={getCardClass()}>
+            <h2 className={`text-2xl font-bold mb-4 ${getTextColor()}`}>Total Database Statistics</h2>
               
               {deleteSuccess && (
-                <div className="bg-green-900 border border-green-700 rounded p-3 mb-4">
-                  <p className="text-green-200">{deleteSuccess}</p>
+                <div className={`rounded p-3 mb-4 ${isLightMode ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-green-900 text-green-200 border border-green-700'}`}>
+                  <p>{deleteSuccess}</p>
                 </div>
               )}
               
               {deleteError && (
-                <div className="bg-red-800 border border-red-600 rounded p-3 mb-4">
-                  <p className="text-red-200">{deleteError}</p>
+                <div className={`rounded p-3 mb-4 ${isLightMode ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-red-800 text-red-200 border border-red-600'}`}>
+                  <p>{deleteError}</p>
                 </div>
               )}
               
@@ -351,8 +361,8 @@ const AdminDatabaseManagement = () => {
             </div>
 
             {/* Breakdown by Role */}
-            <div className="space-y-6 mb-8">
-              <h2 className="text-2xl font-bold mb-4">Breakdown by User Type</h2>
+            <div className="space-y-6">
+              <h2 className={`text-2xl font-bold mb-4 ${getTextColor()}`}>Breakdown by User Type</h2>
               <RoleSection role="Individual" data={stats.individual} color="blue" />
               <RoleSection role="Family" data={stats.family} color="green" />
               <RoleSection role="Business" data={stats.business} color="purple" />
@@ -364,26 +374,26 @@ const AdminDatabaseManagement = () => {
 
             {/* Users Breakdown - Shows which users have transactions */}
             {stats.users_breakdown && stats.users_breakdown.length > 0 && (
-              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-8">
-                <h2 className="text-2xl font-bold mb-4 text-white">Transactions by User</h2>
-                <p className="text-gray-400 mb-4 text-sm">
+              <div className={getCardClass()}>
+                <h2 className={`text-2xl font-bold mb-4 ${getTextColor()}`}>Transactions by User</h2>
+                <p className={`${getSubtextClass()} mb-4 text-sm`}>
                   This shows which users have transactions. The &quot;Total Transactions&quot; above (206) is the sum across ALL users.
                   Your business dashboard shows 0 because user 108 (B8469686) has 0 transactions.
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="border-b border-gray-700">
-                        <th className="pb-2 text-gray-400">User ID</th>
-                        <th className="pb-2 text-gray-400">Email</th>
-                        <th className="pb-2 text-gray-400">Account Number</th>
-                        <th className="pb-2 text-gray-400">Account Type</th>
-                        <th className="pb-2 text-gray-400 text-right">Transactions</th>
+                      <tr className={`border-b ${isLightMode ? 'border-gray-200' : 'border-gray-700'}`}>
+                        <th className={`pb-2 ${getSubtextClass()}`}>User ID</th>
+                        <th className={`pb-2 ${getSubtextClass()}`}>Email</th>
+                        <th className={`pb-2 ${getSubtextClass()}`}>Account Number</th>
+                        <th className={`pb-2 ${getSubtextClass()}`}>Account Type</th>
+                        <th className={`pb-2 ${getSubtextClass()} text-right`}>Transactions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {stats.users_breakdown.map((user, idx) => (
-                        <tr key={idx} className="border-b border-gray-700 hover:bg-gray-750">
+                        <tr key={idx} className={`border-b ${isLightMode ? 'border-gray-100 hover:bg-gray-50' : 'border-gray-700 hover:bg-gray-800/40'}`}>
                           <td className="py-2">{user.user_id}</td>
                           <td className="py-2">{user.email}</td>
                           <td className="py-2">{user.account_number}</td>
@@ -404,33 +414,33 @@ const AdminDatabaseManagement = () => {
             )}
 
             {/* Delete All Data Section */}
-            <div className="bg-red-900 border-2 border-red-700 rounded-lg p-6">
-              <h2 className="text-2xl font-bold mb-4 text-red-200">⚠️ Danger Zone</h2>
-              <p className="text-red-200 mb-4">
+            <div className={`rounded-lg p-6 ${isLightMode ? 'bg-red-50 border border-red-200' : 'bg-red-900 border-2 border-red-700'}`}>
+              <h2 className={`text-2xl font-bold mb-4 ${isLightMode ? 'text-red-700' : 'text-red-200'}`}>⚠️ Danger Zone</h2>
+              <p className={`${isLightMode ? 'text-red-600' : 'text-red-200'} mb-4`}>
                 This will permanently delete ALL data from the database. This action cannot be undone.
               </p>
               
               {deleteSuccess && (
-                <div className="bg-green-900 border border-green-700 rounded p-3 mb-4">
-                  <p className="text-green-200">{deleteSuccess}</p>
+                <div className={`rounded p-3 mb-4 ${isLightMode ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-green-900 text-green-200 border border-green-700'}`}>
+                  <p>{deleteSuccess}</p>
                 </div>
               )}
               
               {deleteError && (
-                <div className="bg-red-800 border border-red-600 rounded p-3 mb-4">
-                  <p className="text-red-200">{deleteError}</p>
+                <div className={`rounded p-3 mb-4 ${isLightMode ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-red-800 text-red-200 border border-red-600'}`}>
+                  <p>{deleteError}</p>
                 </div>
               )}
 
               <div className="mb-4">
-                <label className="block text-red-200 mb-2">
+                <label className={`block mb-2 ${isLightMode ? 'text-red-700' : 'text-red-200'}`}>
                   Type <strong>&quot;DELETE ALL DATA&quot;</strong> to confirm:
                 </label>
                 <input
                   type="text"
                   value={deleteConfirmation}
                   onChange={(e) => setDeleteConfirmation(e.target.value)}
-                  className="w-full bg-gray-800 border border-red-600 rounded px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className={`w-full rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 ${isLightMode ? 'bg-white border border-red-200 text-gray-900' : 'bg-gray-800 border border-red-600 text-white'}`}
                   placeholder="DELETE ALL DATA"
                   disabled={deleting}
                 />

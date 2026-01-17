@@ -584,14 +584,16 @@ const Subscriptions = ({ user }) => {
       if (plansResponse?.ok) {
         const plansResult = await plansResponse.json()
         if (plansResult.success) {
-          setPlans(plansResult.data || [])
+          const plansData = plansResult.data?.plans || plansResult.plans || plansResult.data || []
+          setPlans(Array.isArray(plansData) ? plansData : [])
         }
       }
 
       if (subscriptionsResponse?.ok) {
         const subscriptionsResult = await subscriptionsResponse.json()
         if (subscriptionsResult.success) {
-          setUserSubscriptions(subscriptionsResult.data || [])
+          const subscriptionsData = subscriptionsResult.data?.users || subscriptionsResult.users || subscriptionsResult.data || []
+          setUserSubscriptions(Array.isArray(subscriptionsData) ? subscriptionsData : [])
         }
       }
 
@@ -619,14 +621,16 @@ const Subscriptions = ({ user }) => {
       if (renewalResponse?.ok) {
         const renewalResult = await renewalResponse.json()
         if (renewalResult.success) {
-          setRenewalQueue(renewalResult.data || [])
+          const renewalData = renewalResult.data?.queue || renewalResult.queue || renewalResult.data || []
+          setRenewalQueue(Array.isArray(renewalData) ? renewalData : [])
         }
       }
 
       if (promoCodesResponse?.ok) {
         const promoCodesResult = await promoCodesResponse.json()
         if (promoCodesResult.success) {
-          setPromoCodes(promoCodesResult.data || [])
+          const promoData = promoCodesResult.data?.promo_codes || promoCodesResult.promo_codes || promoCodesResult.data || []
+          setPromoCodes(Array.isArray(promoData) ? promoData : [])
         }
       }
 

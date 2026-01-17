@@ -5131,7 +5131,7 @@ def admin_subscription_plans():
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
-        return jsonify({'success': True, 'data': {'plans': []}})
+        return jsonify({'success': True, 'data': []})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -5153,7 +5153,7 @@ def admin_subscription_users():
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
-        return jsonify({'success': True, 'data': {'users': []}})
+        return jsonify({'success': True, 'data': []})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -5164,7 +5164,7 @@ def admin_subscription_renewal_queue():
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
-        return jsonify({'success': True, 'data': {'queue': []}})
+        return jsonify({'success': True, 'data': []})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -5178,10 +5178,14 @@ def admin_subscription_analytics_overview():
         return jsonify({
             'success': True,
             'data': {
-                'active_subscribers': 0,
-                'churn_rate': 0,
                 'mrr': 0,
-                'arr': 0
+                'activeSubscriptions': 0,
+                'churnRate': 0,
+                'arpu': 0,
+                'mrrChange': 0,
+                'subscriptionsChange': 0,
+                'churnChange': 0,
+                'arpuChange': 0
             }
         })
     except Exception as e:
@@ -5194,7 +5198,7 @@ def admin_subscription_promo_codes():
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
-        return jsonify({'success': True, 'data': {'promo_codes': []}})
+        return jsonify({'success': True, 'data': []})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

@@ -93,7 +93,7 @@ const ContentManagement = ({ user }) => {
         
         return {
           pages: pagesData?.pages || pagesData?.data || [],
-          blogs: blogsData?.blogs || blogsData?.data || [],
+          blogs: blogsData?.data?.posts || blogsData?.posts || blogsData?.blogs || blogsData?.data || [],
           frontendContent: frontendData?.content || frontendData?.data || [],
           currentFrontendContent: currentContentData?.content || currentContentData?.data || {}
         }
@@ -173,7 +173,8 @@ const ContentManagement = ({ user }) => {
       if (blogsResponse?.ok) {
         const blogsResult = await blogsResponse.json()
         if (blogsResult.success) {
-          setBlogs(blogsResult.data.posts || [])
+          const blogPosts = blogsResult.data?.posts || blogsResult.posts || []
+          setBlogs(Array.isArray(blogPosts) ? blogPosts : [])
         }
       }
       
