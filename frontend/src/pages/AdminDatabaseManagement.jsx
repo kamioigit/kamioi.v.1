@@ -66,6 +66,10 @@ const AdminDatabaseManagement = () => {
       setError(err.response?.data?.error || err.message || 'Failed to load database statistics');
     } finally {
       setLoading(false);
+      // Dispatch page load completion event for Loading Report
+      window.dispatchEvent(new CustomEvent('admin-page-load-complete', {
+        detail: { pageId: 'database' }
+      }));
     }
   };
 
