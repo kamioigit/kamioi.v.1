@@ -464,7 +464,6 @@ const AdminDatabaseManagement = () => {
             </div>
           </>
         )}
-      </div>
     </div>
   );
 };
