@@ -10,31 +10,6 @@ const TOKEN_KEYS = { [ROLES.USER]: "kamioi_user_token", [ROLES.ADMIN]: "kamioi_a
 export function setToken(role, token) { localStorage.setItem(TOKEN_KEYS[role], token); }
 export function getToken(role) { 
   const token = localStorage.getItem(TOKEN_KEYS[role]) || null;
-  
-  // Fix token format for user role immediately when retrieved
-  if (role === ROLES.USER && token && !token.startsWith('token_')) {
-    console.log('?? getToken - Fixing token format:', token);
-    if (token.startsWith('kamioi_user_token_')) {
-      const userId = token.replace('kamioi_user_token_', '');
-      const fixedToken = `token_${userId}`;
-      console.log('?? getToken - Fixed token:', fixedToken);
-      // Update localStorage with the correct token
-      localStorage.setItem(TOKEN_KEYS[role], fixedToken);
-      return fixedToken;
-    } else if (token.startsWith('user_token_')) {
-      const userId = token.replace('user_token_', '');
-      const fixedToken = `token_${userId}`;
-      console.log('?? getToken - Fixed user_token to token_:', fixedToken);
-      localStorage.setItem(TOKEN_KEYS[role], fixedToken);
-      return fixedToken;
-    } else if (token.match(/^\d+$/)) {
-      const fixedToken = `token_${token}`;
-      console.log('?? getToken - Fixed numeric token:', fixedToken);
-      localStorage.setItem(TOKEN_KEYS[role], fixedToken);
-      return fixedToken;
-    }
-  }
-  
   return token;
 }
 export function clearToken(role) { localStorage.removeItem(TOKEN_KEYS[role]); }
@@ -46,33 +21,6 @@ client.interceptors.request.use((config) => {
   // Use regular token logic
   const role = config.meta?.role;
   let token = role ? getToken(role) : null;
-  
-  // Fix token format for user role - ensure it uses token_ prefix (not user_token_)
-  if (role === ROLES.USER && token) {
-    // Always convert to token_ format for user role (backend expects this)
-    if (!token.startsWith('token_')) {
-      if (token.startsWith('kamioi_user_token_')) {
-        const userId = token.replace('kamioi_user_token_', '');
-        token = `token_${userId}`;
-      } else if (token.startsWith('user_token_')) {
-        const userId = token.replace('user_token_', '');
-        token = `token_${userId}`;
-      } else if (token.match(/^\d+$/)) {
-        // If token is just a number (user ID), add prefix
-        token = `token_${token}`;
-      } else if (token.includes('_')) {
-        // Handle other token formats by extracting the user ID
-        const parts = token.split('_');
-        const userId = parts[parts.length - 1];
-        if (userId.match(/^\d+$/)) {
-          token = `token_${userId}`;
-        }
-      } else {
-        // Fallback: assume the token is a user ID
-        token = `token_${token}`;
-      }
-    }
-  }
   
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
