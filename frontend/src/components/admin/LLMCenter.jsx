@@ -1531,12 +1531,16 @@ const LLMCenter = () => {
       }, 2000)
 
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-      const response = await fetch(`${apiBaseUrl}/api/admin/bulk-upload`, {
+      // Add cache-busting parameter to force fresh request and bypass Cloudflare cache
+      const cacheBuster = `?t=${Date.now()}`
+      const response = await fetch(`${apiBaseUrl}/api/admin/bulk-upload${cacheBuster}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
         },
-        body: formData
+        body: formData,
+        cache: 'no-cache',
+        mode: 'cors'
       })
 
       clearInterval(progressInterval)
