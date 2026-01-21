@@ -1530,7 +1530,8 @@ const LLMCenter = () => {
         })
       }, 2000)
 
-      const response = await fetch('/api/admin/bulk-upload', {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+      const response = await fetch(`${apiBaseUrl}/api/admin/bulk-upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
