@@ -46,17 +46,13 @@ except ImportError as e:
 app = Flask(__name__)
 CORS(
     app,
-    origins=[
-        'http://localhost:3764',
-        'http://127.0.0.1:3764',
-        'http://localhost:3765',
-        'http://127.0.0.1:3765',
-        'http://localhost:5000',
-        'http://127.0.0.1:5000',
-        'https://kamioi-v-1.vercel.app'
-    ],
-    allow_headers=['Content-Type', 'Authorization', 'X-Admin-Token', 'X-User-Token'],
-    methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    origins='*',  # Allow all origins for development and production
+    allow_headers=['Content-Type', 'Authorization', 'X-Admin-Token', 'X-User-Token', 'X-Requested-With', 'Accept', 'Origin'],
+    methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    supports_credentials=False,
+    automatic_options=True,
+    send_wildcard=True,
+    max_age=3600
 )
 
 # Allow CORS preflight requests without auth checks
@@ -5890,12 +5886,7 @@ def get_company_name_from_ticker(ticker_symbol):
     }
     return ticker_to_company.get(ticker_symbol, '')
 
-@app.route('/api/admin/bulk-upload', methods=['POST'])
-@cross_origin(
-    origins=['https://kamioi-v-1.vercel.app'],
-    allow_headers=['Content-Type', 'Authorization', 'X-Admin-Token', 'X-User-Token'],
-    methods=['POST', 'OPTIONS']
-)
+@app.route('/api/admin/bulk-upload', methods=['POST', 'OPTIONS'])
 def admin_bulk_upload():
     try:
         auth_header = request.headers.get('Authorization')
