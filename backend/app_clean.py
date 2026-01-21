@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 import sqlite3
 import os
 import hashlib
@@ -5891,6 +5891,11 @@ def get_company_name_from_ticker(ticker_symbol):
     return ticker_to_company.get(ticker_symbol, '')
 
 @app.route('/api/admin/bulk-upload', methods=['POST'])
+@cross_origin(
+    origins=['https://kamioi-v-1.vercel.app'],
+    allow_headers=['Content-Type', 'Authorization', 'X-Admin-Token', 'X-User-Token'],
+    methods=['POST', 'OPTIONS']
+)
 def admin_bulk_upload():
     try:
         auth_header = request.headers.get('Authorization')
