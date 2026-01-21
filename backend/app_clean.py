@@ -1734,13 +1734,17 @@ def user_auth_register():
         
         email = data.get('email', '').strip().lower()
         password = data.get('password', '')
-        confirm_password = data.get('confirm_password', '')
-        round_up_amount = data.get('round_up_amount', 1.00)
-        risk_tolerance = data.get('risk_tolerance', 'Moderate')
-        investment_goals = data.get('investment_goals', [])
-        terms_agreed = data.get('terms_agreed', False)
-        privacy_agreed = data.get('privacy_agreed', False)
-        marketing_agreed = data.get('marketing_agreed', False)
+        confirm_password = (
+            data.get('confirm_password', '')
+            or data.get('confirmPassword', '')
+            or data.get('passwordConfirm', '')
+        )
+        round_up_amount = data.get('round_up_amount', data.get('roundUpAmount', 1.00))
+        risk_tolerance = data.get('risk_tolerance', data.get('riskTolerance', 'Moderate'))
+        investment_goals = data.get('investment_goals', data.get('investmentGoals', []))
+        terms_agreed = data.get('terms_agreed', data.get('termsAgreed', False))
+        privacy_agreed = data.get('privacy_agreed', data.get('privacyAgreed', False))
+        marketing_agreed = data.get('marketing_agreed', data.get('marketingAgreed', False))
         
         # Validation
         if not email or not password:
@@ -5132,6 +5136,20 @@ def admin_subscription_plans():
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
         return jsonify({'success': True, 'data': []})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/public/subscriptions/plans', methods=['GET'])
+def public_subscription_plans():
+    try:
+        account_type = request.args.get('account_type', '').strip().lower()
+        return jsonify({
+            'success': True,
+            'data': {
+                'account_type': account_type,
+                'plans': []
+            }
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
