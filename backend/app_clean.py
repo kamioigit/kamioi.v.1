@@ -1749,13 +1749,20 @@ def user_auth_register():
         
         email = data.get('email', '').strip().lower()
         password = data.get('password', '')
-        confirm_password = data.get('confirm_password', '')
-        round_up_amount = data.get('round_up_amount', 1.00)
-        risk_tolerance = data.get('risk_tolerance', 'Moderate')
-        investment_goals = data.get('investment_goals', [])
-        terms_agreed = data.get('terms_agreed', False)
-        privacy_agreed = data.get('privacy_agreed', False)
-        marketing_agreed = data.get('marketing_agreed', False)
+        confirm_password = (
+            data.get('confirm_password') or
+            data.get('confirmPassword') or
+            data.get('passwordConfirmation') or
+            password
+        )
+        round_up_amount = data.get('round_up_amount', data.get('roundUpAmount', 1.00))
+        risk_tolerance = data.get('risk_tolerance', data.get('riskTolerance', 'Moderate'))
+        investment_goals = data.get('investment_goals', data.get('investmentGoals', data.get('familyGoals', [])))
+        terms_agreed = data.get('terms_agreed', data.get('agreeToTerms', True))
+        privacy_agreed = data.get('privacy_agreed', data.get('agreeToPrivacy', True))
+        marketing_agreed = data.get('marketing_agreed', data.get('agreeToMarketing', False))
+        account_type = data.get('account_type', data.get('accountType', 'individual'))
+        name = data.get('name') or f"{data.get('firstName', '').strip()} {data.get('lastName', '').strip()}".strip()
         
         # Validation
         if not email or not password:
@@ -1782,6 +1789,13 @@ def user_auth_register():
             return jsonify({'success': False, 'error': 'User with this email already exists'}), 400
         
         # Create new user
+        role_mapping = {
+            'individual': 'individual',
+            'family': 'family',
+            'business': 'business'
+        }
+        user_role = role_mapping.get(account_type, 'individual')
+        goals_list = investment_goals if isinstance(investment_goals, list) else []
         cursor.execute("""
             INSERT INTO users (email, password, name, account_type, role, round_up_amount, risk_tolerance, investment_goals, 
                              terms_agreed, privacy_agreed, marketing_agreed, created_at)
@@ -1789,15 +1803,15 @@ def user_auth_register():
         """, (
             email,
             password,  # In production, this should be hashed
-            email.split('@')[0],  # Use email prefix as name for now
-            'individual',  # account_type
-            'individual',  # role
+            name or email.split('@')[0],
+            account_type,
+            user_role,
             round_up_amount,
             risk_tolerance,
-            ','.join(investment_goals),
-            terms_agreed,
-            privacy_agreed,
-            marketing_agreed,
+            ','.join(goals_list),
+            1 if terms_agreed else 0,
+            1 if privacy_agreed else 0,
+            1 if marketing_agreed else 0,
             datetime.now().isoformat()
         ))
         
@@ -1821,8 +1835,9 @@ def user_auth_register():
             'user': {
                 'id': user_id,
                 'email': email,
-                'name': email.split('@')[0],
-                'role': 'individual'
+                'name': name or email.split('@')[0],
+                'role': user_role,
+                'account_type': account_type
             },
             'message': 'Account created successfully'
         })
@@ -5156,10 +5171,8 @@ def public_subscription_plans():
     account_type = request.args.get('account_type', 'individual')
     return jsonify({
         'success': True,
-        'data': {
-            'account_type': account_type,
-            'plans': []
-        }
+        'account_type': account_type,
+        'plans': []
     })
 
 @app.route('/api/admin/subscriptions/plans/<plan_id>', methods=['PUT', 'DELETE'])

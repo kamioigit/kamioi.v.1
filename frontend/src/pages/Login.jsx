@@ -349,7 +349,8 @@ const Login = ({ initialMode = 'login' }) => {
           const response = await fetch(`${apiBaseUrl}${endpoint}`)
           if (response.ok) {
             const data = await response.json()
-            setSubscriptionPlans(data.plans || data.data || [])
+            const plans = data.plans || data.data?.plans || data.data || []
+            setSubscriptionPlans(Array.isArray(plans) ? plans : [])
           } else {
             console.error('Failed to fetch subscription plans:', response.status, response.statusText)
             setSubscriptionPlans([])
