@@ -5964,9 +5964,29 @@ def admin_bulk_upload():
                 confidence REAL DEFAULT 0.0,
                 status TEXT DEFAULT 'approved',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                admin_id TEXT
+                admin_id TEXT,
+                admin_approved INTEGER DEFAULT 1,
+                company_name TEXT
             )
         ''')
+        
+        # Migrate existing table: add missing columns if they don't exist
+        try:
+            cursor.execute("PRAGMA table_info(llm_mappings)")
+            columns = [col[1] for col in cursor.fetchall()]
+            
+            if 'admin_approved' not in columns:
+                print("Adding admin_approved column to llm_mappings table...")
+                cursor.execute("ALTER TABLE llm_mappings ADD COLUMN admin_approved INTEGER DEFAULT 1")
+                conn.commit()
+            
+            if 'company_name' not in columns:
+                print("Adding company_name column to llm_mappings table...")
+                cursor.execute("ALTER TABLE llm_mappings ADD COLUMN company_name TEXT")
+                conn.commit()
+        except Exception as migration_error:
+            print(f"Migration warning: {migration_error}")
+            # Continue anyway - table might not exist yet
         
         batch_data = []
         for row in csv_reader:
