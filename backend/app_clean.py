@@ -75,6 +75,7 @@ def add_cors_headers(response):
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Admin-Token, X-User-Token, X-Requested-With, Accept, Origin'
     response.headers['Access-Control-Max-Age'] = '3600'
+    response.headers['Access-Control-Expose-Headers'] = 'Content-Length, Content-Type'
     return response
 
 # Normalize user token format (token_ -> user_token_)
@@ -5973,6 +5974,7 @@ def get_company_name_from_ticker(ticker_symbol):
 
 @app.route('/api/admin/bulk-upload', methods=['POST', 'OPTIONS'])
 @app.route('/api/admin/bulk-upload-v2', methods=['POST', 'OPTIONS'])
+@cross_origin(origins='*', methods=['POST', 'OPTIONS'], allow_headers=['Content-Type', 'Authorization', 'X-Admin-Token', 'X-User-Token', 'X-Requested-With', 'Accept', 'Origin'])
 def admin_bulk_upload():
     try:
         auth_header = request.headers.get('Authorization')
