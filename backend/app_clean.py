@@ -142,9 +142,11 @@ def get_db_connection():
         conn.autocommit = False
     return conn
 
-def get_db_cursor(conn):
-    """Get a cursor that returns dictionary-like rows (for compatibility with SQLite code)"""
-    return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+def get_db_cursor(conn, dict_cursor=False):
+    """Get a cursor - regular by default, RealDictCursor if dict_cursor=True"""
+    if dict_cursor:
+        return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    return conn.cursor()
 
 def get_category_distribution():
     """Get real category distribution from database"""
@@ -559,7 +561,7 @@ def admin_login():
         
         try:
             conn = get_db_connection()
-            cursor = get_db_cursor(conn)
+            cursor = get_db_cursor(conn, dict_cursor=True)  # Use dict cursor for admin access
         except Exception as db_error:
             print(f"Database connection error: {db_error}")
             return jsonify({'success': False, 'error': f'Database connection failed: {str(db_error)}'}), 500
@@ -615,7 +617,7 @@ def admin_auth_me():
         admin_id = token.replace('admin_token_', '')
         
         conn = get_db_connection()
-        cursor = get_db_cursor(conn)
+        cursor = get_db_cursor(conn, dict_cursor=True)  # Use dict cursor for admin access
         cursor.execute("SELECT id, email, name, role FROM admins WHERE id = %s", (admin_id,))
         admin = cursor.fetchone()
         conn.close()
