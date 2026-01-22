@@ -7443,12 +7443,12 @@ def admin_llm_dashboard():
         ''')
         pending_mappings = [dict(row) for row in cursor.fetchall()]
         
-        # APPROVED: Only manually admin-approved mappings (exclude bulk uploads)
+        # APPROVED: All admin-approved mappings (including bulk uploads)
         cursor.execute('''
             SELECT id, merchant_name, ticker_symbol, category, confidence, status, 
                    created_at, admin_id, ai_status, ai_confidence, ai_reasoning, admin_approved
             FROM llm_mappings 
-            WHERE admin_approved = 1 AND admin_id != 'admin_bulk_upload'
+            WHERE admin_approved = 1
             ORDER BY created_at DESC 
             LIMIT 20
         ''')
