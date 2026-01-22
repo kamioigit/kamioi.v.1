@@ -46,12 +46,10 @@ except ImportError as e:
 app = Flask(__name__)
 CORS(
     app,
-    origins='*',  # Allow all origins for development and production
+    resources={r"/api/*": {"origins": "*"}},
     allow_headers=['Content-Type', 'Authorization', 'X-Admin-Token', 'X-User-Token', 'X-Requested-With', 'Accept', 'Origin'],
     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     supports_credentials=False,
-    automatic_options=True,
-    send_wildcard=True,
     max_age=3600
 )
 
@@ -118,8 +116,10 @@ def admin_dashboard_overview():
 DB_PATH = os.path.join(os.path.dirname(__file__), 'kamioi.db')
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    # Enable WAL mode for better concurrent access
+    conn.execute('PRAGMA journal_mode=WAL')
     return conn
 
 def get_category_distribution():
@@ -5934,9 +5934,8 @@ def admin_bulk_upload():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # OPTIMIZED: Disable autocommit and optimize SQLite for bulk inserts
-        cursor.execute("PRAGMA synchronous = OFF")
-        cursor.execute("PRAGMA journal_mode = MEMORY")
+        # OPTIMIZED: Optimize SQLite for bulk inserts (keep WAL mode)
+        cursor.execute("PRAGMA synchronous = NORMAL")
         cursor.execute("PRAGMA cache_size = 100000")
         cursor.execute("PRAGMA temp_store = MEMORY")
         
@@ -6028,6 +6027,10 @@ def admin_bulk_upload():
             ''', batch_data)
             conn.commit()
         
+        # Close connection
+        cursor.close()
+        conn.close()
+        
         conn.close()
         
         # Calculate final performance metrics
@@ -6056,9 +6059,17 @@ def admin_bulk_upload():
         })
         
     except Exception as e:
+        # Ensure connection is closed even on error
+        try:
+            if 'conn' in locals():
+                conn.close()
+        except:
+            pass
         end_time = time.time()
         processing_time = end_time - start_time
         print(f"Bulk upload failed after {processing_time:.2f} seconds: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Progress tracking endpoint for bulk uploads
