@@ -142,6 +142,10 @@ def get_db_connection():
         conn.autocommit = False
     return conn
 
+def get_db_cursor(conn):
+    """Get a cursor that returns dictionary-like rows (for compatibility with SQLite code)"""
+    return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
 def get_category_distribution():
     """Get real category distribution from database"""
     try:
@@ -175,7 +179,7 @@ def get_category_distribution():
 def initialize_database():
     """Initialize database with required tables and columns"""
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = get_db_cursor(conn)
     
     try:
         # OPTIMIZATION: Create indexes for LLM Center performance
@@ -305,12 +309,12 @@ def initialize_database():
         ]
 
         for test_user in test_users:
-            cursor.execute("SELECT id FROM users WHERE email = ?", (test_user['email'],))
+            cursor.execute("SELECT id FROM users WHERE email = %s", (test_user['email'],))
             if not cursor.fetchone():
                 cursor.execute("""
                     INSERT INTO users (email, password, name, role, account_type, round_up_amount, risk_tolerance,
                                        investment_goals, terms_agreed, privacy_agreed, marketing_agreed, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     test_user['email'],
                     'Test@1234',
@@ -320,123 +324,126 @@ def initialize_database():
                     1.00,
                     'moderate',
                     '[]',
-                    1,
-                    1,
-                    0,
-                    datetime.now().isoformat()
+                    True,
+                    True,
+                    False,
+                    datetime.now()
                 ))
         
-        # Create user_settings table if it doesn't exist
+        # Create user_settings table if it doesn't exist (PostgreSQL syntax)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_settings (
                 user_id INTEGER PRIMARY KEY,
-                roundup_multiplier REAL DEFAULT 1.0,
-                auto_invest BOOLEAN DEFAULT 0,
-                notifications BOOLEAN DEFAULT 0,
-                email_alerts BOOLEAN DEFAULT 0,
-                theme TEXT DEFAULT 'dark',
-                business_sharing BOOLEAN DEFAULT 0,
-                budget_alerts BOOLEAN DEFAULT 0,
+                roundup_multiplier DECIMAL(10, 2) DEFAULT 1.0,
+                auto_invest BOOLEAN DEFAULT FALSE,
+                notifications BOOLEAN DEFAULT FALSE,
+                email_alerts BOOLEAN DEFAULT FALSE,
+                theme VARCHAR(50) DEFAULT 'dark',
+                business_sharing BOOLEAN DEFAULT FALSE,
+                budget_alerts BOOLEAN DEFAULT FALSE,
                 department_limits TEXT DEFAULT '{}',
-                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
         """)
         
-        # Create transactions table if it doesn't exist
+        # Create transactions table if it doesn't exist (PostgreSQL syntax)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL,
-                amount REAL NOT NULL,
-                merchant TEXT,
-                category TEXT,
-                date TEXT,
+                amount DECIMAL(10, 2) NOT NULL,
+                merchant VARCHAR(500),
+                category VARCHAR(100),
+                date TIMESTAMP,
                 description TEXT,
-                round_up REAL DEFAULT 0,
-                fee REAL DEFAULT 0,
-                total_debit REAL,
-                status TEXT DEFAULT 'pending',
-                account_type TEXT DEFAULT 'individual',
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                round_up DECIMAL(10, 2) DEFAULT 0,
+                fee DECIMAL(10, 2) DEFAULT 0,
+                total_debit DECIMAL(10, 2),
+                status VARCHAR(50) DEFAULT 'pending',
+                account_type VARCHAR(50) DEFAULT 'individual',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
         """)
         
-        # Add missing columns to transactions table if they don't exist
+        # Add missing columns to transactions table if they don't exist (PostgreSQL syntax)
         try:
-            cursor.execute("ALTER TABLE transactions ADD COLUMN merchant TEXT")
-        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS merchant VARCHAR(500)")
+        except Exception:
             pass  # Column already exists
         
         try:
-            cursor.execute("ALTER TABLE transactions ADD COLUMN category TEXT")
-        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS category VARCHAR(100)")
+        except Exception:
             pass  # Column already exists
         
         try:
-            cursor.execute("ALTER TABLE transactions ADD COLUMN date TEXT")
-        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS date TIMESTAMP")
+        except Exception:
             pass  # Column already exists
         
         try:
-            cursor.execute("ALTER TABLE transactions ADD COLUMN account_type TEXT DEFAULT 'individual'")
-        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS account_type VARCHAR(50) DEFAULT 'individual'")
+        except Exception:
             pass  # Column already exists
         
-        # Create notifications table if it doesn't exist
+        # Create notifications table if it doesn't exist (PostgreSQL syntax)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS notifications (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL,
-                title TEXT NOT NULL,
+                title VARCHAR(255) NOT NULL,
                 message TEXT NOT NULL,
-                type TEXT DEFAULT 'info',
-                read BOOLEAN DEFAULT 0,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                type VARCHAR(50) DEFAULT 'info',
+                read BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
         """)
         
-        # Create llm_mappings table if it doesn't exist
+        # Create llm_mappings table if it doesn't exist (PostgreSQL syntax - this is a duplicate, will be handled in bulk upload)
+        # Note: The bulk upload function also creates this table, so this is just for initialization
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS llm_mappings (
-                id INTEGER PRIMARY KEY,
-                merchant_name TEXT NOT NULL,
-                category TEXT,
-                ticker_symbol TEXT,
-                confidence REAL DEFAULT 0.0,
-                status TEXT DEFAULT 'pending',
-                admin_id TEXT,
+                id SERIAL PRIMARY KEY,
+                merchant_name VARCHAR(500) NOT NULL,
+                category VARCHAR(100),
+                ticker_symbol VARCHAR(20),
+                confidence DECIMAL(5, 4) DEFAULT 0.0,
+                status VARCHAR(50) DEFAULT 'pending',
+                admin_id VARCHAR(100),
                 notes TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                admin_approved INTEGER DEFAULT 1,
+                company_name VARCHAR(500)
             )
         """)
         
-        # Create blog_posts table for WordPress-like blog system
+        # Create blog_posts table for WordPress-like blog system (PostgreSQL syntax)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS blog_posts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                slug TEXT UNIQUE NOT NULL,
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(500) NOT NULL,
+                slug VARCHAR(500) UNIQUE NOT NULL,
                 content TEXT NOT NULL,
                 excerpt TEXT,
                 featured_image TEXT,
-                status TEXT DEFAULT 'draft',
+                status VARCHAR(50) DEFAULT 'draft',
                 author_id INTEGER,
-                author_name TEXT,
-                category TEXT,
+                author_name VARCHAR(255),
+                category VARCHAR(100),
                 tags TEXT DEFAULT '[]',
-                seo_title TEXT,
+                seo_title VARCHAR(500),
                 seo_description TEXT,
                 seo_keywords TEXT,
-                meta_robots TEXT DEFAULT 'index,follow',
+                meta_robots VARCHAR(100) DEFAULT 'index,follow',
                 canonical_url TEXT,
-                og_title TEXT,
+                og_title VARCHAR(500),
                 og_description TEXT,
                 og_image TEXT,
-                twitter_title TEXT,
+                twitter_title VARCHAR(500),
                 twitter_description TEXT,
                 twitter_image TEXT,
                 schema_markup TEXT,
@@ -445,49 +452,49 @@ def initialize_database():
                 read_time INTEGER DEFAULT 0,
                 word_count INTEGER DEFAULT 0,
                 views INTEGER DEFAULT 0,
-                published_at TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                published_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (author_id) REFERENCES admins (id)
             )
         """)
         
-        # Create blog_categories table
+        # Create blog_categories table (PostgreSQL syntax)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS blog_categories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
-                slug TEXT UNIQUE NOT NULL,
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) UNIQUE NOT NULL,
+                slug VARCHAR(255) UNIQUE NOT NULL,
                 description TEXT,
-                color TEXT DEFAULT '#3B82F6',
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                color VARCHAR(20) DEFAULT '#3B82F6',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
-        # Create blog_tags table
+        # Create blog_tags table (PostgreSQL syntax)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS blog_tags (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
-                slug TEXT UNIQUE NOT NULL,
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) UNIQUE NOT NULL,
+                slug VARCHAR(255) UNIQUE NOT NULL,
                 description TEXT,
                 usage_count INTEGER DEFAULT 0,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
-        # Create blog_seo_analytics table for SEO tracking
+        # Create blog_seo_analytics table for SEO tracking (PostgreSQL syntax)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS blog_seo_analytics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 post_id INTEGER NOT NULL,
-                keyword TEXT NOT NULL,
+                keyword VARCHAR(255) NOT NULL,
                 position INTEGER,
                 search_volume INTEGER,
-                difficulty_score REAL,
-                cpc REAL,
-                competition TEXT,
-                last_checked TEXT DEFAULT CURRENT_TIMESTAMP,
+                difficulty_score DECIMAL(5, 2),
+                cpc DECIMAL(10, 2),
+                competition VARCHAR(50),
+                last_checked TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (post_id) REFERENCES blog_posts (id)
             )
         """)
@@ -523,10 +530,10 @@ def admin_login():
             return jsonify({'success': False, 'error': 'Email and password are required'}), 400
         
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = get_db_cursor(conn)
         
         # Check admin table first
-        cursor.execute("SELECT id, email, name, role, password FROM admins WHERE email = ?", (email,))
+        cursor.execute("SELECT id, email, name, role, password FROM admins WHERE email = %s", (email,))
         admin = cursor.fetchone()
         
         if admin:
@@ -568,8 +575,8 @@ def admin_auth_me():
         admin_id = token.replace('admin_token_', '')
         
         conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, email, name, role FROM admins WHERE id = ?", (admin_id,))
+        cursor = get_db_cursor(conn)
+        cursor.execute("SELECT id, email, name, role FROM admins WHERE id = %s", (admin_id,))
         admin = cursor.fetchone()
         conn.close()
         
