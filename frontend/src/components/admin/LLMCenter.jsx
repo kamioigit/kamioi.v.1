@@ -1527,11 +1527,6 @@ const LLMCenter = () => {
         })
       }, 2000)
 
-      // Create FormData with file and token (token in form avoids Authorization header → no CORS preflight)
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('admin_token', token)
-
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       // Add cache-busting parameter to force fresh request and bypass CDN cache
       const cacheBuster = `?t=${Date.now()}`
@@ -1545,6 +1540,76 @@ const LLMCenter = () => {
         payload.append('file', file)
         payload.append('admin_token', token)
         return payload
+      }
+
+      const buildProgressUrl = (jobId) => {
+        const baseUrl = import.meta.env.PROD
+          ? ''
+          : apiBaseUrl
+        const safeJobId = encodeURIComponent(jobId)
+        const safeToken = encodeURIComponent(token)
+        return `${baseUrl}/api/admin/bulk-upload/progress?job_id=${safeJobId}&admin_token=${safeToken}`
+      }
+
+      const startProgressPolling = (jobId) => {
+        const poll = async () => {
+          try {
+            const response = await fetch(buildProgressUrl(jobId))
+            const result = await response.json()
+            if (!result.success) {
+              return
+            }
+            const status = result.data?.status || 'processing'
+            const processed = result.data?.processed_rows || 0
+            const rowsPerSecond = result.data?.rows_per_second || 0
+
+            if (status === 'completed') {
+              clearInterval(progressInterval)
+              clearInterval(progressPollInterval)
+
+              const errorCount = result.data?.errors?.length || 0
+              const processingTime = result.data?.processing_time || 0
+              setGlassModal({ 
+                isOpen: true, 
+                title: 'Bulk Upload Complete!', 
+                message: `Upload completed successfully!
+                
+Processed: ${processed.toLocaleString()} rows
+Time: ${processingTime}s
+Speed: ${rowsPerSecond.toLocaleString()} rows/sec
+Errors: ${errorCount}`, 
+                type: 'success' 
+              })
+              setShowBulkUpload(false)
+              fetchLLMData()
+              return
+            }
+
+            if (status === 'failed') {
+              clearInterval(progressInterval)
+              clearInterval(progressPollInterval)
+              setGlassModal({ 
+                isOpen: true, 
+                title: 'Error', 
+                message: result.data?.error || 'Bulk upload failed', 
+                type: 'error' 
+              })
+              return
+            }
+
+            setGlassModal({ 
+              isOpen: true, 
+              title: 'Processing Upload', 
+              message: `Processing... ${processed.toLocaleString()} rows (${rowsPerSecond.toLocaleString()} rows/sec).`, 
+              type: 'info' 
+            })
+          } catch (pollError) {
+            // Ignore transient errors and keep polling
+          }
+        }
+
+        const progressPollInterval = setInterval(poll, 3000)
+        poll()
       }
 
       const sendBulkUpload = (url, allowRetry) => {
@@ -1567,7 +1632,35 @@ const LLMCenter = () => {
           clearInterval(progressInterval)
 
           if (xhr.status >= 200 && xhr.status < 300) {
-            const result = JSON.parse(xhr.responseText)
+            let result = null
+            try {
+              result = JSON.parse(xhr.responseText)
+            } catch (parseError) {
+              result = null
+            }
+            const jobId = result?.data?.job_id || result?.job_id
+            if (xhr.status === 202 || jobId) {
+              if (!jobId) {
+                setGlassModal({ 
+                  isOpen: true, 
+                  title: 'Error', 
+                  message: 'Upload accepted but missing job id', 
+                  type: 'error' 
+                })
+                return
+              }
+              startProgressPolling(jobId)
+              return
+            }
+            if (!result) {
+              setGlassModal({ 
+                isOpen: true, 
+                title: 'Error', 
+                message: 'Upload completed but returned an invalid response', 
+                type: 'error' 
+              })
+              return
+            }
             if (result.success) {
               const processed = result.data?.processed_rows || result.stats?.processed || 0
               const errorCount = result.data?.error_count || result.data?.errors?.length || result.stats?.errors || 0

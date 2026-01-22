@@ -10,6 +10,8 @@ import secrets
 import math
 import json
 import time
+import threading
+import tempfile
 from datetime import datetime
 import base64
 import uuid
@@ -79,6 +81,207 @@ def add_cors_headers(response):
     except Exception:
         pass
     return response
+
+# Bulk upload job tracking
+BULK_UPLOAD_JOBS = {}
+BULK_UPLOAD_LOCK = threading.Lock()
+
+def _update_bulk_upload_job(job_id, **updates):
+    with BULK_UPLOAD_LOCK:
+        job = BULK_UPLOAD_JOBS.get(job_id, {})
+        job.update(updates)
+        BULK_UPLOAD_JOBS[job_id] = job
+
+def _process_bulk_upload_job(job_id, file_path):
+    start_time = time.time()
+    _update_bulk_upload_job(job_id, status='processing', started_at=start_time)
+
+    try:
+        # Read file content with proper encoding handling
+        try:
+            with open(file_path, 'rb') as file_handle:
+                file_content = file_handle.read().decode('utf-8')
+        except UnicodeDecodeError:
+            with open(file_path, 'rb') as file_handle:
+                file_content = file_handle.read().decode('utf-8', errors='ignore')
+
+        import csv
+        import io
+
+        csv_reader = csv.DictReader(io.StringIO(file_content))
+
+        # OPTIMIZED: Process in much larger batches for maximum speed
+        batch_size = 50000  # Increased from 5000 for 10x speed improvement
+        processed_rows = 0
+        errors = []
+
+        # Get database connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        print(f"Starting optimized bulk upload processing...")
+        print(f"Batch size: {batch_size}")
+        print(f"PostgreSQL batch processing enabled")
+
+        # Create mappings table if it doesn't exist (PostgreSQL syntax)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS llm_mappings (
+                id SERIAL PRIMARY KEY,
+                merchant_name VARCHAR(500) NOT NULL,
+                category VARCHAR(100),
+                notes TEXT,
+                ticker_symbol VARCHAR(20),
+                confidence DECIMAL(5, 4) DEFAULT 0.0,
+                status VARCHAR(50) DEFAULT 'approved',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                admin_id VARCHAR(100),
+                admin_approved INTEGER DEFAULT 1,
+                company_name VARCHAR(500)
+            )
+        ''')
+        conn.commit()
+
+        # Migrate existing table: add missing columns if they don't exist (PostgreSQL syntax)
+        try:
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'llm_mappings'
+            """)
+            columns = [row[0] for row in cursor.fetchall()]
+
+            if 'admin_approved' not in columns:
+                print("Adding admin_approved column to llm_mappings table...")
+                cursor.execute("ALTER TABLE llm_mappings ADD COLUMN admin_approved INTEGER DEFAULT 1")
+                conn.commit()
+
+            if 'company_name' not in columns:
+                print("Adding company_name column to llm_mappings table...")
+                cursor.execute("ALTER TABLE llm_mappings ADD COLUMN company_name VARCHAR(500)")
+                conn.commit()
+        except Exception as migration_error:
+            print(f"Migration warning: {migration_error}")
+            # Continue anyway - table might not exist yet
+
+        batch_data = []
+        for row in csv_reader:
+            try:
+                # Validate required fields
+                merchant_name = row.get('Merchant Name', '').strip()
+                if not merchant_name:
+                    errors.append(f"Row {processed_rows + 1}: Missing merchant name")
+                    continue
+
+                # Handle confidence field - could be percentage or decimal
+                confidence_str = str(row.get('Confidence', '0')).strip()
+                confidence = 0.0
+                try:
+                    if confidence_str.endswith('%'):
+                        # Convert percentage to decimal (93% -> 0.93)
+                        confidence = float(confidence_str[:-1]) / 100.0
+                    else:
+                        # Already a decimal
+                        confidence = float(confidence_str)
+                except (ValueError, TypeError):
+                    confidence = 0.0
+
+                # Map ticker symbol to company name
+                ticker_symbol = row.get('Ticker Symbol', '').strip()
+                company_name = get_company_name_from_ticker(ticker_symbol)
+
+                # Prepare data for batch insert
+                batch_data.append((
+                    merchant_name,
+                    row.get('Category', '').strip(),
+                    row.get('Notes', '').strip(),
+                    ticker_symbol,
+                    confidence,
+                    'approved',  # Direct approval for bulk uploads
+                    1,  # admin_approved = 1 for bulk uploads
+                    'admin_bulk_upload',
+                    company_name  # Add company name
+                ))
+
+                processed_rows += 1
+
+                # Process batch when it reaches batch_size
+                if len(batch_data) >= batch_size:
+                    cursor.executemany('''
+                        INSERT INTO llm_mappings 
+                        (merchant_name, category, notes, ticker_symbol, confidence, status, admin_approved, admin_id, company_name)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ''', batch_data)
+                    conn.commit()
+                    batch_data = []
+
+                    # Progress tracking
+                    elapsed_time = time.time() - start_time
+                    rows_per_second = processed_rows / elapsed_time if elapsed_time > 0 else 0
+                    _update_bulk_upload_job(
+                        job_id,
+                        processed_rows=processed_rows,
+                        rows_per_second=round(rows_per_second, 0),
+                        last_updated=time.time()
+                    )
+                    print(f"Processed {processed_rows:,} rows in {elapsed_time:.1f}s ({rows_per_second:.0f} rows/sec)")
+
+            except Exception as e:
+                errors.append(f"Row {processed_rows + 1}: {str(e)}")
+                continue
+
+        # Process remaining batch
+        if batch_data:
+            cursor.executemany('''
+                INSERT INTO llm_mappings 
+                (merchant_name, category, notes, ticker_symbol, confidence, status, admin_approved, admin_id, company_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', batch_data)
+            conn.commit()
+
+        # Close connection
+        cursor.close()
+        conn.close()
+
+        # Calculate final performance metrics
+        end_time = time.time()
+        total_time = end_time - start_time
+        rows_per_second = processed_rows / total_time if total_time > 0 else 0
+
+        print(f"Bulk upload completed!")
+        print(f"Total rows: {processed_rows:,}")
+        print(f"Total time: {total_time:.2f} seconds")
+        print(f"Speed: {rows_per_second:.0f} rows/second")
+        print(f"Performance: {batch_size:,} batch size")
+
+        _update_bulk_upload_job(
+            job_id,
+            status='completed',
+            processed_rows=processed_rows,
+            errors=errors[:10],
+            batch_size=batch_size,
+            processing_time=round(total_time, 2),
+            rows_per_second=round(rows_per_second, 0),
+            finished_at=end_time
+        )
+    except Exception as e:
+        end_time = time.time()
+        processing_time = end_time - start_time
+        print(f"Bulk upload failed after {processing_time:.2f} seconds: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        _update_bulk_upload_job(
+            job_id,
+            status='failed',
+            error=str(e),
+            processing_time=round(processing_time, 2),
+            finished_at=end_time
+        )
+    finally:
+        try:
+            if file_path and os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception:
+            pass
 
 # Normalize user token format (token_ -> user_token_)
 @app.before_request
@@ -5998,185 +6201,39 @@ def admin_bulk_upload():
         if file.filename == '':
             return jsonify({'success': False, 'error': 'No file selected'}), 400
         
-        # Process CSV file directly on backend (no frontend processing)
-        import csv
-        import io
-        import time
-        
-        # Read file content with proper encoding handling
-        try:
-            file_content = file.read().decode('utf-8')
-        except UnicodeDecodeError:
-            # Try with different encoding
-            file.seek(0)  # Reset file pointer
-            file_content = file.read().decode('utf-8', errors='ignore')
-        
-        csv_reader = csv.DictReader(io.StringIO(file_content))
-        
-        # OPTIMIZED: Process in much larger batches for maximum speed
-        batch_size = 50000  # Increased from 5000 for 10x speed improvement
-        processed_rows = 0
-        errors = []
-        start_time = time.time()
-        
-        # Get database connection
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        print(f"Starting optimized bulk upload processing...")
-        print(f"Batch size: {batch_size}")
-        print(f"PostgreSQL batch processing enabled")
-        
-        # Create mappings table if it doesn't exist (PostgreSQL syntax)
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS llm_mappings (
-                id SERIAL PRIMARY KEY,
-                merchant_name VARCHAR(500) NOT NULL,
-                category VARCHAR(100),
-                notes TEXT,
-                ticker_symbol VARCHAR(20),
-                confidence DECIMAL(5, 4) DEFAULT 0.0,
-                status VARCHAR(50) DEFAULT 'approved',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                admin_id VARCHAR(100),
-                admin_approved INTEGER DEFAULT 1,
-                company_name VARCHAR(500)
-            )
-        ''')
-        conn.commit()
-        
-        # Migrate existing table: add missing columns if they don't exist (PostgreSQL syntax)
-        try:
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'llm_mappings'
-            """)
-            columns = [row[0] for row in cursor.fetchall()]
-            
-            if 'admin_approved' not in columns:
-                print("Adding admin_approved column to llm_mappings table...")
-                cursor.execute("ALTER TABLE llm_mappings ADD COLUMN admin_approved INTEGER DEFAULT 1")
-                conn.commit()
-            
-            if 'company_name' not in columns:
-                print("Adding company_name column to llm_mappings table...")
-                cursor.execute("ALTER TABLE llm_mappings ADD COLUMN company_name VARCHAR(500)")
-                conn.commit()
-        except Exception as migration_error:
-            print(f"Migration warning: {migration_error}")
-            # Continue anyway - table might not exist yet
-        
-        batch_data = []
-        for row in csv_reader:
-            try:
-                # Validate required fields
-                merchant_name = row.get('Merchant Name', '').strip()
-                if not merchant_name:
-                    errors.append(f"Row {processed_rows + 1}: Missing merchant name")
-                    continue
-                
-                # Handle confidence field - could be percentage or decimal
-                confidence_str = str(row.get('Confidence', '0')).strip()
-                confidence = 0.0
-                try:
-                    if confidence_str.endswith('%'):
-                        # Convert percentage to decimal (93% -> 0.93)
-                        confidence = float(confidence_str[:-1]) / 100.0
-                    else:
-                        # Already a decimal
-                        confidence = float(confidence_str)
-                except (ValueError, TypeError):
-                    confidence = 0.0
-                
-                # Map ticker symbol to company name
-                ticker_symbol = row.get('Ticker Symbol', '').strip()
-                company_name = get_company_name_from_ticker(ticker_symbol)
-                
-                # Prepare data for batch insert
-                batch_data.append((
-                    merchant_name,
-                    row.get('Category', '').strip(),
-                    row.get('Notes', '').strip(),
-                    ticker_symbol,
-                    confidence,
-                    'approved',  # Direct approval for bulk uploads
-                    1,  # admin_approved = 1 for bulk uploads
-                    'admin_bulk_upload',
-                    company_name  # Add company name
-                ))
-                
-                processed_rows += 1
-                
-                # Process batch when it reaches batch_size
-                if len(batch_data) >= batch_size:
-                    cursor.executemany('''
-                        INSERT INTO llm_mappings 
-                        (merchant_name, category, notes, ticker_symbol, confidence, status, admin_approved, admin_id, company_name)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ''', batch_data)
-                    conn.commit()
-                    batch_data = []
-                    
-                    # Progress tracking
-                    elapsed_time = time.time() - start_time
-                    rows_per_second = processed_rows / elapsed_time if elapsed_time > 0 else 0
-                    print(f"Processed {processed_rows:,} rows in {elapsed_time:.1f}s ({rows_per_second:.0f} rows/sec)")
-                    
-            except Exception as e:
-                errors.append(f"Row {processed_rows + 1}: {str(e)}")
-                continue
-        
-        # Process remaining batch
-        if batch_data:
-            cursor.executemany('''
-                INSERT INTO llm_mappings 
-                (merchant_name, category, notes, ticker_symbol, confidence, status, admin_approved, admin_id, company_name)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ''', batch_data)
-            conn.commit()
-        
-        # Close connection
-        cursor.close()
-        conn.close()
-        
-        conn.close()
-        
-        # Calculate final performance metrics
-        end_time = time.time()
-        total_time = end_time - start_time
-        rows_per_second = processed_rows / total_time if total_time > 0 else 0
-        
-        print(f"Bulk upload completed!")
-        print(f"Total rows: {processed_rows:,}")
-        print(f"Total time: {total_time:.2f} seconds")
-        print(f"Speed: {rows_per_second:.0f} rows/second")
-        print(f"Performance: {batch_size:,} batch size")
-        
+        # Save upload to a temp file and process asynchronously to avoid gateway timeouts
+        job_id = str(uuid.uuid4())
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_file:
+            file.save(temp_file.name)
+            temp_path = temp_file.name
+
+        _update_bulk_upload_job(
+            job_id,
+            status='queued',
+            processed_rows=0,
+            rows_per_second=0,
+            errors=[],
+            created_at=time.time()
+        )
+
+        worker = threading.Thread(
+            target=_process_bulk_upload_job,
+            args=(job_id, temp_path),
+            daemon=True
+        )
+        worker.start()
+
         return jsonify({
             'success': True,
-            'message': f'Bulk upload processed successfully in {total_time:.2f} seconds',
+            'message': 'Bulk upload accepted and queued for processing',
             'data': {
-                'uploaded_rows': processed_rows,
-                'processed_rows': processed_rows,
-                'errors': errors[:10],  # Limit error reporting
-                'batch_size': batch_size,
-                'processing_time': round(total_time, 2),
-                'rows_per_second': round(rows_per_second, 0),
-                'performance_boost': '10x faster with optimized batch processing'
+                'job_id': job_id,
+                'status': 'queued'
             }
-        })
+        }), 202
         
     except Exception as e:
-        # Ensure connection is closed even on error
-        try:
-            if 'conn' in locals():
-                conn.close()
-        except:
-            pass
-        end_time = time.time()
-        processing_time = end_time - start_time
-        print(f"Bulk upload failed after {processing_time:.2f} seconds: {str(e)}")
+        print(f"Bulk upload failed to start: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -6186,19 +6243,30 @@ def admin_bulk_upload():
 def admin_bulk_upload_progress():
     """Get current bulk upload progress"""
     try:
+        # Accept token from Authorization header OR query param (avoid preflight)
         auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
+        query_token = request.args.get('admin_token', '').strip()
+        token = None
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ', 1)[1].strip()
+        if not token and query_token:
+            token = query_token
+        if not token or not str(token).startswith('admin_token_'):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
-        
-        # This would be implemented with a proper progress tracking system
-        # For now, return a simple status
+
+        job_id = request.args.get('job_id', '').strip()
+        if not job_id:
+            return jsonify({'success': False, 'error': 'Missing job_id'}), 400
+
+        with BULK_UPLOAD_LOCK:
+            job = BULK_UPLOAD_JOBS.get(job_id)
+
+        if not job:
+            return jsonify({'success': False, 'error': 'Job not found'}), 404
+
         return jsonify({
             'success': True,
-            'data': {
-                'status': 'processing',
-                'message': 'Bulk upload in progress...',
-                'timestamp': time.time()
-            }
+            'data': job
         })
         
     except Exception as e:
