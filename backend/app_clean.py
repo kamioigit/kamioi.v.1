@@ -67,6 +67,15 @@ def handle_cors_preflight():
         response.headers['Expires'] = '0'
         return response
 
+# Add CORS headers to ALL responses (not just preflight)
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Admin-Token, X-User-Token, X-Requested-With, Accept, Origin'
+    response.headers['Access-Control-Max-Age'] = '3600'
+    return response
+
 # Normalize user token format (token_ -> user_token_)
 @app.before_request
 def normalize_user_token():
