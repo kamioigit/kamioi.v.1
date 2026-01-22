@@ -122,7 +122,11 @@ def admin_dashboard_overview():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Database setup
-DB_PATH = os.path.join(os.path.dirname(__file__), 'kamioi.db')
+# Use /opt/render/project/.data for persistent storage on Render (survives deployments)
+# Falls back to local directory for development
+DATA_DIR = os.environ.get('RENDER') and '/opt/render/project/.data' or os.path.dirname(__file__)
+os.makedirs(DATA_DIR, exist_ok=True)
+DB_PATH = os.path.join(DATA_DIR, 'kamioi.db')
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=30.0, check_same_thread=False)
