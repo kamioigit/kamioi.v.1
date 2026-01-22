@@ -2,7 +2,8 @@
 
 from flask import Flask, jsonify, request, send_from_directory, make_response
 from flask_cors import CORS, cross_origin
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import os
 import hashlib
 import secrets
@@ -122,17 +123,23 @@ def admin_dashboard_overview():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Database setup
-# Use /opt/render/project/.data for persistent storage on Render (survives deployments)
-# Falls back to local directory for development
-DATA_DIR = os.environ.get('RENDER') and '/opt/render/project/.data' or os.path.dirname(__file__)
-os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, 'kamioi.db')
+# PostgreSQL connection (Render provides DATABASE_URL automatically)
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH, timeout=30.0, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    # Enable WAL mode for better concurrent access
-    conn.execute('PRAGMA journal_mode=WAL')
+    """Connect to PostgreSQL database"""
+    if DATABASE_URL:
+        conn = psycopg2.connect(DATABASE_URL)
+        conn.autocommit = False  # Use transactions
+    else:
+        # Fallback for local development
+        conn = psycopg2.connect(
+            host='localhost',
+            database='kamioi',
+            user='postgres',
+            password='postgres'
+        )
+        conn.autocommit = False
     return conn
 
 def get_category_distribution():
@@ -174,22 +181,30 @@ def initialize_database():
         # OPTIMIZATION: Create indexes for LLM Center performance
         print("Creating database indexes for performance optimization...")
         
-        # Indexes for llm_mappings table
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_mappings_status ON llm_mappings(status)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_mappings_created_at ON llm_mappings(created_at)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_mappings_confidence ON llm_mappings(confidence)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_mappings_ai_status ON llm_mappings(ai_status)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_mappings_ai_attempted ON llm_mappings(ai_attempted)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_mappings_merchant_name ON llm_mappings(merchant_name)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_mappings_category ON llm_mappings(category)")
+        # Indexes for llm_mappings table (only if table exists)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_llm_mappings_status ON llm_mappings(status)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_llm_mappings_created_at ON llm_mappings(created_at)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_llm_mappings_confidence ON llm_mappings(confidence)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_llm_mappings_merchant_name ON llm_mappings(merchant_name)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_llm_mappings_category ON llm_mappings(category)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_llm_mappings_admin_approved ON llm_mappings(admin_approved)
+        """)
         
         # Composite indexes for common queries
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_mappings_status_created ON llm_mappings(status, created_at)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_mappings_ai_status_confidence ON llm_mappings(ai_status, confidence)")
-        
-        # Indexes for llm_data_assets table
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_data_assets_type ON llm_data_assets(asset_type)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_data_assets_value ON llm_data_assets(current_value)")
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_llm_mappings_status_created ON llm_mappings(status, created_at)
+        """)
         
         conn.commit()
         print("✅ Database indexes created successfully")
@@ -198,73 +213,73 @@ def initialize_database():
         print(f"Warning: Could not create indexes: {e}")
     
     try:
-        # Create users table if it doesn't exist
+        # Create users table if it doesn't exist (PostgreSQL syntax)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY,
-                email TEXT UNIQUE NOT NULL,
-                password TEXT,
-                name TEXT NOT NULL,
-                role TEXT DEFAULT 'individual',
-                account_type TEXT DEFAULT 'individual',
-                round_up_amount REAL DEFAULT 1.00,
-                risk_tolerance TEXT DEFAULT 'Moderate',
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255),
+                name VARCHAR(255) NOT NULL,
+                role VARCHAR(50) DEFAULT 'individual',
+                account_type VARCHAR(50) DEFAULT 'individual',
+                round_up_amount DECIMAL(10, 2) DEFAULT 1.00,
+                risk_tolerance VARCHAR(50) DEFAULT 'Moderate',
                 investment_goals TEXT DEFAULT '[]',
-                terms_agreed BOOLEAN DEFAULT 0,
-                privacy_agreed BOOLEAN DEFAULT 0,
-                marketing_agreed BOOLEAN DEFAULT 0,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                last_login TEXT,
-                google_uid TEXT,
+                terms_agreed BOOLEAN DEFAULT FALSE,
+                privacy_agreed BOOLEAN DEFAULT FALSE,
+                marketing_agreed BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP,
+                google_uid VARCHAR(255),
                 google_photo_url TEXT
             )
         """)
 
-        # Create admins table if it doesn't exist
+        # Create admins table if it doesn't exist (PostgreSQL syntax)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS admins (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT UNIQUE NOT NULL,
-                name TEXT NOT NULL,
-                role TEXT DEFAULT 'admin',
-                password TEXT NOT NULL,
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                role VARCHAR(50) DEFAULT 'admin',
+                password VARCHAR(255) NOT NULL,
                 permissions TEXT DEFAULT '[]',
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
-        # Add permissions column if missing
+        # Add permissions column if missing (PostgreSQL syntax)
         try:
-            cursor.execute("ALTER TABLE admins ADD COLUMN permissions TEXT DEFAULT '[]'")
-        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE admins ADD COLUMN IF NOT EXISTS permissions TEXT DEFAULT '[]'")
+        except Exception:
             pass
 
         # Seed a default admin if none exist (use env overrides when provided)
         cursor.execute("SELECT COUNT(*) AS count FROM admins")
-        admin_count = cursor.fetchone()['count']
+        admin_count = cursor.fetchone()[0]
         if admin_count == 0:
             admin_email = (os.getenv('ADMIN_EMAIL') or 'info@kamioi.com').strip().lower()
             admin_password = os.getenv('ADMIN_PASSWORD') or 'admin123'
             password_hash = hashlib.sha256(admin_password.encode()).hexdigest()
             cursor.execute(
-                "INSERT INTO admins (email, name, role, password) VALUES (?, ?, ?, ?)",
+                "INSERT INTO admins (email, name, role, password) VALUES (%s, %s, %s, %s)",
                 (admin_email, 'Main Admin', 'superadmin', password_hash)
             )
         
-        # Add Google-specific columns if they don't exist
+        # Add Google-specific columns if they don't exist (PostgreSQL syntax)
         try:
-            cursor.execute("ALTER TABLE users ADD COLUMN google_uid TEXT")
-        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS google_uid VARCHAR(255)")
+        except Exception:
             pass  # Column already exists
         
         try:
-            cursor.execute("ALTER TABLE users ADD COLUMN google_photo_url TEXT")
-        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS google_photo_url TEXT")
+        except Exception:
             pass  # Column already exists
         
         try:
-            cursor.execute("ALTER TABLE users ADD COLUMN last_login TEXT")
-        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP")
+        except Exception:
             pass  # Column already exists
 
         # Seed test users if missing (for demo/login verification)
@@ -5948,36 +5963,36 @@ def admin_bulk_upload():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # OPTIMIZED: Optimize SQLite for bulk inserts (keep WAL mode)
-        cursor.execute("PRAGMA synchronous = NORMAL")
-        cursor.execute("PRAGMA cache_size = 100000")
-        cursor.execute("PRAGMA temp_store = MEMORY")
-        
         print(f"Starting optimized bulk upload processing...")
         print(f"Batch size: {batch_size}")
-        print(f"SQLite optimizations enabled")
+        print(f"PostgreSQL batch processing enabled")
         
-        # Create mappings table if it doesn't exist
+        # Create mappings table if it doesn't exist (PostgreSQL syntax)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS llm_mappings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                merchant_name TEXT NOT NULL,
-                category TEXT,
+                id SERIAL PRIMARY KEY,
+                merchant_name VARCHAR(500) NOT NULL,
+                category VARCHAR(100),
                 notes TEXT,
-                ticker_symbol TEXT,
-                confidence REAL DEFAULT 0.0,
-                status TEXT DEFAULT 'approved',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                admin_id TEXT,
+                ticker_symbol VARCHAR(20),
+                confidence DECIMAL(5, 4) DEFAULT 0.0,
+                status VARCHAR(50) DEFAULT 'approved',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                admin_id VARCHAR(100),
                 admin_approved INTEGER DEFAULT 1,
-                company_name TEXT
+                company_name VARCHAR(500)
             )
         ''')
+        conn.commit()
         
-        # Migrate existing table: add missing columns if they don't exist
+        # Migrate existing table: add missing columns if they don't exist (PostgreSQL syntax)
         try:
-            cursor.execute("PRAGMA table_info(llm_mappings)")
-            columns = [col[1] for col in cursor.fetchall()]
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'llm_mappings'
+            """)
+            columns = [row[0] for row in cursor.fetchall()]
             
             if 'admin_approved' not in columns:
                 print("Adding admin_approved column to llm_mappings table...")
@@ -5986,7 +6001,7 @@ def admin_bulk_upload():
             
             if 'company_name' not in columns:
                 print("Adding company_name column to llm_mappings table...")
-                cursor.execute("ALTER TABLE llm_mappings ADD COLUMN company_name TEXT")
+                cursor.execute("ALTER TABLE llm_mappings ADD COLUMN company_name VARCHAR(500)")
                 conn.commit()
         except Exception as migration_error:
             print(f"Migration warning: {migration_error}")
@@ -6038,7 +6053,7 @@ def admin_bulk_upload():
                     cursor.executemany('''
                         INSERT INTO llm_mappings 
                         (merchant_name, category, notes, ticker_symbol, confidence, status, admin_approved, admin_id, company_name)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ''', batch_data)
                     conn.commit()
                     batch_data = []
@@ -6057,7 +6072,7 @@ def admin_bulk_upload():
             cursor.executemany('''
                 INSERT INTO llm_mappings 
                 (merchant_name, category, notes, ticker_symbol, confidence, status, admin_approved, admin_id, company_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''', batch_data)
             conn.commit()
         
@@ -7426,7 +7441,7 @@ def admin_llm_dashboard():
                 COUNT(CASE WHEN admin_approved = 1 THEN 1 END) as approved_count,
                 COUNT(CASE WHEN (admin_approved = 0 OR admin_approved IS NULL) AND status != 'rejected' THEN 1 END) as pending_count,
                 COUNT(CASE WHEN admin_approved = -1 OR status = 'rejected' THEN 1 END) as rejected_count,
-                COUNT(CASE WHEN created_at > datetime('now', '-1 day') THEN 1 END) as daily_processed,
+                COUNT(CASE WHEN created_at > NOW() - INTERVAL '1 day' THEN 1 END) as daily_processed,
                 AVG(CASE WHEN confidence > 0 THEN confidence END) as avg_confidence,
                 0 as ai_processed,
                 COUNT(CASE WHEN admin_approved = 1 THEN 1 END) as auto_approved,
