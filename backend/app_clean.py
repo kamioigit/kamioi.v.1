@@ -7415,6 +7415,7 @@ def admin_llm_dashboard():
         cursor = conn.cursor()
         
         # OPTIMIZED: Single query for all analytics with proper user approval logic
+        # Note: Only querying columns that exist in the bulk upload table schema
         cursor.execute('''
             SELECT 
                 COUNT(*) as total_mappings,
@@ -7423,9 +7424,9 @@ def admin_llm_dashboard():
                 COUNT(CASE WHEN admin_approved = -1 OR status = 'rejected' THEN 1 END) as rejected_count,
                 COUNT(CASE WHEN created_at > datetime('now', '-1 day') THEN 1 END) as daily_processed,
                 AVG(CASE WHEN confidence > 0 THEN confidence END) as avg_confidence,
-                COUNT(CASE WHEN ai_attempted = 1 THEN 1 END) as ai_processed,
-                COUNT(CASE WHEN ai_auto_approved = 1 THEN 1 END) as auto_approved,
-                COUNT(CASE WHEN ai_status = 'review_required' THEN 1 END) as pending_review
+                0 as ai_processed,
+                COUNT(CASE WHEN admin_approved = 1 THEN 1 END) as auto_approved,
+                0 as pending_review
             FROM llm_mappings
         ''')
         
@@ -7435,7 +7436,7 @@ def admin_llm_dashboard():
         # PENDING: Mappings that need user approval (admin_approved = 0 or NULL)
         cursor.execute('''
             SELECT id, merchant_name, ticker_symbol, category, confidence, status, 
-                   created_at, admin_id, ai_status, ai_confidence, ai_reasoning, admin_approved
+                   created_at, admin_id, admin_approved, company_name, notes
             FROM llm_mappings 
             WHERE (admin_approved = 0 OR admin_approved IS NULL) AND status != 'rejected'
             ORDER BY created_at DESC 
@@ -7446,7 +7447,7 @@ def admin_llm_dashboard():
         # APPROVED: All admin-approved mappings (including bulk uploads)
         cursor.execute('''
             SELECT id, merchant_name, ticker_symbol, category, confidence, status, 
-                   created_at, admin_id, ai_status, ai_confidence, ai_reasoning, admin_approved
+                   created_at, admin_id, admin_approved, company_name, notes
             FROM llm_mappings 
             WHERE admin_approved = 1
             ORDER BY created_at DESC 
@@ -7457,7 +7458,7 @@ def admin_llm_dashboard():
         # REJECTED: User-rejected mappings (admin_approved = -1 or status = 'rejected')
         cursor.execute('''
             SELECT id, merchant_name, ticker_symbol, category, confidence, status, 
-                   created_at, admin_id, ai_status, ai_confidence, ai_reasoning, admin_approved
+                   created_at, admin_id, admin_approved, company_name, notes
             FROM llm_mappings 
             WHERE admin_approved = -1 OR status = 'rejected'
             ORDER BY created_at DESC 
