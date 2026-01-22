@@ -183,8 +183,6 @@ def initialize_database():
     
     # Create tables first, then indexes
     try:
-    
-    try:
         # Create users table if it doesn't exist (PostgreSQL syntax)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
