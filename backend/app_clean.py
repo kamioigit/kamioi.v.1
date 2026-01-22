@@ -5895,6 +5895,7 @@ def get_company_name_from_ticker(ticker_symbol):
     return ticker_to_company.get(ticker_symbol, '')
 
 @app.route('/api/admin/bulk-upload', methods=['POST', 'OPTIONS'])
+@app.route('/api/admin/bulk-upload-v2', methods=['POST', 'OPTIONS'])
 def admin_bulk_upload():
     try:
         auth_header = request.headers.get('Authorization')

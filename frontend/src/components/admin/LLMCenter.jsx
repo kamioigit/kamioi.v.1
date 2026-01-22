@@ -1595,7 +1595,8 @@ Errors: ${errorCount}`,
       }
       
       // Open connection and set headers
-      xhr.open('POST', `${apiBaseUrl}/api/admin/bulk-upload${cacheBuster}`, true)
+      // Use v2 endpoint to bypass browser's cached CORS preflight
+      xhr.open('POST', `${apiBaseUrl}/api/admin/bulk-upload-v2${cacheBuster}`, true)
       xhr.setRequestHeader('Authorization', `Bearer ${token}`)
       
       // Send request
