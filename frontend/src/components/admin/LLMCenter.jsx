@@ -91,6 +91,26 @@ const getCompanyNameFromTicker = (ticker) => {
   return companyMap[ticker.toUpperCase()] || null
 }
 
+const normalizeAnalytics = (analytics) => {
+  if (!analytics) {
+    return null
+  }
+  const performanceMetrics = analytics.performanceMetrics || analytics.performance_metrics || {}
+  const categoryDistribution = analytics.categoryDistribution || analytics.category_distribution || {}
+  return {
+    totalMappings: analytics.totalMappings ?? analytics.total_mappings ?? 0,
+    dailyProcessed: analytics.dailyProcessed ?? analytics.daily_processed ?? 0,
+    accuracyRate: analytics.accuracyRate ?? analytics.accuracy_rate ?? 0,
+    autoApprovalRate: analytics.autoApprovalRate ?? analytics.auto_approval_rate ?? 0,
+    systemStatus: analytics.systemStatus ?? 'online',
+    databaseStatus: analytics.databaseStatus ?? 'connected',
+    aiModelStatus: analytics.aiModelStatus ?? 'active',
+    lastUpdated: analytics.lastUpdated ?? new Date().toISOString(),
+    performanceMetrics,
+    categoryDistribution
+  }
+}
+
 const LLMCenter = () => {
   const { addNotification } = useNotifications()
   const queryClient = useQueryClient() // 🚀 PERFORMANCE FIX: For cache invalidation
@@ -644,9 +664,23 @@ const LLMCenter = () => {
             }
           }
       
+      const rawAnalytics = analytics.data || analytics.analytics || analytics
+      const normalizedAnalytics = normalizeAnalytics(rawAnalytics)
+
       return {
         mappings: mappings.data || mappings,
-        analytics: analytics.data || analytics,
+        analytics: normalizedAnalytics || {
+          totalMappings: 0,
+          dailyProcessed: 0,
+          accuracyRate: 0,
+          autoApprovalRate: 0,
+          systemStatus: "online",
+          databaseStatus: "connected",
+          aiModelStatus: "active",
+          lastUpdated: new Date().toISOString(),
+          performanceMetrics: {},
+          categoryDistribution: {}
+        },
         llm_data_assets: llm_data_assets.data || llm_data_assets
       }
     },
@@ -1576,6 +1610,8 @@ Errors: ${errorCount}`,
                 type: 'success' 
               })
               setShowBulkUpload(false)
+              queryClient.invalidateQueries({ queryKey: ['llm-center-data'] })
+              refetchLLMData()
               fetchLLMData()
               return
             }
@@ -1673,6 +1709,8 @@ Errors: ${errorCount}`,
                 type: 'success' 
               })
               setShowBulkUpload(false)
+              queryClient.invalidateQueries({ queryKey: ['llm-center-data'] })
+              refetchLLMData()
               fetchLLMData() // Refresh data
             } else {
               setGlassModal({ 

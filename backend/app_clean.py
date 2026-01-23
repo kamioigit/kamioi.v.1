@@ -7456,6 +7456,13 @@ def admin_llm_analytics():
         
         # Calculate auto-approval rate
         auto_approval_rate = (approved_mappings / total_mappings * 100) if total_mappings > 0 else 0
+
+        # Daily processed (last 24 hours)
+        cursor.execute('''
+            SELECT COUNT(*) FROM llm_mappings
+            WHERE created_at > NOW() - INTERVAL '1 day'
+        ''')
+        daily_processed = cursor.fetchone()[0] or 0
         
         # Get category distribution
         cursor.execute('''
@@ -7493,24 +7500,31 @@ def admin_llm_analytics():
             processing_speed = total_mappings / max(days_diff, 1) if days_diff > 0 else total_mappings
         else:
             processing_speed = 0
+
+        avg_confidence = perf_data[0] or 0
+        accuracy_rate = round(avg_confidence * 100, 1) if avg_confidence else 0
         
         conn.close()
         
         return jsonify({
             'success': True,
-            'analytics': {
-                'total_mappings': total_mappings,
-                'approved_mappings': approved_mappings,
-                'pending_mappings': pending_mappings,
-                'auto_approval_rate': round(auto_approval_rate, 1),
-                'performance_metrics': {
+            'data': {
+                'totalMappings': total_mappings,
+                'dailyProcessed': daily_processed,
+                'accuracyRate': accuracy_rate,
+                'autoApprovalRate': round(auto_approval_rate, 1),
+                'systemStatus': "online",
+                'databaseStatus': "connected",
+                'aiModelStatus': "active",
+                'lastUpdated': datetime.now().isoformat(),
+                'performanceMetrics': {
                     'processing_speed': f"{processing_speed:.0f} mappings/day",
-                    'avg_confidence': round(perf_data[0] or 0, 1),
+                    'avg_confidence': round(avg_confidence, 3),
                     'error_rate': '0.1%',  # Based on system health
                     'uptime': '99.9%',
                     'memory_usage': '45%'
                 },
-                'category_distribution': category_distribution
+                'categoryDistribution': category_distribution
             }
         })
         
@@ -7521,22 +7535,27 @@ def admin_llm_analytics():
         except Exception:
             pass
         return jsonify({
-            'success': True,
-            'analytics': {
-                'total_mappings': 0,
-                'approved_mappings': 0,
-                'pending_mappings': 0,
-                'auto_approval_rate': 0,
-                'performance_metrics': {
+            'success': False,
+            'error': str(e),
+            'data': {
+                'totalMappings': 0,
+                'dailyProcessed': 0,
+                'accuracyRate': 0,
+                'autoApprovalRate': 0,
+                'systemStatus': "offline",
+                'databaseStatus': "disconnected",
+                'aiModelStatus': "inactive",
+                'lastUpdated': datetime.now().isoformat(),
+                'performanceMetrics': {
                     'processing_speed': '0 mappings/day',
                     'avg_confidence': 0,
                     'error_rate': '0%',
                     'uptime': '0%',
                     'memory_usage': '0%'
                 },
-                'category_distribution': {}
+                'categoryDistribution': {}
             }
-        })
+        }), 500
 
 # ULTRA-FAST LLM Center Dashboard - Single Endpoint for <1 Second Loading
 @app.route('/api/admin/llm-center/dashboard', methods=['GET'])
@@ -7764,17 +7783,20 @@ def admin_llm_dashboard():
                 conn.close()
         except Exception:
             pass
+        import traceback
+        traceback.print_exc()
         return jsonify({
-            'success': True,
+            'success': False,
+            'error': str(e),
             'data': {
                 'analytics': {
                     'totalMappings': 0,
                     'dailyProcessed': 0,
                     'accuracyRate': 0,
                     'autoApprovalRate': 0,
-                    'systemStatus': 'online',
-                    'databaseStatus': 'connected',
-                    'aiModelStatus': 'active',
+                    'systemStatus': 'offline',
+                    'databaseStatus': 'disconnected',
+                    'aiModelStatus': 'inactive',
                     'lastUpdated': datetime.now().isoformat()
                 },
                 'performance_metrics': {
@@ -7802,7 +7824,7 @@ def admin_llm_dashboard():
                     }
                 }
             }
-        })
+        }), 500
 
 # ML Dashboard endpoints
 @app.route('/api/ml/stats', methods=['GET'])
