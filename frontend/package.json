@@ -27,6 +27,7 @@
   "dependencies": {
     "@stripe/stripe-js": "^8.3.0",
     "@tanstack/react-query": "^5.90.9",
+    "@tanstack/react-virtual": "^3.13.18",
     "apexcharts": "^4.0.0",
     "axios": "^1.12.2",
     "clsx": "^2.0.0",

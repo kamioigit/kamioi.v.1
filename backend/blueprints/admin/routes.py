@@ -293,38 +293,98 @@ def admin_dashboard():
 @admin_bp.route('/users', methods=['GET'])
 @cross_origin()
 def admin_users():
-    """Get all users for admin management"""
+    """Get all users for admin management with pagination"""
     ok, res = require_role('admin')
     if ok is False:
         return res
 
     try:
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = min(request.args.get('per_page', 50, type=int), 100)
+        offset = (page - 1) * per_page
+        search = request.args.get('search', '').strip()
+
         conn = db_manager.get_connection()
         use_postgresql = getattr(db_manager, '_use_postgresql', False)
 
         if use_postgresql:
             from sqlalchemy import text
-            result = conn.execute(text('''
-                SELECT id, email, name, account_type, created_at
-                FROM users
-                ORDER BY created_at DESC
-                LIMIT 100
-            '''))
+
+            # Get total count
+            if search:
+                count_result = conn.execute(
+                    text("SELECT COUNT(*) FROM users WHERE email ILIKE :search OR name ILIKE :search"),
+                    {'search': f'%{search}%'}
+                )
+            else:
+                count_result = conn.execute(text("SELECT COUNT(*) FROM users"))
+            total = count_result.scalar() or 0
+
+            # Get paginated users
+            if search:
+                result = conn.execute(text('''
+                    SELECT id, email, name, account_type, created_at
+                    FROM users
+                    WHERE email ILIKE :search OR name ILIKE :search
+                    ORDER BY created_at DESC
+                    LIMIT :limit OFFSET :offset
+                '''), {'search': f'%{search}%', 'limit': per_page, 'offset': offset})
+            else:
+                result = conn.execute(text('''
+                    SELECT id, email, name, account_type, created_at
+                    FROM users
+                    ORDER BY created_at DESC
+                    LIMIT :limit OFFSET :offset
+                '''), {'limit': per_page, 'offset': offset})
             users = [dict(row._mapping) for row in result]
             db_manager.release_connection(conn)
         else:
             cursor = conn.cursor()
-            cursor.execute('''
-                SELECT id, email, name, account_type, created_at
-                FROM users
-                ORDER BY created_at DESC
-                LIMIT 100
-            ''')
+
+            # Get total count
+            if search:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM users WHERE email LIKE ? OR name LIKE ?",
+                    (f'%{search}%', f'%{search}%')
+                )
+            else:
+                cursor.execute("SELECT COUNT(*) FROM users")
+            total = cursor.fetchone()[0] or 0
+
+            # Get paginated users
+            if search:
+                cursor.execute('''
+                    SELECT id, email, name, account_type, created_at
+                    FROM users
+                    WHERE email LIKE ? OR name LIKE ?
+                    ORDER BY created_at DESC
+                    LIMIT ? OFFSET ?
+                ''', (f'%{search}%', f'%{search}%', per_page, offset))
+            else:
+                cursor.execute('''
+                    SELECT id, email, name, account_type, created_at
+                    FROM users
+                    ORDER BY created_at DESC
+                    LIMIT ? OFFSET ?
+                ''', (per_page, offset))
             columns = ['id', 'email', 'name', 'account_type', 'created_at']
             users = [dict(zip(columns, row)) for row in cursor.fetchall()]
             conn.close()
 
-        return jsonify({'success': True, 'users': users})
+        total_pages = (total + per_page - 1) // per_page if per_page > 0 else 0
+        return jsonify({
+            'success': True,
+            'users': users,
+            'meta': {
+                'total': total,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': total_pages,
+                'has_next': page < total_pages,
+                'has_prev': page > 1
+            }
+        })
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -337,40 +397,107 @@ def admin_users():
 @admin_bp.route('/transactions')
 @cross_origin()
 def admin_transactions():
-    """Get all transactions for admin view"""
+    """Get all transactions for admin view with pagination"""
     ok, res = require_role('admin')
     if ok is False:
         return res
 
     try:
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = min(request.args.get('per_page', 50, type=int), 100)
+        offset = (page - 1) * per_page
+        status_filter = request.args.get('status', '')
+        search = request.args.get('search', '').strip()
+
         conn = db_manager.get_connection()
         use_postgresql = getattr(db_manager, '_use_postgresql', False)
 
         if use_postgresql:
             from sqlalchemy import text
-            result = conn.execute(text('''
+
+            # Build WHERE clause
+            where_clauses = []
+            params = {'limit': per_page, 'offset': offset}
+
+            if status_filter:
+                where_clauses.append("t.status = :status")
+                params['status'] = status_filter
+
+            if search:
+                where_clauses.append("(t.merchant ILIKE :search OR u.email ILIKE :search)")
+                params['search'] = f'%{search}%'
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+            # Get total count
+            count_result = conn.execute(
+                text(f"SELECT COUNT(*) FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE {where_sql}"),
+                params
+            )
+            total = count_result.scalar() or 0
+
+            # Get paginated transactions
+            result = conn.execute(text(f'''
                 SELECT t.id, t.user_id, t.merchant, t.amount, t.date, t.status, t.ticker, u.email
                 FROM transactions t
                 LEFT JOIN users u ON t.user_id = u.id
+                WHERE {where_sql}
                 ORDER BY t.date DESC NULLS LAST, t.id DESC
-                LIMIT 500
-            '''))
+                LIMIT :limit OFFSET :offset
+            '''), params)
             transactions = [dict(row._mapping) for row in result]
             db_manager.release_connection(conn)
         else:
             cursor = conn.cursor()
-            cursor.execute('''
+
+            # Build WHERE clause for SQLite
+            where_clauses = []
+            params = []
+
+            if status_filter:
+                where_clauses.append("t.status = ?")
+                params.append(status_filter)
+
+            if search:
+                where_clauses.append("(t.merchant LIKE ? OR u.email LIKE ?)")
+                params.extend([f'%{search}%', f'%{search}%'])
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+            # Get total count
+            cursor.execute(
+                f"SELECT COUNT(*) FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE {where_sql}",
+                params
+            )
+            total = cursor.fetchone()[0] or 0
+
+            # Get paginated transactions
+            cursor.execute(f'''
                 SELECT t.id, t.user_id, t.merchant, t.amount, t.date, t.status, t.ticker, u.email
                 FROM transactions t
                 LEFT JOIN users u ON t.user_id = u.id
+                WHERE {where_sql}
                 ORDER BY t.date DESC, t.id DESC
-                LIMIT 500
-            ''')
+                LIMIT ? OFFSET ?
+            ''', params + [per_page, offset])
             columns = ['id', 'user_id', 'merchant', 'amount', 'date', 'status', 'ticker', 'email']
             transactions = [dict(zip(columns, row)) for row in cursor.fetchall()]
             conn.close()
 
-        return jsonify({'success': True, 'transactions': transactions})
+        total_pages = (total + per_page - 1) // per_page if per_page > 0 else 0
+        return jsonify({
+            'success': True,
+            'transactions': transactions,
+            'meta': {
+                'total': total,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': total_pages,
+                'has_next': page < total_pages,
+                'has_prev': page > 1
+            }
+        })
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

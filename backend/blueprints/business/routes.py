@@ -92,7 +92,7 @@ def business_auth_me():
 @business_bp.route('/transactions', methods=['GET', 'POST'])
 @cross_origin()
 def business_transactions():
-    """Get or create business transactions"""
+    """Get or create business transactions with pagination"""
     user = get_auth_user()
     if not user:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
@@ -101,11 +101,24 @@ def business_transactions():
         user_id = int(user.get('id'))
 
         if request.method == 'GET':
+            # Get pagination parameters
+            page = request.args.get('page', 1, type=int)
+            per_page = min(request.args.get('per_page', 50, type=int), 100)
+            offset = (page - 1) * per_page
+
             conn = db_manager.get_connection()
             use_postgresql = getattr(db_manager, '_use_postgresql', False)
 
             if use_postgresql:
                 from sqlalchemy import text
+                # Get total count
+                count_result = conn.execute(
+                    text('SELECT COUNT(*) FROM transactions WHERE user_id = CAST(:user_id AS INTEGER)'),
+                    {'user_id': user_id}
+                )
+                total = count_result.scalar() or 0
+
+                # Get paginated transactions
                 query = text('''
                     SELECT id, user_id, merchant, amount, date, category, description,
                            round_up, investable, total_debit, fee, status, ticker,
@@ -113,13 +126,18 @@ def business_transactions():
                     FROM transactions
                     WHERE user_id = CAST(:user_id AS INTEGER)
                     ORDER BY date DESC NULLS LAST, id DESC
-                    LIMIT 1000
+                    LIMIT :limit OFFSET :offset
                 ''')
-                result = conn.execute(query, {'user_id': user_id})
+                result = conn.execute(query, {'user_id': user_id, 'limit': per_page, 'offset': offset})
                 transactions = [dict(row._mapping) for row in result]
                 db_manager.release_connection(conn)
             else:
                 cursor = conn.cursor()
+                # Get total count
+                cursor.execute('SELECT COUNT(*) FROM transactions WHERE user_id = ?', (user_id,))
+                total = cursor.fetchone()[0] or 0
+
+                # Get paginated transactions
                 cursor.execute('''
                     SELECT id, user_id, merchant, amount, date, category, description,
                            round_up, investable, total_debit, fee, status, ticker,
@@ -127,14 +145,26 @@ def business_transactions():
                     FROM transactions
                     WHERE user_id = ?
                     ORDER BY date DESC, id DESC
-                    LIMIT 1000
-                ''', (user_id,))
+                    LIMIT ? OFFSET ?
+                ''', (user_id, per_page, offset))
                 columns = [description[0] for description in cursor.description]
                 transactions = [dict(zip(columns, row)) for row in cursor.fetchall()]
                 cursor.close()
                 conn.close()
 
-            return jsonify({'success': True, 'transactions': transactions})
+            total_pages = (total + per_page - 1) // per_page if per_page > 0 else 0
+            return jsonify({
+                'success': True,
+                'transactions': transactions,
+                'meta': {
+                    'total': total,
+                    'page': page,
+                    'per_page': per_page,
+                    'total_pages': total_pages,
+                    'has_next': page < total_pages,
+                    'has_prev': page > 1
+                }
+            })
 
         elif request.method == 'POST':
             data = request.get_json() or {}

@@ -28,7 +28,7 @@ from utils.response import success_response, error_response, unauthorized_respon
 
 @user_bp.route('/transactions', methods=['GET'])
 def get_transactions():
-    """Get user's transactions."""
+    """Get user's transactions with pagination."""
     user = get_auth_user()
     if not user:
         return unauthorized_response()
@@ -40,11 +40,14 @@ def get_transactions():
 
         # Get pagination parameters
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 100, type=int)
+        per_page = min(request.args.get('per_page', 50, type=int), 100)  # Max 100 per page
         offset = (page - 1) * per_page
 
         # Fix transactions: update status to 'mapped' if they have a ticker but status is still 'pending'
         _fix_pending_transactions(user_id)
+
+        # Get total count for pagination
+        total = _get_transaction_count(user_id)
 
         # Fetch transactions from database
         transactions = db_manager.get_user_transactions(user_id, limit=per_page, offset=offset)
@@ -52,14 +55,40 @@ def get_transactions():
         # Format transactions for frontend
         formatted = _format_transactions(transactions)
 
-        return success_response(data={
-            'transactions': formatted,
-            'total': len(formatted),
-            'user_id': user_id
-        })
+        return paginated_response(
+            items={'transactions': formatted, 'user_id': user_id},
+            total=total,
+            page=page,
+            per_page=per_page
+        )
 
     except Exception as e:
         return error_response(str(e), 500)
+
+
+def _get_transaction_count(user_id):
+    """Get total transaction count for a user."""
+    try:
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+
+        if use_postgresql:
+            from sqlalchemy import text
+            result = conn.execute(
+                text("SELECT COUNT(*) FROM transactions WHERE user_id = :user_id"),
+                {'user_id': user_id}
+            )
+            count = result.scalar() or 0
+            db_manager.release_connection(conn)
+        else:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM transactions WHERE user_id = ?", (user_id,))
+            count = cursor.fetchone()[0] or 0
+            conn.close()
+
+        return count
+    except Exception:
+        return 0
 
 
 @user_bp.route('/transactions', methods=['POST'])

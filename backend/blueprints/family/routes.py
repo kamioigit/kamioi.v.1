@@ -17,7 +17,7 @@ from flask import request
 from . import family_bp
 from blueprints.auth.helpers import get_auth_user
 from database_manager import db_manager
-from utils.response import success_response, error_response, unauthorized_response
+from utils.response import success_response, error_response, unauthorized_response, paginated_response
 
 
 # =============================================================================
@@ -26,7 +26,7 @@ from utils.response import success_response, error_response, unauthorized_respon
 
 @family_bp.route('/transactions', methods=['GET'])
 def get_transactions():
-    """Get family transactions."""
+    """Get family transactions with pagination."""
     user = get_auth_user()
     if not user:
         return unauthorized_response()
@@ -36,21 +36,55 @@ def get_transactions():
         if not user_id:
             return error_response('User ID not found', 400)
 
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = min(request.args.get('per_page', 50, type=int), 100)
+        offset = (page - 1) * per_page
+
         # Fix transactions with tickers but pending status
         _fix_pending_transactions(user_id)
 
+        # Get total count
+        total = _get_transaction_count(user_id)
+
         # Fetch transactions
-        transactions = db_manager.get_user_transactions(user_id, limit=100, offset=0)
+        transactions = db_manager.get_user_transactions(user_id, limit=per_page, offset=offset)
         formatted = _format_transactions(transactions)
 
-        return success_response(data={
-            'transactions': formatted,
-            'total': len(formatted),
-            'user_id': user_id
-        })
+        return paginated_response(
+            items={'transactions': formatted, 'user_id': user_id},
+            total=total,
+            page=page,
+            per_page=per_page
+        )
 
     except Exception as e:
         return error_response(str(e), 500)
+
+
+def _get_transaction_count(user_id):
+    """Get total transaction count for a user."""
+    try:
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+
+        if use_postgresql:
+            from sqlalchemy import text
+            result = conn.execute(
+                text("SELECT COUNT(*) FROM transactions WHERE user_id = :user_id"),
+                {'user_id': user_id}
+            )
+            count = result.scalar() or 0
+            db_manager.release_connection(conn)
+        else:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM transactions WHERE user_id = ?", (user_id,))
+            count = cursor.fetchone()[0] or 0
+            conn.close()
+
+        return count
+    except Exception:
+        return 0
 
 
 # =============================================================================
