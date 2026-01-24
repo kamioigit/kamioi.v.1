@@ -2374,23 +2374,24 @@ def user_auth_me():
         
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, email, name, role FROM users WHERE id = ?", (user_id,))
+        # Columns: 0=id, 1=email, 2=name, 3=role
+        cursor.execute("SELECT id, email, name, role FROM users WHERE id = %s", (user_id,))
         user = cursor.fetchone()
         conn.close()
-        
+
         if user:
             return jsonify({
                 'success': True,
                 'user': {
-                    'id': user['id'],
-                    'email': user['email'],
-                    'name': user['name'],
-                    'role': user['role']
+                    'id': user[0],
+                    'email': user[1],
+                    'name': user[2],
+                    'role': user[3]
                 }
             })
         else:
             return jsonify({'success': False, 'error': 'User not found'}), 404
-            
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
