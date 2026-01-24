@@ -1174,50 +1174,37 @@ def admin_get_transactions():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Query with ticker column - PostgreSQL compatible
-        try:
-            cursor.execute("""
-                  SELECT t.id, t.amount, t.status, t.date, t.merchant, t.category,
-                         t.description, t.round_up, t.total_debit, t.fee, t.account_type, t.ticker,
-                         u.name as user_name, u.email as user_email, u.role as user_role
-                  FROM transactions t
-                  JOIN users u ON CAST(t.user_id AS VARCHAR) = CAST(u.id AS VARCHAR)
-                  ORDER BY t.date DESC NULLS LAST
-                  LIMIT 100
-              """)
-            has_ticker = True
-        except Exception:
-            # Rollback the failed transaction before fallback query
-            conn.rollback()
-            # Fallback without ticker column
-            cursor.execute("""
-                  SELECT t.id, t.amount, t.status, t.date, t.merchant, t.category,
-                         t.description, t.round_up, t.total_debit, t.fee, t.account_type,
-                         u.name as user_name, u.email as user_email, u.role as user_role
-                  FROM transactions t
-                  JOIN users u ON CAST(t.user_id AS VARCHAR) = CAST(u.id AS VARCHAR)
-                  ORDER BY t.date DESC NULLS LAST
-                  LIMIT 100
-              """)
-            has_ticker = False
+        # Clear any potentially aborted transaction state
+        conn.rollback()
 
+        # Simple query - get transactions with LEFT JOIN to users
+        cursor.execute("""
+            SELECT t.id, t.amount, t.status, t.created_at, t.merchant, t.category,
+                   t.description, t.round_up, t.total_debit, t.fee, t.account_type, t.user_id
+            FROM transactions t
+            ORDER BY t.created_at DESC NULLS LAST
+            LIMIT 100
+        """)
         transactions = cursor.fetchall()
+
+        # Get user info separately to avoid JOIN issues
+        user_info = {}
+        if transactions:
+            user_ids = list(set([str(t[11]) for t in transactions if t[11]]))
+            if user_ids:
+                cursor.execute("""
+                    SELECT id, name, email, role FROM users WHERE id = ANY(%s::int[])
+                """, (user_ids,))
+                for user in cursor.fetchall():
+                    user_info[str(user[0])] = {'name': user[1], 'email': user[2], 'role': user[3]}
+
         conn.close()
 
         transaction_list = []
         for txn in transactions:
-            # psycopg2 returns tuples - with ticker: (id, amount, status, date, merchant, category, description, round_up, total_debit, fee, account_type, ticker, user_name, user_email, user_role)
-            # without ticker: (id, amount, status, date, merchant, category, description, round_up, total_debit, fee, account_type, user_name, user_email, user_role)
-            if has_ticker:
-                user_role = txn[14]
-                ticker = txn[11]
-                user_name = txn[12]
-                user_email = txn[13]
-            else:
-                user_role = txn[13]
-                ticker = None
-                user_name = txn[11]
-                user_email = txn[12]
+            user_id = str(txn[11]) if txn[11] else None
+            user = user_info.get(user_id, {'name': 'Unknown', 'email': '', 'role': 'individual'})
+            user_role = user.get('role', 'individual')
 
             # Determine dashboard type based on user role
             dashboard_type = 'user'
@@ -1238,20 +1225,20 @@ def admin_get_transactions():
                 'round_up': txn[7] or 0,
                 'total_debit': txn[8] or txn[1],
                 'fee': txn[9] or 0,
-                'ticker': ticker,
+                'ticker': None,
                 'account_type': txn[10],
-                'user_name': user_name,
-                'user_email': user_email,
+                'user_name': user.get('name', 'Unknown'),
+                'user_email': user.get('email', ''),
                 'user_role': user_role,
                 'dashboard': dashboard_type
             })
-        
+
         return jsonify({
             'success': True,
             'transactions': transaction_list,
             'total': len(transaction_list)
         })
-        
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
