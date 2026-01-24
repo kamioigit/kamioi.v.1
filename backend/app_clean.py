@@ -7362,8 +7362,8 @@ def admin_rebuild_llm_indexes():
                 print(f"[RebuildIndexes] Error on {idx_name}: {e}")
 
         conn.commit()
-        close_db_cursor(cursor)
-        close_db_connection(conn)
+        cursor.close()
+        conn.close()
 
         elapsed = time.time() - start_time
         print(f"[RebuildIndexes] Complete in {elapsed:.1f}s - Created: {len(created)}, Errors: {len(errors)}")
@@ -8236,8 +8236,8 @@ def admin_train_model():
         avg_confidence_raw = cursor.fetchone()[0]
         avg_confidence = float(avg_confidence_raw) if avg_confidence_raw else 0.0
 
-        close_db_cursor(cursor)
-        close_db_connection(conn)
+        cursor.close()
+        conn.close()
 
         # Simulate training process
         import time
@@ -8298,8 +8298,8 @@ def admin_llm_approve():
         ''', (admin_id, mapping_id))
 
         conn.commit()
-        close_db_cursor(cursor)
-        close_db_connection(conn)
+        cursor.close()
+        conn.close()
         
         return jsonify({
             'success': True,
@@ -8333,8 +8333,8 @@ def admin_llm_reject():
         ''', (admin_id, mapping_id))
 
         conn.commit()
-        close_db_cursor(cursor)
-        close_db_connection(conn)
+        cursor.close()
+        conn.close()
         
         return jsonify({
             'success': True,
