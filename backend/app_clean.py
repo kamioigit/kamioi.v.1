@@ -8223,24 +8223,26 @@ def admin_train_model():
             return jsonify({'success': False, 'error': 'No token provided'}), 401
         
         conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        cursor = get_db_cursor(conn)
+
         # Get dataset statistics
         cursor.execute("SELECT COUNT(*) FROM llm_mappings")
         total_mappings = cursor.fetchone()[0]
-        
+
         cursor.execute("SELECT COUNT(DISTINCT category) FROM llm_mappings WHERE category IS NOT NULL")
         categories = cursor.fetchone()[0]
-        
+
         cursor.execute("SELECT AVG(confidence) FROM llm_mappings WHERE confidence > 0")
-        avg_confidence = cursor.fetchone()[0] or 0
-        
-        conn.close()
-        
+        avg_confidence_raw = cursor.fetchone()[0]
+        avg_confidence = float(avg_confidence_raw) if avg_confidence_raw else 0.0
+
+        close_db_cursor(cursor)
+        close_db_connection(conn)
+
         # Simulate training process
         import time
         time.sleep(2)  # Simulate processing time
-        
+
         # Generate training results
         training_metrics = {
             'accuracy': 0.94 + (avg_confidence * 0.05),  # Base accuracy + confidence boost
@@ -8286,17 +8288,18 @@ def admin_llm_approve():
         notes = data.get('notes', '')
         
         conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        cursor = get_db_cursor(conn)
+
         # Update mapping status to approved
         cursor.execute('''
-            UPDATE llm_mappings 
-            SET status = 'approved', admin_id = ?
-            WHERE id = ?
+            UPDATE llm_mappings
+            SET status = 'approved', admin_id = %s
+            WHERE id = %s
         ''', (admin_id, mapping_id))
-        
+
         conn.commit()
-        conn.close()
+        close_db_cursor(cursor)
+        close_db_connection(conn)
         
         return jsonify({
             'success': True,
@@ -8320,17 +8323,18 @@ def admin_llm_reject():
         notes = data.get('notes', '')
         
         conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        cursor = get_db_cursor(conn)
+
         # Update mapping status to rejected
         cursor.execute('''
-            UPDATE llm_mappings 
-            SET status = 'rejected', admin_id = ?
-            WHERE id = ?
+            UPDATE llm_mappings
+            SET status = 'rejected', admin_id = %s
+            WHERE id = %s
         ''', (admin_id, mapping_id))
-        
+
         conn.commit()
-        conn.close()
+        close_db_cursor(cursor)
+        close_db_connection(conn)
         
         return jsonify({
             'success': True,
