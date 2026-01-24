@@ -306,7 +306,7 @@ const LLMCenter = () => {
   // Performance optimization: Debounce search
   const [searchTimeout, setSearchTimeout] = useState(null)
 
-  // Fetch automation data - Calculate from REAL mappings data instead of mock data
+  // Fetch automation data - NOW USES CONSOLIDATED ENDPOINT (1 call instead of 6)
   const fetchAutomationData = async () => {
     try {
       const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'
@@ -315,89 +315,43 @@ const LLMCenter = () => {
         'Content-Type': 'application/json'
       }
 
-      // First, try to fetch from dedicated automation endpoints
-      const [realTimeRes, batchRes, learningRes, merchantRes, thresholdRes, multiModelRes] = await Promise.allSettled([
-        fetch(buildApiUrl('/api/admin/llm-center/automation/realtime'), { headers }),
-        fetch(buildApiUrl('/api/admin/llm-center/automation/batch'), { headers }),
-        fetch(buildApiUrl('/api/admin/llm-center/automation/learning'), { headers }),
-        fetch(buildApiUrl('/api/admin/llm-center/automation/merchants'), { headers }),
-        fetch(buildApiUrl('/api/admin/llm-center/automation/thresholds'), { headers }),
-        fetch(buildApiUrl('/api/admin/llm-center/automation/multi-model'), { headers })
-      ])
+      // OPTIMIZED: Single consolidated endpoint instead of 6 separate calls
+      const response = await fetch(buildApiUrl('/api/admin/llm-center/automation/status'), { headers })
 
-      // Update state with fetched data if endpoints exist
-      if (realTimeRes.status === 'fulfilled' && realTimeRes.value.ok) {
-        const data = await realTimeRes.value.json()
-        if (data.success) {
-          setAutomationState(prev => ({ ...prev, realTimeProcessing: data.data }))
-          // Use data.status or data.data for real-time status
-          const statusData = data.status || data.data || {}
-          const processingQueue = statusData.processingQueue || data.data?.processingQueue || 0
-          const isConnected = processingQueue > 0 || statusData.isConnected || false
-          
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success && result.data) {
+          const data = result.data
+
+          // Update all automation state from single response
+          setAutomationState(prev => ({
+            ...prev,
+            realTimeProcessing: data.realtime || {},
+            batchProcessing: data.batch || {},
+            continuousLearning: data.learning || {},
+            merchantDatabase: data.merchants || {},
+            confidenceThresholds: data.thresholds || {},
+            multiModelVoting: data.multiModel || {}
+          }))
+
+          // Update real-time status
+          const realtime = data.realtime || {}
           setRealTimeStatus({
-            isConnected: isConnected,
-            processingQueue: processingQueue,
-            mappedPending: statusData.mappedPending || data.data?.mappedPending || 0,
-            investmentReady: statusData.investmentReady || data.data?.investmentReady || 0,
-            totalProcessed: statusData.totalProcessed || data.data?.totalProcessed || 0,
-            activeProcesses: statusData.activeProcesses || (isConnected ? 1 : 0),
-            throughput: statusData.throughput || data.data?.throughput || 0
+            isConnected: realtime.status === 'active',
+            processingQueue: realtime.queue_size || 0,
+            mappedPending: data.batch?.pending_count || 0,
+            investmentReady: data.batch?.processed_count || 0,
+            totalProcessed: data.merchants?.total_merchants || 0,
+            activeProcesses: realtime.status === 'active' ? 1 : 0,
+            throughput: realtime.processing_rate || 0
           })
-          
-          console.log('🔄 Updated realTimeStatus from API:', {
-            isConnected,
-            processingQueue,
-            mappedPending: statusData.mappedPending || data.data?.mappedPending || 0,
-            investmentReady: statusData.investmentReady || data.data?.investmentReady || 0,
-            totalProcessed: statusData.totalProcessed || data.data?.totalProcessed || 0,
-            source: 'API endpoint'
-          })
+
+          console.log('🔄 Updated automation data from consolidated endpoint')
         }
       }
-
-      if (batchRes.status === 'fulfilled' && batchRes.value.ok) {
-        const data = await batchRes.value.json()
-        if (data.success) {
-          setAutomationState(prev => ({ ...prev, batchProcessing: data.data }))
-        }
-      }
-
-      if (learningRes.status === 'fulfilled' && learningRes.value.ok) {
-        const data = await learningRes.value.json()
-        if (data.success) {
-          setAutomationState(prev => ({ ...prev, continuousLearning: data.data }))
-        }
-      }
-
-      if (merchantRes.status === 'fulfilled' && merchantRes.value.ok) {
-        const data = await merchantRes.value.json()
-        if (data.success) {
-          setAutomationState(prev => ({ ...prev, merchantDatabase: data.data }))
-        }
-      }
-
-      if (thresholdRes.status === 'fulfilled' && thresholdRes.value.ok) {
-        const data = await thresholdRes.value.json()
-        if (data.success) {
-          setAutomationState(prev => ({ ...prev, confidenceThresholds: data.data }))
-        }
-      }
-
-      if (multiModelRes.status === 'fulfilled' && multiModelRes.value.ok) {
-        const data = await multiModelRes.value.json()
-        if (data.success) {
-          setAutomationState(prev => ({ ...prev, multiModelVoting: data.data }))
-        }
-      }
-
-      // If endpoints don't exist (404), calculate metrics from REAL mappings data
-      // Use the analytics and mappings data we already have from fetchLLMData
-      // Note: This will use state variables, so it should be called after mappings are loaded
-      
     } catch (error) {
       console.error('Error fetching automation data:', error)
-      // On error, still calculate from real data (using state)
+      // On error, calculate from real data (using state)
     }
   }
   
@@ -1210,7 +1164,8 @@ const LLMCenter = () => {
         return
       }
       
-      const response = await fetch(buildApiUrl(`/api/admin/llm-center/mappings?search=${encodeURIComponent(searchQuery)}&limit=10&page=${pageNum}&t=${Date.now()}`), {
+      // OPTIMIZED: Removed cache-busting timestamp to allow React Query caching
+      const response = await fetch(buildApiUrl(`/api/admin/llm-center/mappings?search=${encodeURIComponent(searchQuery)}&limit=10&page=${pageNum}`), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

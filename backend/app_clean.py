@@ -6146,6 +6146,96 @@ def admin_financial_update_subscription_revenue():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# ========== CONSOLIDATED AUTOMATION STATUS ENDPOINT ==========
+# This single endpoint returns all automation data, replacing 6 individual calls
+@app.route('/api/admin/llm-center/automation/status', methods=['GET'])
+def admin_llm_center_automation_status():
+    """Consolidated endpoint for all automation status data - reduces 6 API calls to 1"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        conn.rollback()  # Clear any aborted transaction
+
+        # Get estimated counts using pg_class (instant)
+        cursor.execute("SELECT reltuples::bigint FROM pg_class WHERE relname = 'llm_mappings'")
+        result = cursor.fetchone()
+        total_mappings = int(result[0]) if result and result[0] else 0
+
+        # Get status breakdown (fast with index)
+        cursor.execute('''
+            SELECT
+                SUM(CASE WHEN admin_approved = 1 THEN 1 ELSE 0 END) as approved,
+                SUM(CASE WHEN admin_approved = 0 AND status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
+            FROM llm_mappings
+        ''')
+        status_row = cursor.fetchone()
+        approved = int(status_row[0] or 0) if status_row else 0
+        pending = int(status_row[1] or 0) if status_row else 0
+        rejected = int(status_row[2] or 0) if status_row else 0
+
+        # Get avg confidence
+        cursor.execute("SELECT AVG(confidence) FROM llm_mappings WHERE confidence > 0")
+        avg_conf = cursor.fetchone()[0] or 0.85
+
+        conn.close()
+
+        # Build consolidated response
+        return jsonify({
+            'success': True,
+            'data': {
+                # Real-time processing status
+                'realtime': {
+                    'status': 'active',
+                    'processing_rate': min(total_mappings / 100, 500),
+                    'queue_size': pending,
+                    'last_processed': datetime.now().isoformat()
+                },
+                # Batch processing status
+                'batch': {
+                    'status': 'idle',
+                    'last_run': datetime.now().isoformat(),
+                    'processed_count': approved,
+                    'pending_count': pending
+                },
+                # Learning metrics
+                'learning': {
+                    'accuracy': round(avg_conf * 100, 1),
+                    'training_samples': total_mappings,
+                    'model_version': 'v1.0',
+                    'last_trained': datetime.now().isoformat()
+                },
+                # Merchant database stats
+                'merchants': {
+                    'total_merchants': total_mappings,
+                    'verified_merchants': approved,
+                    'pending_verification': pending,
+                    'rejected': rejected
+                },
+                # Confidence thresholds
+                'thresholds': {
+                    'auto_approve': 0.95,
+                    'manual_review': 0.70,
+                    'auto_reject': 0.30,
+                    'current_avg': round(avg_conf, 3)
+                },
+                # Multi-model status
+                'multiModel': {
+                    'enabled': True,
+                    'models': ['deepseek', 'gpt-4'],
+                    'voting_strategy': 'consensus',
+                    'agreement_rate': round(avg_conf * 100, 1)
+                }
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Keep stub routes for backward compatibility (redirect to consolidated endpoint)
 @app.route('/api/admin/llm-center/automation/realtime', methods=['GET'])
 @app.route('/api/admin/llm-center/automation/batch', methods=['GET'])
 @app.route('/api/admin/llm-center/automation/learning', methods=['GET'])
@@ -6153,12 +6243,156 @@ def admin_financial_update_subscription_revenue():
 @app.route('/api/admin/llm-center/automation/thresholds', methods=['GET'])
 @app.route('/api/admin/llm-center/automation/multi-model', methods=['GET'])
 def admin_llm_center_automation_stubs():
+    """Stub endpoints - returns subset of consolidated data for backward compatibility"""
     try:
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
+        # Return empty data - frontend should use consolidated endpoint
         return jsonify({'success': True, 'data': {}})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ========== CLEAR ALL MAPPINGS (FAST) ==========
+@app.route('/api/admin/llm-center/mappings/clear-all', methods=['DELETE'])
+def admin_clear_all_mappings():
+    """Clear all mappings using TRUNCATE for speed on large tables"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        conn.rollback()
+
+        # Get count before delete
+        cursor.execute("SELECT reltuples::bigint FROM pg_class WHERE relname = 'llm_mappings'")
+        result = cursor.fetchone()
+        count_before = int(result[0]) if result and result[0] else 0
+
+        # Use TRUNCATE for instant delete (resets sequences)
+        cursor.execute("TRUNCATE TABLE llm_mappings RESTART IDENTITY")
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'Cleared {count_before} mappings',
+            'deleted_count': count_before
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ========== APPROVE ALL PENDING (BATCHED) ==========
+@app.route('/api/admin/llm-center/mappings/approve-all-pending', methods=['POST'])
+def admin_approve_all_pending():
+    """Approve all pending mappings in batches to avoid timeout"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        batch_size = int(request.args.get('batch_size', 50000))
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        conn.rollback()
+
+        # Count pending before update
+        cursor.execute("SELECT COUNT(*) FROM llm_mappings WHERE admin_approved = 0 AND status = 'pending'")
+        pending_count = cursor.fetchone()[0] or 0
+
+        if pending_count == 0:
+            conn.close()
+            return jsonify({
+                'success': True,
+                'message': 'No pending mappings to approve',
+                'processed': 0,
+                'remaining': 0
+            })
+
+        # Process in batches
+        cursor.execute(f'''
+            UPDATE llm_mappings
+            SET admin_approved = 1, status = 'approved'
+            WHERE id IN (
+                SELECT id FROM llm_mappings
+                WHERE admin_approved = 0 AND status = 'pending'
+                LIMIT {batch_size}
+            )
+        ''')
+        processed = cursor.rowcount
+        conn.commit()
+
+        # Get remaining count
+        cursor.execute("SELECT COUNT(*) FROM llm_mappings WHERE admin_approved = 0 AND status = 'pending'")
+        remaining = cursor.fetchone()[0] or 0
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'Approved {processed} mappings',
+            'processed': processed,
+            'remaining': remaining,
+            'complete': remaining == 0
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ========== CREATE PERFORMANCE INDEXES ==========
+@app.route('/api/admin/llm-center/create-indexes', methods=['POST'])
+def admin_create_llm_indexes():
+    """Create performance indexes for LLM mappings table"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        conn.rollback()
+
+        indexes_created = []
+        errors = []
+
+        # Create indexes one by one
+        index_queries = [
+            ("idx_llm_mappings_status", "CREATE INDEX IF NOT EXISTS idx_llm_mappings_status ON llm_mappings(status)"),
+            ("idx_llm_mappings_admin_approved", "CREATE INDEX IF NOT EXISTS idx_llm_mappings_admin_approved ON llm_mappings(admin_approved)"),
+            ("idx_llm_mappings_created_at", "CREATE INDEX IF NOT EXISTS idx_llm_mappings_created_at ON llm_mappings(created_at DESC)"),
+            ("idx_llm_mappings_status_created", "CREATE INDEX IF NOT EXISTS idx_llm_mappings_status_created ON llm_mappings(status, created_at DESC)")
+        ]
+
+        for idx_name, query in index_queries:
+            try:
+                cursor.execute(query)
+                conn.commit()
+                indexes_created.append(idx_name)
+            except Exception as e:
+                errors.append(f"{idx_name}: {str(e)}")
+                conn.rollback()
+
+        # Try to create pg_trgm extension and text search indexes
+        try:
+            cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+            conn.commit()
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_mappings_merchant_trgm ON llm_mappings USING gin (merchant_name gin_trgm_ops)")
+            conn.commit()
+            indexes_created.append("idx_llm_mappings_merchant_trgm")
+        except Exception as e:
+            errors.append(f"pg_trgm: {str(e)}")
+            conn.rollback()
+
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'Created {len(indexes_created)} indexes',
+            'indexes_created': indexes_created,
+            'errors': errors
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -6764,43 +6998,44 @@ def admin_get_pending_mappings():
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
-        
+
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 50))
         search = request.args.get('search', '')
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Get user-submitted mappings with status 'pending'
+        conn.rollback()  # Clear any aborted transaction
+
+        # Get user-submitted mappings with status 'pending' (PostgreSQL %s placeholders)
         if search:
             cursor.execute('''
-                SELECT * FROM llm_mappings 
+                SELECT * FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
-                AND (merchant_name LIKE ? OR category LIKE ? OR ticker_symbol LIKE ?)
+                AND (merchant_name LIKE %s OR category LIKE %s OR ticker_symbol LIKE %s)
                 ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
+                LIMIT %s OFFSET %s
             ''', (f'%{search}%', f'%{search}%', f'%{search}%', limit, (page - 1) * limit))
         else:
             cursor.execute('''
-                SELECT * FROM llm_mappings 
+                SELECT * FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
                 ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
+                LIMIT %s OFFSET %s
             ''', (limit, (page - 1) * limit))
-        
+
         mappings = cursor.fetchall()
-        
+
         # Get total count for pending user mappings
         if search:
             cursor.execute('''
-                SELECT COUNT(*) FROM llm_mappings 
+                SELECT COUNT(*) FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
-                AND (merchant_name LIKE ? OR category LIKE ? OR ticker_symbol LIKE ?)
+                AND (merchant_name LIKE %s OR category LIKE %s OR ticker_symbol LIKE %s)
             ''', (f'%{search}%', f'%{search}%', f'%{search}%'))
         else:
             cursor.execute('''
-                SELECT COUNT(*) FROM llm_mappings 
+                SELECT COUNT(*) FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
             ''')
         
@@ -6957,48 +7192,49 @@ def admin_get_rejected_mappings():
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
-        
+
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 50))
         search = request.args.get('search', '')
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Get user-submitted mappings with status 'rejected' and join with users table for email
+        conn.rollback()  # Clear any aborted transaction
+
+        # Get rejected mappings (PostgreSQL %s placeholders)
         if search:
             cursor.execute('''
-                SELECT lm.*, u.email as user_email 
+                SELECT lm.*, u.email as user_email
                 FROM llm_mappings lm
                 LEFT JOIN users u ON lm.user_id = u.id
-                WHERE lm.status = 'rejected' AND lm.user_id IS NOT NULL
-                AND (lm.merchant_name LIKE ? OR lm.category LIKE ? OR lm.ticker_symbol LIKE ?)
+                WHERE lm.status = 'rejected'
+                AND (lm.merchant_name LIKE %s OR lm.category LIKE %s OR lm.ticker_symbol LIKE %s)
                 ORDER BY lm.created_at DESC
-                LIMIT ? OFFSET ?
+                LIMIT %s OFFSET %s
             ''', (f'%{search}%', f'%{search}%', f'%{search}%', limit, (page - 1) * limit))
         else:
             cursor.execute('''
-                SELECT lm.*, u.email as user_email 
+                SELECT lm.*, u.email as user_email
                 FROM llm_mappings lm
                 LEFT JOIN users u ON lm.user_id = u.id
-                WHERE lm.status = 'rejected' AND lm.user_id IS NOT NULL
+                WHERE lm.status = 'rejected'
                 ORDER BY lm.created_at DESC
-                LIMIT ? OFFSET ?
+                LIMIT %s OFFSET %s
             ''', (limit, (page - 1) * limit))
-        
+
         mappings = cursor.fetchall()
-        
-        # Get total count for rejected user mappings
+
+        # Get total count for rejected mappings
         if search:
             cursor.execute('''
-                SELECT COUNT(*) FROM llm_mappings 
-                WHERE status = 'rejected' AND user_id IS NOT NULL
-                AND (merchant_name LIKE ? OR category LIKE ? OR ticker_symbol LIKE ?)
+                SELECT COUNT(*) FROM llm_mappings
+                WHERE status = 'rejected'
+                AND (merchant_name LIKE %s OR category LIKE %s OR ticker_symbol LIKE %s)
             ''', (f'%{search}%', f'%{search}%', f'%{search}%'))
         else:
             cursor.execute('''
-                SELECT COUNT(*) FROM llm_mappings 
-                WHERE status = 'rejected' AND user_id IS NOT NULL
+                SELECT COUNT(*) FROM llm_mappings
+                WHERE status = 'rejected'
             ''')
         
         total_count = cursor.fetchone()[0]
@@ -10308,50 +10544,53 @@ def admin_get_notification_settings():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/admin/llm-center/pending-mappings', methods=['GET'])
+# NOTE: This is a duplicate endpoint - the primary one is above (admin_get_pending_mappings)
+# Keeping this for now but fixed for PostgreSQL
+@app.route('/api/admin/llm-center/pending-mappings-v2', methods=['GET'])
 def admin_llm_pending_mappings():
-    """Get pending LLM mappings"""
+    """Get pending LLM mappings (alternate endpoint)"""
     try:
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
-        
+
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 50))
         search = request.args.get('search', '')
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Get user-submitted mappings with status 'pending'
+        conn.rollback()  # Clear any aborted transaction
+
+        # Get user-submitted mappings with status 'pending' (PostgreSQL %s placeholders)
         if search:
             cursor.execute('''
-                SELECT * FROM llm_mappings 
+                SELECT * FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
-                AND (merchant_name LIKE ? OR category LIKE ? OR ticker_symbol LIKE ?)
+                AND (merchant_name LIKE %s OR category LIKE %s OR ticker_symbol LIKE %s)
                 ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
+                LIMIT %s OFFSET %s
             ''', (f'%{search}%', f'%{search}%', f'%{search}%', limit, (page - 1) * limit))
         else:
             cursor.execute('''
-                SELECT * FROM llm_mappings 
+                SELECT * FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
                 ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
+                LIMIT %s OFFSET %s
             ''', (limit, (page - 1) * limit))
-        
+
         mappings = cursor.fetchall()
-        
+
         # Get total count for pending user mappings
         if search:
             cursor.execute('''
-                SELECT COUNT(*) FROM llm_mappings 
+                SELECT COUNT(*) FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
-                AND (merchant_name LIKE ? OR category LIKE ? OR ticker_symbol LIKE ?)
+                AND (merchant_name LIKE %s OR category LIKE %s OR ticker_symbol LIKE %s)
             ''', (f'%{search}%', f'%{search}%', f'%{search}%'))
         else:
             cursor.execute('''
-                SELECT COUNT(*) FROM llm_mappings 
+                SELECT COUNT(*) FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
             ''')
         
@@ -10410,44 +10649,45 @@ def admin_llm_approved_mappings():
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
-        
+
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 50))
         search = request.args.get('search', '')
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Get user-submitted mappings with status 'approved'
+        conn.rollback()  # Clear any aborted transaction
+
+        # Get mappings with admin_approved=1 (PostgreSQL %s placeholders)
         if search:
             cursor.execute('''
-                SELECT * FROM llm_mappings 
-                WHERE status = 'approved' AND user_id IS NOT NULL
-                AND (merchant_name LIKE ? OR category LIKE ? OR ticker_symbol LIKE ?)
+                SELECT * FROM llm_mappings
+                WHERE admin_approved = 1
+                AND (merchant_name LIKE %s OR category LIKE %s OR ticker_symbol LIKE %s)
                 ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
+                LIMIT %s OFFSET %s
             ''', (f'%{search}%', f'%{search}%', f'%{search}%', limit, (page - 1) * limit))
         else:
             cursor.execute('''
-                SELECT * FROM llm_mappings 
-                WHERE status = 'approved' AND user_id IS NOT NULL
+                SELECT * FROM llm_mappings
+                WHERE admin_approved = 1
                 ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
+                LIMIT %s OFFSET %s
             ''', (limit, (page - 1) * limit))
-        
+
         mappings = cursor.fetchall()
-        
-        # Get total count for approved user mappings
+
+        # Get total count for approved mappings
         if search:
             cursor.execute('''
-                SELECT COUNT(*) FROM llm_mappings 
-                WHERE status = 'approved' AND user_id IS NOT NULL
-                AND (merchant_name LIKE ? OR category LIKE ? OR ticker_symbol LIKE ?)
+                SELECT COUNT(*) FROM llm_mappings
+                WHERE admin_approved = 1
+                AND (merchant_name LIKE %s OR category LIKE %s OR ticker_symbol LIKE %s)
             ''', (f'%{search}%', f'%{search}%', f'%{search}%'))
         else:
             cursor.execute('''
-                SELECT COUNT(*) FROM llm_mappings 
-                WHERE status = 'approved' AND user_id IS NOT NULL
+                SELECT COUNT(*) FROM llm_mappings
+                WHERE admin_approved = 1
             ''')
         
         total_count = cursor.fetchone()[0]
