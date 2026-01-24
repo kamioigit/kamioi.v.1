@@ -120,6 +120,74 @@ def admin_logout():
     return jsonify({'success': True, 'message': 'Admin logged out successfully'})
 
 
+@admin_bp.route('/auth/google', methods=['POST', 'OPTIONS'])
+@cross_origin()
+def admin_google_auth():
+    """Admin Google OAuth endpoint - verifies Google token and checks admin authorization"""
+    if request.method == 'OPTIONS':
+        return jsonify({'success': True}), 200
+
+    data = request.get_json() or {}
+    id_token = data.get('idToken', '')
+    email = data.get('email', '').strip().lower()
+    display_name = data.get('displayName', '')
+
+    if not email:
+        return jsonify({'success': False, 'error': 'Email is required'}), 400
+
+    try:
+        # Check if user exists in admins table with this email
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+
+        if use_postgresql:
+            from sqlalchemy import text
+            result = conn.execute(text('''
+                SELECT id, email, name, role, permissions
+                FROM admins
+                WHERE LOWER(email) = LOWER(:email) AND is_active = true
+            '''), {'email': email})
+            row = result.fetchone()
+            db_manager.release_connection(conn)
+
+            if row:
+                row = (row[0], row[1], row[2], row[3], row[4])
+        else:
+            cur = conn.cursor()
+            cur.execute("SELECT id, email, name, role, permissions FROM admins WHERE email = ? AND is_active = 1", (email,))
+            row = cur.fetchone()
+            conn.close()
+
+        if row:
+            # Admin found - return token
+            admin = {
+                'id': row[0],
+                'email': row[1],
+                'name': row[2] or display_name,
+                'role': row[3],
+                'dashboard': 'admin',
+                'permissions': row[4] if row[4] else '{}'
+            }
+            return jsonify({
+                'success': True,
+                'token': f'admin_token_{row[0]}',
+                'user': admin,
+                'admin_id': row[0]
+            })
+        else:
+            # Email not found in admins table
+            return jsonify({
+                'success': False,
+                'error': f'Email {email} is not authorized as an admin. Contact support to request admin access.'
+            }), 403
+
+    except Exception as e:
+        import traceback
+        print(f"Exception in admin_google_auth: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': 'Google authentication failed'}), 500
+
+
 @admin_bp.route('/auth/me')
 def admin_auth_me():
     """Check admin authentication"""
@@ -555,3 +623,108 @@ def admin_system_settings():
     if ok is False:
         return res
     return jsonify({'success': True, 'settings': {}})
+
+
+# =============================================================================
+# Error Tracking Routes
+# =============================================================================
+
+@admin_bp.route('/errors', methods=['GET'])
+@cross_origin()
+def admin_get_errors():
+    """Get paginated list of system errors"""
+    ok, res = require_role('admin')
+    if ok is False:
+        return res
+
+    try:
+        from services.error_tracking_service import get_errors
+
+        page = request.args.get('page', 1, type=int)
+        per_page = min(request.args.get('per_page', 50, type=int), 100)
+        error_type = request.args.get('error_type')
+        severity = request.args.get('severity')
+        is_resolved = request.args.get('is_resolved')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        # Convert is_resolved to boolean if provided
+        if is_resolved is not None:
+            is_resolved = is_resolved.lower() in ('true', '1', 'yes')
+
+        result = get_errors(
+            page=page,
+            per_page=per_page,
+            error_type=error_type,
+            severity=severity,
+            is_resolved=is_resolved,
+            start_date=start_date,
+            end_date=end_date
+        )
+
+        return jsonify({
+            'success': True,
+            'data': result['errors'],
+            'meta': {
+                'total': result['total'],
+                'page': result['page'],
+                'per_page': result['per_page'],
+                'total_pages': result['total_pages'],
+                'has_next': result['page'] < result['total_pages'],
+                'has_prev': result['page'] > 1
+            }
+        })
+    except Exception as e:
+        import traceback
+        print(f"Error getting system errors: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/errors/stats', methods=['GET'])
+@cross_origin()
+def admin_get_error_stats():
+    """Get error statistics for dashboard"""
+    ok, res = require_role('admin')
+    if ok is False:
+        return res
+
+    try:
+        from services.error_tracking_service import get_error_stats
+        stats = get_error_stats()
+        return jsonify({'success': True, 'data': stats})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/errors/<int:error_id>/resolve', methods=['POST'])
+@cross_origin()
+def admin_resolve_error(error_id):
+    """Mark an error as resolved"""
+    ok, res = require_role('admin')
+    if ok is False:
+        return res
+
+    try:
+        from services.error_tracking_service import resolve_error
+
+        data = request.get_json() or {}
+        resolution_notes = data.get('resolution_notes', '')
+
+        # Get admin ID from token
+        auth = request.headers.get('Authorization', '')
+        admin_id = 1
+        if auth.startswith('Bearer admin_token_'):
+            try:
+                admin_id = int(auth.split('admin_token_')[1])
+            except:
+                pass
+
+        success = resolve_error(error_id, admin_id, resolution_notes)
+
+        if success:
+            return jsonify({'success': True, 'message': 'Error marked as resolved'})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to resolve error'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

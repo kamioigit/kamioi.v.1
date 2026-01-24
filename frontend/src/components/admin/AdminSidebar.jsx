@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { LayoutDashboard, DollarSign, FileText, Brain, Users, Settings, Bell, Award, Megaphone, Globe, CreditCard, Zap, MessageSquare, Database, LogOut, Home, Building2, UserCog, TrendingUp, Cog, GripVertical, BookOpen, Activity, User } from 'lucide-react'
+import { LayoutDashboard, DollarSign, FileText, Brain, Users, Settings, Bell, Award, Megaphone, Globe, CreditCard, Zap, MessageSquare, Database, LogOut, Home, Building2, UserCog, TrendingUp, Cog, GripVertical, BookOpen, Activity, User, Bug } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import prefetchRegistry from '../../services/prefetchRegistry'
 
@@ -27,7 +27,8 @@ const AdminSidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
     { id: 'settings', label: 'System Settings', icon: Settings },
     { id: 'sop', label: 'Standard Operating Procedures', icon: BookOpen },
     { id: 'loading-report', label: 'Loading Report', icon: Activity },
-    { id: 'api-tracking', label: 'API Tracking', icon: Activity }
+    { id: 'api-tracking', label: 'API Tracking', icon: Activity },
+    { id: 'error-tracking', label: 'Error Tracking', icon: Bug }
   ]
 
   // Load saved order from localStorage or use default

@@ -30,6 +30,7 @@ import StandardOperatingProcedures from '../components/admin/StandardOperatingPr
 import LoadingReport from '../components/admin/LoadingReport'
 import APITrackingDashboard from '../components/admin/APITrackingDashboard'
 import AdminDatabaseManagement from './AdminDatabaseManagement'
+import ErrorTracking from '../components/admin/ErrorTracking'
 
 const AdminDashboard = () => {
   const navigate = useNavigate()
@@ -256,6 +257,8 @@ const AdminDashboard = () => {
         return <APITrackingDashboard />
       case 'database':
         return <AdminDatabaseManagement />
+      case 'error-tracking':
+        return <ErrorTracking />
       default:
         return <AdminOverview />
     }

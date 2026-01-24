@@ -11,8 +11,14 @@ export const AuthProvider = ({ children }) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const inactivityTimeoutRef = useRef(null);
   const sessionTimeoutRef = useRef(null);
-  const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-  const INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 minutes
+
+  // User timeout settings (shorter for security)
+  const USER_SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+  const USER_INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 minutes
+
+  // Admin timeout settings (longer for workflows)
+  const ADMIN_SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours
+  const ADMIN_INACTIVITY_TIMEOUT = 45 * 60 * 1000; // 45 minutes
 
   useEffect(() => {
     const init = async () => {
@@ -228,17 +234,22 @@ export const AuthProvider = ({ children }) => {
         clearTimeout(sessionTimeoutRef.current);
       }
 
-      // Set session timeout (absolute) - 30 minutes from now
-      sessionTimeoutRef.current = setTimeout(() => {
-        console.log('Session timeout reached, logging out...');
-        logout();
-      }, SESSION_TIMEOUT);
+      // Use admin timeouts if admin is logged in, otherwise use user timeouts
+      const isAdminSession = !!admin;
+      const sessionTimeout = isAdminSession ? ADMIN_SESSION_TIMEOUT : USER_SESSION_TIMEOUT;
+      const inactivityTimeout = isAdminSession ? ADMIN_INACTIVITY_TIMEOUT : USER_INACTIVITY_TIMEOUT;
 
-      // Set inactivity timeout (relative to last activity) - 15 minutes of inactivity
-      inactivityTimeoutRef.current = setTimeout(() => {
-        console.log('Inactivity timeout reached, logging out...');
+      // Set session timeout (absolute)
+      sessionTimeoutRef.current = setTimeout(() => {
+        console.log(`${isAdminSession ? 'Admin' : 'User'} session timeout reached (${sessionTimeout / 60000} min), logging out...`);
         logout();
-      }, INACTIVITY_TIMEOUT);
+      }, sessionTimeout);
+
+      // Set inactivity timeout (relative to last activity)
+      inactivityTimeoutRef.current = setTimeout(() => {
+        console.log(`${isAdminSession ? 'Admin' : 'User'} inactivity timeout reached (${inactivityTimeout / 60000} min), logging out...`);
+        logout();
+      }, inactivityTimeout);
     };
 
     // Activity event listeners
@@ -269,7 +280,7 @@ export const AuthProvider = ({ children }) => {
         sessionTimeoutRef.current = null;
       }
     };
-  }, [user, admin, logout, SESSION_TIMEOUT, INACTIVITY_TIMEOUT]);
+  }, [user, admin, logout]);
 
   const loginUser = async (email, password) => {
     const { data } = await AuthAPI.loginUser(email, password);
@@ -341,6 +352,51 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginAdminWithGoogle = async (idToken, email, displayName) => {
+    try {
+      console.log('🔐 AuthContext - Attempting Google admin login for:', email);
+
+      // Send Google ID token to backend for verification and admin authentication
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111';
+      const response = await fetch(`${apiBaseUrl}/api/admin/auth/google`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          idToken,
+          email,
+          displayName
+        })
+      });
+
+      const data = await response.json();
+      console.log('🔐 AuthContext - Google admin login response:', data);
+
+      if (data.success) {
+        setToken(ROLES.ADMIN, data.token);
+
+        const adminUser = data.user || {
+          id: data.admin_id || 1,
+          email: email,
+          name: displayName || 'Admin',
+          role: 'admin',
+          dashboard: 'admin'
+        };
+
+        setAdmin(adminUser);
+        localStorage.setItem('kamioi_admin_user', JSON.stringify(adminUser));
+
+        return { success: true, user: adminUser };
+      } else {
+        throw new Error(data.error || 'Google login failed - not authorized as admin');
+      }
+    } catch (error) {
+      console.error('🔐 AuthContext - Google admin login error:', error);
+      throw error;
+    }
+  };
+
   const refreshUser = async () => {
     try {
       const ut = getToken(ROLES.USER);
@@ -361,14 +417,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      admin, 
-      loading, 
-      isInitialized, 
-      loginUser, 
-      loginAdmin, 
-      logoutUser, 
+    <AuthContext.Provider value={{
+      user,
+      admin,
+      loading,
+      isInitialized,
+      loginUser,
+      loginAdmin,
+      loginAdminWithGoogle, // Google OAuth for admin
+      logoutUser,
       logoutAdmin,
       logout, // Unified logout function
       refreshUser // Refresh user data from API

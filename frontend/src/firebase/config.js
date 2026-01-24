@@ -1,6 +1,6 @@
 // Firebase Configuration for Kamioi
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
 
@@ -73,7 +73,37 @@ try {
   };
 }
 
-export { auth, db, analytics };
+// Google Auth Provider
+const googleProvider = new GoogleAuthProvider();
+googleProvider.addScope('email');
+googleProvider.addScope('profile');
+
+// Sign in with Google function
+const signInWithGoogle = async () => {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const user = result.user;
+    const idToken = await user.getIdToken();
+    return {
+      success: true,
+      user: {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL
+      },
+      idToken
+    };
+  } catch (error) {
+    console.error('Google sign-in error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
+export { auth, db, analytics, googleProvider, signInWithGoogle };
 
 // Development emulators (uncomment for local development)
 // if (import.meta.env.DEV) {
