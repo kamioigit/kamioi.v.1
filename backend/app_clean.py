@@ -2412,38 +2412,31 @@ def user_transactions():
         
         conn = get_db_connection()
         cursor = conn.cursor()
-        try:
-            cursor.execute("""
-                SELECT id, amount, status, created_at, description, merchant, category, date, round_up, fee, total_debit, ticker
-                FROM transactions 
-                WHERE user_id = ?
-                ORDER BY created_at DESC
-            """, (user_id,))
-        except sqlite3.OperationalError:
-            cursor.execute("""
-                SELECT id, amount, status, created_at, description, merchant, category, date, round_up, fee, total_debit
-                FROM transactions 
-                WHERE user_id = ?
-                ORDER BY created_at DESC
-            """, (user_id,))
+        # Columns: 0=id, 1=amount, 2=status, 3=created_at, 4=description, 5=merchant, 6=category, 7=date, 8=round_up, 9=fee, 10=total_debit, 11=ticker
+        cursor.execute("""
+            SELECT id, amount, status, created_at, description, merchant, category, date, round_up, fee, total_debit, ticker
+            FROM transactions
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+        """, (user_id,))
         transactions = cursor.fetchall()
         conn.close()
-        
+
         transaction_list = []
         for txn in transactions:
             transaction_list.append({
-                'id': txn['id'],
-                'amount': txn['amount'],
-                'status': txn['status'],
-                'created_at': txn['created_at'],
-                'description': txn['description'],
-                'merchant': txn['merchant'],
-                'category': txn['category'],
-                'date': txn['date'],
-                'round_up': txn['round_up'],
-                'fee': txn['fee'],
-                'total_debit': txn['total_debit'],
-                'ticker': txn['ticker'] if 'ticker' in txn.keys() else None
+                'id': txn[0],
+                'amount': txn[1],
+                'status': txn[2],
+                'created_at': txn[3],
+                'description': txn[4],
+                'merchant': txn[5],
+                'category': txn[6],
+                'date': txn[7],
+                'round_up': txn[8],
+                'fee': txn[9],
+                'total_debit': txn[10],
+                'ticker': txn[11] if len(txn) > 11 else None
             })
         
         return jsonify({
@@ -2479,33 +2472,34 @@ def add_transaction():
         # Get user's flat investment preference and account type
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT role FROM users WHERE id = ?", (user_id,))
+        cursor.execute("SELECT role FROM users WHERE id = %s", (user_id,))
         user_data = cursor.fetchone()
         flat_investment = 1.0  # Default round-up amount
-        account_type = user_data['role'] if user_data else 'individual'
-        
+        account_type = user_data[0] if user_data else 'individual'
+
         # Calculate flat investment amount (always the same regardless of purchase amount)
         investment_amount = float(flat_investment)
         fee = calculate_fee_for_account_type(account_type, investment_amount)
         total_debit = amount + investment_amount + fee
-        
+
         # Insert transaction
         cursor.execute("""
             INSERT INTO transactions (user_id, amount, merchant, category, date, description, round_up, fee, total_debit, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s)
+            RETURNING id
         """, (user_id, amount, merchant, category, date, description, investment_amount, fee, total_debit, datetime.now().isoformat()))
-        
-        transaction_id = cursor.lastrowid
-        
+
+        transaction_id = cursor.fetchone()[0]
+
         # Auto-process with AI mapping
         ai_result = auto_process_transaction(cursor, user_id, description, merchant)
-        
+
         # Update transaction with AI results
         if ai_result and ai_result['confidence'] > 0.8:
             cursor.execute("""
-                UPDATE transactions 
-                SET category = ?, merchant = ?, status = 'mapped', ticker = ?
-                WHERE id = ?
+                UPDATE transactions
+                SET category = %s, merchant = %s, status = 'mapped', ticker = %s
+                WHERE id = %s
             """, (ai_result['category'], ai_result['merchant'], ai_result['suggestedTicker'], transaction_id))
         
         conn.commit()
@@ -2547,13 +2541,13 @@ def user_portfolio():
         cursor = conn.cursor()
         
         # Get portfolio summary
-        cursor.execute("SELECT COUNT(*) FROM transactions WHERE user_id = ? AND status = 'mapped'", (user_id,))
+        cursor.execute("SELECT COUNT(*) FROM transactions WHERE user_id = %s AND status = 'mapped'", (user_id,))
         total_investments = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT SUM(round_up) FROM transactions WHERE user_id = ? AND status = 'mapped'", (user_id,))
+
+        cursor.execute("SELECT SUM(round_up) FROM transactions WHERE user_id = %s AND status = 'mapped'", (user_id,))
         total_roundups = cursor.fetchone()[0] or 0
-        
-        cursor.execute("SELECT SUM(fee) FROM transactions WHERE user_id = ?", (user_id,))
+
+        cursor.execute("SELECT SUM(fee) FROM transactions WHERE user_id = %s", (user_id,))
         total_fees = cursor.fetchone()[0] or 0
         
         conn.close()
@@ -2585,23 +2579,24 @@ def user_notifications():
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, title, message, type, created_at, read
-            FROM notifications 
-            WHERE user_id = ?
+            FROM notifications
+            WHERE user_id = %s
             ORDER BY created_at DESC
             LIMIT 50
         """, (user_id,))
         notifications = cursor.fetchall()
         conn.close()
-        
+
+        # Columns: 0=id, 1=title, 2=message, 3=type, 4=created_at, 5=read
         notification_list = []
         for notif in notifications:
             notification_list.append({
-                'id': notif['id'],
-                'title': notif['title'],
-                'message': notif['message'],
-                'type': notif['type'],
-                'created_at': notif['created_at'],
-                'read': bool(notif['read'])
+                'id': notif[0],
+                'title': notif[1],
+                'message': notif[2],
+                'type': notif[3],
+                'created_at': notif[4],
+                'read': bool(notif[5])
             })
         
         return jsonify({
@@ -2657,28 +2652,29 @@ def user_roundups():
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, amount, round_up, created_at, description
-            FROM transactions 
-            WHERE user_id = ? AND round_up > 0
+            FROM transactions
+            WHERE user_id = %s AND round_up > 0
             ORDER BY created_at DESC
         """, (user_id,))
         roundups = cursor.fetchall()
         conn.close()
-        
+
+        # Columns: 0=id, 1=amount, 2=round_up, 3=created_at, 4=description
         roundup_list = []
         for rup in roundups:
             roundup_list.append({
-                'id': rup['id'],
-                'amount': rup['amount'],
-                'round_up': rup['round_up'],
-                'created_at': rup['created_at'],
-                'description': rup['description']
+                'id': rup[0],
+                'amount': rup[1],
+                'round_up': rup[2],
+                'created_at': rup[3],
+                'description': rup[4]
             })
-        
+
         return jsonify({
             'success': True,
             'roundups': roundup_list
         })
-        
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -2696,21 +2692,22 @@ def user_fees():
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, amount, fee, created_at, description
-            FROM transactions 
-            WHERE user_id = ? AND fee > 0
+            FROM transactions
+            WHERE user_id = %s AND fee > 0
             ORDER BY created_at DESC
         """, (user_id,))
         fees = cursor.fetchall()
         conn.close()
-        
+
+        # Columns: 0=id, 1=amount, 2=fee, 3=created_at, 4=description
         fee_list = []
-        for fee in fees:
+        for f in fees:
             fee_list.append({
-                'id': fee['id'],
-                'amount': fee['amount'],
-                'fee': fee['fee'],
-                'created_at': fee['created_at'],
-                'description': fee['description']
+                'id': f[0],
+                'amount': f[1],
+                'fee': f[2],
+                'created_at': f[3],
+                'description': f[4]
             })
         
         return jsonify({
@@ -2951,10 +2948,10 @@ def user_roundups_total():
         cursor = conn.cursor()
         
         # Get total roundups for the user
-        cursor.execute("SELECT SUM(round_up) FROM transactions WHERE user_id = ? AND status = 'mapped'", (user_id,))
+        cursor.execute("SELECT SUM(round_up) FROM transactions WHERE user_id = %s AND status = 'mapped'", (user_id,))
         total_roundups = cursor.fetchone()[0] or 0
-        
-        cursor.execute("SELECT COUNT(*) FROM transactions WHERE user_id = ? AND status = 'mapped'", (user_id,))
+
+        cursor.execute("SELECT COUNT(*) FROM transactions WHERE user_id = %s AND status = 'mapped'", (user_id,))
         total_transactions = cursor.fetchone()[0] or 0
         
         conn.close()
@@ -2983,10 +2980,10 @@ def user_fees_total():
         cursor = conn.cursor()
         
         # Get total fees for the user
-        cursor.execute("SELECT SUM(fee) FROM transactions WHERE user_id = ?", (user_id,))
+        cursor.execute("SELECT SUM(fee) FROM transactions WHERE user_id = %s", (user_id,))
         total_fees = cursor.fetchone()[0] or 0
-        
-        cursor.execute("SELECT COUNT(*) FROM transactions WHERE user_id = ? AND fee > 0", (user_id,))
+
+        cursor.execute("SELECT COUNT(*) FROM transactions WHERE user_id = %s AND fee > 0", (user_id,))
         fee_transactions = cursor.fetchone()[0] or 0
         
         conn.close()
