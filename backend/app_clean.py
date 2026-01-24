@@ -882,23 +882,24 @@ def admin_get_users():
         """)
         users = cursor.fetchall()
         conn.close()
-        
+
+        # Columns: id, name, email, role, created_at, google_uid, google_photo_url, last_login
         user_list = []
         for user in users:
-            # Determine provider based on Google UID
-            provider = 'google' if user['google_uid'] else 'email'
-            
+            # Determine provider based on Google UID (index 5)
+            provider = 'google' if user[5] else 'email'
+
             user_list.append({
-                'id': user['id'],
-                'name': user['name'],
-                'email': user['email'],
-                'role': user['role'],
-                'account_type': user['role'],  # Use role as account_type for now
+                'id': user[0],
+                'name': user[1],
+                'email': user[2],
+                'role': user[3],
+                'account_type': user[3],  # Use role as account_type for now
                 'provider': provider,
-                'google_uid': user['google_uid'],
-                'google_photo_url': user['google_photo_url'],
-                'created_at': user['created_at'],
-                'last_login': user['last_login'],
+                'google_uid': user[5],
+                'google_photo_url': user[6],
+                'created_at': user[4],
+                'last_login': user[7],
                 # Add comprehensive metrics
                 'total_balance': 0,
                 'round_ups': 0,
@@ -936,21 +937,22 @@ def admin_get_family_users():
         users = cursor.fetchall()
         conn.close()
         
+        # Columns: 0=id, 1=name, 2=email, 3=role, 4=created_at
         user_list = []
         for user in users:
             user_list.append({
-                'id': user['id'],
-                'name': user['name'],
-                'email': user['email'],
-                'role': user['role'],
-                'created_at': user['created_at']
+                'id': user[0],
+                'name': user[1],
+                'email': user[2],
+                'role': user[3],
+                'created_at': user[4]
             })
-        
+
         return jsonify({
             'success': True,
             'users': user_list
         })
-        
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -960,28 +962,29 @@ def admin_get_business_users():
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT id, name, email, role, created_at FROM users WHERE role = 'business'")
         users = cursor.fetchall()
         conn.close()
-        
+
+        # Columns: 0=id, 1=name, 2=email, 3=role, 4=created_at
         user_list = []
         for user in users:
             user_list.append({
-                'id': user['id'],
-                'name': user['name'],
-                'email': user['email'],
-                'role': user['role'],
-                'created_at': user['created_at']
+                'id': user[0],
+                'name': user[1],
+                'email': user[2],
+                'role': user[3],
+                'created_at': user[4]
             })
-        
+
         return jsonify({
             'success': True,
             'users': user_list
         })
-        
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -1099,10 +1102,10 @@ def admin_db_status():
             SELECT column_name FROM information_schema.columns
             WHERE table_name = 'users' ORDER BY ordinal_position
         ''')
-        columns = [row['column_name'] for row in cursor.fetchall()]
+        columns = [row[0] for row in cursor.fetchall()]
 
-        cursor.execute('SELECT COUNT(*) as count FROM users')
-        user_count = cursor.fetchone()['count']
+        cursor.execute('SELECT COUNT(*) FROM users')
+        user_count = cursor.fetchone()[0]
 
         conn.close()
 
@@ -2000,32 +2003,42 @@ def user_login():
         cursor = conn.cursor()
         
         # Check users table
-        cursor.execute("SELECT id, email, name, role, password FROM users WHERE email = ?", (email,))
+        # Columns: 0=id, 1=email, 2=name, 3=role, 4=password
+        cursor.execute("SELECT id, email, name, role, password FROM users WHERE LOWER(email) = LOWER(%s)", (email,))
         user = cursor.fetchone()
-        
+
         if user:
             # User found in users table
-            is_test_account = user['email'] in {
+            from werkzeug.security import check_password_hash
+            is_test_account = user[1] in {
                 'ind.test@kamioi.com',
                 'family.test@kamioi.com',
-                'business.test@kamioi.com'
+                'business.test@kamioi.com',
+                'demo_user@kamioi.com',
+                'demo_family@kamioi.com',
+                'demo_business@kamioi.com'
             }
-            is_valid_password = user['password'] == password
-            is_valid_test_password = is_test_account and password == 'Test@1234'
+            # Check if password is hashed or plain text
+            stored_password = user[4] or ''
+            if stored_password.startswith('pbkdf2:') or stored_password.startswith('scrypt:'):
+                is_valid_password = check_password_hash(stored_password, password)
+            else:
+                is_valid_password = stored_password == password
+            is_valid_test_password = is_test_account and password in ['Test@1234', 'Demo123!']
 
             if is_valid_password or is_valid_test_password:
-                token = f"user_token_{user['id']}"
+                token = f"user_token_{user[0]}"
                 conn.close()
-                
+
                 return jsonify({
                     'success': True,
                     'token': token,
                     'user': {
-                        'id': user['id'],
-                        'email': user['email'],
-                        'name': user['name'],
-                        'role': user['role'],
-                        'account_type': user['role']
+                        'id': user[0],
+                        'email': user[1],
+                        'name': user[2],
+                        'role': user[3],
+                        'account_type': user[3]
                     }
                 })
         
@@ -2067,30 +2080,31 @@ def user_google_auth():
         cursor = conn.cursor()
         
         # Check if user already exists
-        cursor.execute("SELECT id, email, name, role, account_type FROM users WHERE email = ?", (email,))
+        # Columns: 0=id, 1=email, 2=name, 3=role, 4=account_type
+        cursor.execute("SELECT id, email, name, role, account_type FROM users WHERE LOWER(email) = LOWER(%s)", (email,))
         existing_user = cursor.fetchone()
-        
+
         if existing_user:
             # User exists, just update their Google info and last login (DON'T update account_type or role)
             cursor.execute("""
-                UPDATE users 
-                SET google_uid = ?, google_photo_url = ?, last_login = ?
-                WHERE email = ?
+                UPDATE users
+                SET google_uid = %s, google_photo_url = %s, last_login = %s
+                WHERE LOWER(email) = LOWER(%s)
             """, (uid, photo_url, datetime.now().isoformat(), email))
             conn.commit()
-            
-            token = f"user_token_{existing_user['id']}"
+
+            token = f"user_token_{existing_user[0]}"
             conn.close()
-            
+
             return jsonify({
                 'success': True,
                 'token': token,
                 'user': {
-                    'id': existing_user['id'],
-                    'email': existing_user['email'],
-                    'name': existing_user['name'],
-                    'role': existing_user['role'],
-                    'accountType': existing_user['account_type'] if existing_user['account_type'] else 'individual',
+                    'id': existing_user[0],
+                    'email': existing_user[1],
+                    'name': existing_user[2],
+                    'role': existing_user[3],
+                    'accountType': existing_user[4] if existing_user[4] else 'individual',
                     'photoURL': photo_url,
                     'provider': 'google'
                 }
@@ -2113,7 +2127,7 @@ def user_google_auth():
             
             cursor.execute("""
                 INSERT INTO users (id, email, password, name, role, account_type, google_uid, google_photo_url, created_at, last_login)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (user_id, email, 'google_user', name, user_role, account_type, uid, photo_url, datetime.now().isoformat(), datetime.now().isoformat()))
             
             conn.commit()
@@ -10645,34 +10659,42 @@ def public_get_blog_posts():
         
         where_clause = "WHERE status = 'published'"
         params = []
-        
+
         if category:
-            where_clause += " AND category = ?"
+            where_clause += " AND category = %s"
             params.append(category)
-        
+
         # Get total count
         count_query = f"SELECT COUNT(*) FROM blog_posts {where_clause}"
-        cursor.execute(count_query, params)
+        cursor.execute(count_query, params if params else None)
         total = cursor.fetchone()[0]
-        
+
         # Get posts with pagination
         offset = (page - 1) * limit
         query = f"""
-            SELECT id, title, slug, excerpt, featured_image, category, tags, 
+            SELECT id, title, slug, excerpt, featured_image, category, tags,
                    author_name, read_time, published_at, views
-            FROM blog_posts 
+            FROM blog_posts
             {where_clause}
-            ORDER BY published_at DESC 
-            LIMIT ? OFFSET ?
+            ORDER BY published_at DESC
+            LIMIT %s OFFSET %s
         """
         cursor.execute(query, params + [limit, offset])
         posts = cursor.fetchall()
-        
+
         conn.close()
-        
+
+        # Convert tuples to dicts: 0=id, 1=title, 2=slug, 3=excerpt, 4=featured_image,
+        # 5=category, 6=tags, 7=author_name, 8=read_time, 9=published_at, 10=views
+        post_list = [{
+            'id': p[0], 'title': p[1], 'slug': p[2], 'excerpt': p[3],
+            'featured_image': p[4], 'category': p[5], 'tags': p[6],
+            'author_name': p[7], 'read_time': p[8], 'published_at': p[9], 'views': p[10]
+        } for p in posts]
+
         return jsonify({
             'success': True,
-            'posts': [dict(post) for post in posts],
+            'posts': post_list,
             'pagination': {
                 'page': page,
                 'limit': limit,
@@ -10690,30 +10712,42 @@ def public_get_blog_post(slug):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Get post
+
+        # Get post - get all columns for full post data
         cursor.execute("""
-            SELECT * FROM blog_posts 
-            WHERE slug = ? AND status = 'published'
+            SELECT id, title, slug, excerpt, content, featured_image, category, tags,
+                   author_name, author_avatar, read_time, status, published_at, views, created_at, updated_at
+            FROM blog_posts
+            WHERE slug = %s AND status = 'published'
         """, (slug,))
         post = cursor.fetchone()
-        
+
         if not post:
+            conn.close()
             return jsonify({'success': False, 'error': 'Post not found'}), 404
-        
+
         # Increment view count
         cursor.execute("""
-            UPDATE blog_posts 
-            SET views = views + 1 
-            WHERE id = ?
-        """, (post['id'],))
-        
+            UPDATE blog_posts
+            SET views = views + 1
+            WHERE id = %s
+        """, (post[0],))
+
         conn.commit()
         conn.close()
-        
+
+        # Convert tuple to dict
+        post_dict = {
+            'id': post[0], 'title': post[1], 'slug': post[2], 'excerpt': post[3],
+            'content': post[4], 'featured_image': post[5], 'category': post[6], 'tags': post[7],
+            'author_name': post[8], 'author_avatar': post[9], 'read_time': post[10],
+            'status': post[11], 'published_at': post[12], 'views': post[13],
+            'created_at': post[14], 'updated_at': post[15]
+        }
+
         return jsonify({
             'success': True,
-            'post': dict(post)
+            'post': post_dict
         })
         
     except Exception as e:
