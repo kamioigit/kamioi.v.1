@@ -728,3 +728,190 @@ def admin_resolve_error(error_id):
             return jsonify({'success': False, 'error': 'Failed to resolve error'}), 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# =============================================================================
+# Demo User Management Routes
+# =============================================================================
+
+@admin_bp.route('/demo-users/create', methods=['POST'])
+@cross_origin()
+def admin_create_demo_users():
+    """Create demo users for testing and demonstrations"""
+    ok, res = require_role('admin')
+    if ok is False:
+        return res
+
+    try:
+        from datetime import datetime
+
+        DEMO_PASSWORD = "Demo123!"
+        DEMO_ACCOUNTS = [
+            {
+                "email": "demo_user@kamioi.com",
+                "name": "Demo User",
+                "account_type": "individual",
+            },
+            {
+                "email": "demo_family@kamioi.com",
+                "name": "Demo Family Admin",
+                "account_type": "family",
+            },
+            {
+                "email": "demo_business@kamioi.com",
+                "name": "Demo Business",
+                "account_type": "business",
+            }
+        ]
+
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+        created_users = []
+
+        if use_postgresql:
+            from sqlalchemy import text
+
+            for account in DEMO_ACCOUNTS:
+                # Check if user already exists
+                result = conn.execute(text(
+                    'SELECT id FROM users WHERE LOWER(email) = LOWER(:email)'
+                ), {'email': account['email']})
+                existing = result.fetchone()
+
+                if existing:
+                    created_users.append({
+                        'email': account['email'],
+                        'status': 'already_exists',
+                        'id': existing[0]
+                    })
+                    continue
+
+                # Create the user
+                password_hash = generate_password_hash(DEMO_PASSWORD)
+                result = conn.execute(text('''
+                    INSERT INTO users (email, password, name, dashboard, is_active, created_at, email_verified)
+                    VALUES (:email, :password, :name, :dashboard, true, :created_at, true)
+                    RETURNING id
+                '''), {
+                    'email': account['email'],
+                    'password': password_hash,
+                    'name': account['name'],
+                    'dashboard': account['account_type'],
+                    'created_at': datetime.utcnow()
+                })
+                new_id = result.fetchone()[0]
+                conn.commit()
+
+                created_users.append({
+                    'email': account['email'],
+                    'status': 'created',
+                    'id': new_id,
+                    'account_type': account['account_type']
+                })
+
+            db_manager.release_connection(conn)
+        else:
+            # SQLite fallback
+            cur = conn.cursor()
+
+            for account in DEMO_ACCOUNTS:
+                cur.execute('SELECT id FROM users WHERE LOWER(email) = LOWER(?)', (account['email'],))
+                existing = cur.fetchone()
+
+                if existing:
+                    created_users.append({
+                        'email': account['email'],
+                        'status': 'already_exists',
+                        'id': existing[0]
+                    })
+                    continue
+
+                password_hash = generate_password_hash(DEMO_PASSWORD)
+                cur.execute('''
+                    INSERT INTO users (email, password, name, dashboard, is_active, created_at, email_verified)
+                    VALUES (?, ?, ?, ?, 1, ?, 1)
+                ''', (account['email'], password_hash, account['name'], account['account_type'], datetime.utcnow().isoformat()))
+                conn.commit()
+
+                created_users.append({
+                    'email': account['email'],
+                    'status': 'created',
+                    'id': cur.lastrowid,
+                    'account_type': account['account_type']
+                })
+
+            conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'Demo users processed',
+            'users': created_users,
+            'password': DEMO_PASSWORD
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/demo-users', methods=['GET'])
+@cross_origin()
+def admin_get_demo_users():
+    """Get list of demo users"""
+    ok, res = require_role('admin')
+    if ok is False:
+        return res
+
+    try:
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+
+        demo_emails = ['demo_user@kamioi.com', 'demo_family@kamioi.com', 'demo_business@kamioi.com']
+
+        if use_postgresql:
+            from sqlalchemy import text
+            result = conn.execute(text('''
+                SELECT id, email, name, dashboard, is_active, created_at
+                FROM users
+                WHERE LOWER(email) = ANY(:emails)
+            '''), {'emails': [e.lower() for e in demo_emails]})
+            rows = result.fetchall()
+            db_manager.release_connection(conn)
+
+            users = [{
+                'id': row[0],
+                'email': row[1],
+                'name': row[2],
+                'account_type': row[3],
+                'is_active': row[4],
+                'created_at': str(row[5]) if row[5] else None
+            } for row in rows]
+        else:
+            cur = conn.cursor()
+            placeholders = ','.join(['?' for _ in demo_emails])
+            cur.execute(f'''
+                SELECT id, email, name, dashboard, is_active, created_at
+                FROM users
+                WHERE LOWER(email) IN ({placeholders})
+            ''', [e.lower() for e in demo_emails])
+            rows = cur.fetchall()
+            conn.close()
+
+            users = [{
+                'id': row[0],
+                'email': row[1],
+                'name': row[2],
+                'account_type': row[3],
+                'is_active': row[4],
+                'created_at': row[5]
+            } for row in rows]
+
+        return jsonify({
+            'success': True,
+            'users': users,
+            'password': 'Demo123!'
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
