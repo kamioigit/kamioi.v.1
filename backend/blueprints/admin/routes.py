@@ -389,10 +389,10 @@ def admin_users():
                 count_result = conn.execute(text("SELECT COUNT(*) FROM users"))
             total = count_result.scalar() or 0
 
-            # Get paginated users
+            # Get paginated users - use COALESCE for account_type to handle NULL values
             if search:
                 result = conn.execute(text('''
-                    SELECT id, email, name, account_type, created_at
+                    SELECT id, email, name, COALESCE(account_type, 'individual') as account_type, created_at
                     FROM users
                     WHERE email ILIKE :search OR name ILIKE :search
                     ORDER BY created_at DESC
@@ -400,7 +400,7 @@ def admin_users():
                 '''), {'search': f'%{search}%', 'limit': per_page, 'offset': offset})
             else:
                 result = conn.execute(text('''
-                    SELECT id, email, name, account_type, created_at
+                    SELECT id, email, name, COALESCE(account_type, 'individual') as account_type, created_at
                     FROM users
                     ORDER BY created_at DESC
                     LIMIT :limit OFFSET :offset
@@ -913,3 +913,70 @@ def admin_get_demo_users():
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/db-status', methods=['GET'])
+@cross_origin()
+def admin_db_status():
+    """Check database status and table existence"""
+    ok, res = require_role('admin')
+    if ok is False:
+        return res
+
+    try:
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+        status = {
+            'database_type': 'postgresql' if use_postgresql else 'sqlite',
+            'tables': {},
+            'users_count': 0,
+            'users_columns': []
+        }
+
+        if use_postgresql:
+            from sqlalchemy import text
+
+            # Check if users table exists
+            result = conn.execute(text('''
+                SELECT table_name FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = 'users'
+            '''))
+            users_table = result.fetchone()
+            status['tables']['users'] = users_table is not None
+
+            if users_table:
+                # Get column names
+                result = conn.execute(text('''
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name = 'users' ORDER BY ordinal_position
+                '''))
+                status['users_columns'] = [row[0] for row in result.fetchall()]
+
+                # Get user count
+                result = conn.execute(text('SELECT COUNT(*) FROM users'))
+                status['users_count'] = result.scalar()
+
+            db_manager.release_connection(conn)
+        else:
+            cur = conn.cursor()
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+            users_table = cur.fetchone()
+            status['tables']['users'] = users_table is not None
+
+            if users_table:
+                cur.execute("PRAGMA table_info(users)")
+                status['users_columns'] = [row[1] for row in cur.fetchall()]
+                cur.execute('SELECT COUNT(*) FROM users')
+                status['users_count'] = cur.fetchone()[0]
+
+            conn.close()
+
+        return jsonify({'success': True, 'status': status})
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
