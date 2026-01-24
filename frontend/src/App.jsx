@@ -30,6 +30,8 @@ import { ThemeProvider, useTheme } from './context/ThemeContext'
 import { DataProvider } from './context/DataContext'
 import { ModalProvider } from './context/ModalContext'
 import { TutorialProvider } from './context/TutorialContext'
+import { DemoProvider } from './context/DemoContext'
+import DemoModeToggle from './components/common/DemoModeToggle'
 import GoogleAnalyticsTracker from './components/common/GoogleAnalyticsTracker'
 import NotificationManager from './components/common/NotificationManager'
 import AdminRoute from './components/AdminRoute'
@@ -359,22 +361,25 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <AuthProvider>
-            <DataProvider>
-              <ModalProvider>
-                <TutorialProvider>
-                  <Router
-                    future={{
-                      v7_startTransition: true,
-                      v7_relativeSplatPath: true
-                    }}
-                  >
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <AppRoutes />
-                    </Suspense>
-                  </Router>
-                </TutorialProvider>
-              </ModalProvider>
-            </DataProvider>
+            <DemoProvider>
+              <DataProvider>
+                <ModalProvider>
+                  <TutorialProvider>
+                    <Router
+                      future={{
+                        v7_startTransition: true,
+                        v7_relativeSplatPath: true
+                      }}
+                    >
+                      <Suspense fallback={<LoadingSpinner />}>
+                        <DemoModeToggle />
+                        <AppRoutes />
+                      </Suspense>
+                    </Router>
+                  </TutorialProvider>
+                </ModalProvider>
+              </DataProvider>
+            </DemoProvider>
           </AuthProvider>
         </ThemeProvider>
       </QueryClientProvider>
