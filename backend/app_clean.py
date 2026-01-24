@@ -180,14 +180,25 @@ def _process_bulk_upload_job(job_id, file_path):
         batch_data = []
         for row in csv_reader:
             try:
-                # Validate required fields
-                merchant_name = row.get('Merchant Name', '').strip()
+                # Flexible column name matching (case-insensitive, with variations)
+                def get_col(row, *names):
+                    for name in names:
+                        if name in row:
+                            return row[name].strip() if row[name] else ''
+                        # Try lowercase
+                        for k in row.keys():
+                            if k.lower() == name.lower():
+                                return row[k].strip() if row[k] else ''
+                    return ''
+
+                # Validate required fields - accept multiple column name variations
+                merchant_name = get_col(row, 'Merchant Name', 'merchant_name', 'merchant', 'name', 'MerchantName')
                 if not merchant_name:
                     errors.append(f"Row {processed_rows + 1}: Missing merchant name")
                     continue
 
                 # Handle confidence field - could be percentage or decimal
-                confidence_str = str(row.get('Confidence', '0')).strip()
+                confidence_str = get_col(row, 'Confidence', 'confidence', 'conf', 'score') or '0'
                 confidence = 0.0
                 try:
                     if confidence_str.endswith('%'):
@@ -195,19 +206,23 @@ def _process_bulk_upload_job(job_id, file_path):
                         confidence = float(confidence_str[:-1]) / 100.0
                     else:
                         # Already a decimal
-                        confidence = float(confidence_str)
+                        confidence = float(confidence_str) if confidence_str else 0.0
                 except (ValueError, TypeError):
                     confidence = 0.0
 
-                # Map ticker symbol to company name
-                ticker_symbol = row.get('Ticker Symbol', '').strip()
-                company_name = get_company_name_from_ticker(ticker_symbol)
+                # Map ticker symbol to company name - accept multiple column names
+                ticker_symbol = get_col(row, 'Ticker Symbol', 'ticker_symbol', 'ticker', 'symbol', 'TickerSymbol', 'stock')
+                company_name = get_col(row, 'Company Name', 'company_name', 'company', 'CompanyName') or get_company_name_from_ticker(ticker_symbol)
+
+                # Get category and notes with flexible column names
+                category = get_col(row, 'Category', 'category', 'cat', 'type')
+                notes = get_col(row, 'Notes', 'notes', 'note', 'description', 'desc')
 
                 # Prepare data for batch insert
                 batch_data.append((
                     merchant_name,
-                    row.get('Category', '').strip(),
-                    row.get('Notes', '').strip(),
+                    category,
+                    notes,
                     ticker_symbol,
                     confidence,
                     'approved',  # Direct approval for bulk uploads
