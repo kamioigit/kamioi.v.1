@@ -789,14 +789,14 @@ def admin_create_demo_users():
                 # Create the user
                 password_hash = generate_password_hash(DEMO_PASSWORD)
                 result = conn.execute(text('''
-                    INSERT INTO users (email, password, name, dashboard, is_active, created_at, email_verified)
-                    VALUES (:email, :password, :name, :dashboard, true, :created_at, true)
+                    INSERT INTO users (email, password, name, account_type, created_at)
+                    VALUES (:email, :password, :name, :account_type, :created_at)
                     RETURNING id
                 '''), {
                     'email': account['email'],
                     'password': password_hash,
                     'name': account['name'],
-                    'dashboard': account['account_type'],
+                    'account_type': account['account_type'],
                     'created_at': datetime.utcnow()
                 })
                 new_id = result.fetchone()[0]
@@ -828,8 +828,8 @@ def admin_create_demo_users():
 
                 password_hash = generate_password_hash(DEMO_PASSWORD)
                 cur.execute('''
-                    INSERT INTO users (email, password, name, dashboard, is_active, created_at, email_verified)
-                    VALUES (?, ?, ?, ?, 1, ?, 1)
+                    INSERT INTO users (email, password, name, account_type, created_at)
+                    VALUES (?, ?, ?, ?, ?)
                 ''', (account['email'], password_hash, account['name'], account['account_type'], datetime.utcnow().isoformat()))
                 conn.commit()
 
@@ -872,7 +872,7 @@ def admin_get_demo_users():
         if use_postgresql:
             from sqlalchemy import text
             result = conn.execute(text('''
-                SELECT id, email, name, dashboard, is_active, created_at
+                SELECT id, email, name, account_type, created_at
                 FROM users
                 WHERE LOWER(email) = ANY(:emails)
             '''), {'emails': [e.lower() for e in demo_emails]})
@@ -884,14 +884,13 @@ def admin_get_demo_users():
                 'email': row[1],
                 'name': row[2],
                 'account_type': row[3],
-                'is_active': row[4],
-                'created_at': str(row[5]) if row[5] else None
+                'created_at': str(row[4]) if row[4] else None
             } for row in rows]
         else:
             cur = conn.cursor()
             placeholders = ','.join(['?' for _ in demo_emails])
             cur.execute(f'''
-                SELECT id, email, name, dashboard, is_active, created_at
+                SELECT id, email, name, account_type, created_at
                 FROM users
                 WHERE LOWER(email) IN ({placeholders})
             ''', [e.lower() for e in demo_emails])
@@ -903,8 +902,7 @@ def admin_get_demo_users():
                 'email': row[1],
                 'name': row[2],
                 'account_type': row[3],
-                'is_active': row[4],
-                'created_at': row[5]
+                'created_at': row[4]
             } for row in rows]
 
         return jsonify({
