@@ -7930,13 +7930,76 @@ def admin_google_analytics():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Database Management Endpoints
+
+@app.route('/api/admin/fix-transactions', methods=['POST'])
+def admin_fix_transactions():
+    """One-time fix: Set round_up to user's setting and fee to 0 for all transactions"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Count transactions before fix
+        cursor.execute("SELECT COUNT(*) FROM transactions")
+        total_before = cursor.fetchone()[0]
+
+        # Fix all transactions: set round_up to user's setting, fee to 0
+        cursor.execute("""
+            UPDATE transactions t
+            SET
+                round_up = COALESCE(u.round_up_amount, 1.00),
+                fee = 0,
+                total_debit = t.amount + COALESCE(u.round_up_amount, 1.00)
+            FROM users u
+            WHERE t.user_id = u.id
+        """)
+        rows_updated = cursor.rowcount
+
+        conn.commit()
+
+        # Verify the fix
+        cursor.execute("""
+            SELECT t.id, t.merchant, t.amount, t.round_up, t.fee, t.total_debit
+            FROM transactions t
+            ORDER BY t.created_at DESC
+            LIMIT 10
+        """)
+        sample = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'Fixed {rows_updated} transactions',
+            'total_transactions': total_before,
+            'rows_updated': rows_updated,
+            'sample_after_fix': [
+                {
+                    'id': row[0],
+                    'merchant': row[1],
+                    'amount': float(row[2]) if row[2] else 0,
+                    'round_up': float(row[3]) if row[3] else 0,
+                    'fee': float(row[4]) if row[4] else 0,
+                    'total_debit': float(row[5]) if row[5] else 0
+                }
+                for row in sample
+            ]
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/admin/database/connectivity-matrix', methods=['GET'])
 def admin_database_connectivity_matrix():
     try:
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
-        
+
         return jsonify({
             'success': True,
             'data': {
