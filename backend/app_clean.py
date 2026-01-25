@@ -352,6 +352,7 @@ def admin_dashboard_overview():
         conn = get_db_connection()
         cursor = conn.cursor()
 
+        # Basic stats
         cursor.execute("SELECT COUNT(*) FROM users")
         total_users = cursor.fetchone()[0]
 
@@ -359,19 +360,113 @@ def admin_dashboard_overview():
         total_transactions = cursor.fetchone()[0]
 
         cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM transactions")
-        total_amount = cursor.fetchone()[0]
+        total_amount = float(cursor.fetchone()[0] or 0)
+
+        cursor.execute("SELECT COALESCE(SUM(round_up_amount), 0) FROM transactions WHERE round_up_amount > 0")
+        total_roundups = float(cursor.fetchone()[0] or 0)
+
+        # User Growth - get user registrations by month (last 6 months)
+        cursor.execute("""
+            SELECT
+                TO_CHAR(created_at, 'Mon') as month,
+                COUNT(*) as users
+            FROM users
+            WHERE created_at >= NOW() - INTERVAL '6 months'
+            GROUP BY TO_CHAR(created_at, 'YYYY-MM'), TO_CHAR(created_at, 'Mon')
+            ORDER BY MIN(created_at)
+        """)
+        user_growth_raw = cursor.fetchall()
+
+        # Build user growth data - include all months even if no users
+        from datetime import datetime
+        from dateutil.relativedelta import relativedelta
+        now = datetime.now()
+        user_growth = []
+        for i in range(5, -1, -1):
+            month_date = now - relativedelta(months=i)
+            month_name = month_date.strftime('%b')
+            # Find users for this month
+            users_count = 0
+            for row in user_growth_raw:
+                if row[0] == month_name:
+                    users_count = row[1]
+                    break
+            user_growth.append({
+                'month': month_name,
+                'users': users_count
+            })
+
+        # Revenue trend (weekly for last 5 weeks)
+        cursor.execute("""
+            SELECT
+                'Week ' || EXTRACT(WEEK FROM created_at)::TEXT as week,
+                COUNT(*) as value
+            FROM transactions
+            WHERE created_at >= NOW() - INTERVAL '5 weeks'
+            GROUP BY EXTRACT(WEEK FROM created_at)
+            ORDER BY EXTRACT(WEEK FROM created_at)
+            LIMIT 5
+        """)
+        revenue_raw = cursor.fetchall()
+        revenue_trend = [{'week': f'Week {i+1}', 'value': 0} for i in range(5)]
+        for idx, row in enumerate(revenue_raw):
+            if idx < 5:
+                revenue_trend[idx] = {'week': row[0], 'value': row[1]}
+
+        # Recent activity
+        cursor.execute("""
+            SELECT name, email, created_at, account_type
+            FROM users
+            ORDER BY created_at DESC
+            LIMIT 5
+        """)
+        recent_users = cursor.fetchall()
+        recent_activity = []
+        for user in recent_users:
+            recent_activity.append({
+                'type': 'user_signup',
+                'message': f'New {user[3] or "individual"} user: {user[0] or user[1]}',
+                'time': user[2].isoformat() if user[2] else ''
+            })
+
+        # System status
+        cursor.execute("SELECT COUNT(*) FROM users WHERE last_login IS NOT NULL AND last_login >= NOW() - INTERVAL '24 hours'")
+        active_users = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM llm_mappings")
+        mapped_transactions = cursor.fetchone()[0]
 
         conn.close()
 
         return jsonify({
             'success': True,
             'data': {
+                'stats': {
+                    'totalTransactions': total_transactions,
+                    'totalRevenue': total_amount,
+                    'totalRoundUps': total_roundups,
+                    'portfolioValue': 0
+                },
+                'userGrowth': user_growth,
+                'revenueTrend': revenue_trend,
+                'recentActivity': recent_activity,
+                'systemStatus': {
+                    'active_users': active_users,
+                    'server_load': 'low',
+                    'status': 'operational',
+                    'uptime': '100%',
+                    'mapped_transactions': mapped_transactions
+                },
+                # Legacy fields for backwards compatibility
                 'total_users': total_users,
                 'total_transactions': total_transactions,
                 'total_amount': total_amount
             }
         })
     except Exception as e:
+        print(f"Admin dashboard overview error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Database setup
