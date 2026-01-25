@@ -85,25 +85,30 @@ const PersonalInfoStep = () => {
       const token = formData.token || localStorage.getItem('kamioi_user_token')
 
       // Update profile with personal info INCLUDING DOB and SSN
+      const profileData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        name: `${formData.firstName} ${formData.lastName}`,
+        phone: formData.phone.replace(/\D/g, ''),
+        dateOfBirth: formData.dateOfBirth,
+        dob: formData.dateOfBirth, // Send both field names for compatibility
+        ssnLast4: formData.ssnLast4,
+        ssn_last4: formData.ssnLast4 // Send both field names for compatibility
+      }
+      console.log('PersonalInfoStep - Sending profile data:', profileData)
+      console.log('PersonalInfoStep - Token:', token)
+
       const response = await fetch(`${apiBaseUrl}/api/user/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          name: `${formData.firstName} ${formData.lastName}`,
-          phone: formData.phone.replace(/\D/g, ''),
-          dateOfBirth: formData.dateOfBirth,
-          dob: formData.dateOfBirth, // Send both field names for compatibility
-          ssnLast4: formData.ssnLast4,
-          ssn_last4: formData.ssnLast4 // Send both field names for compatibility
-        })
+        body: JSON.stringify(profileData)
       })
 
       const data = await response.json()
+      console.log('PersonalInfoStep - Response:', data)
 
       if (data.success || response.ok) {
         console.log('Personal info saved successfully:', {
