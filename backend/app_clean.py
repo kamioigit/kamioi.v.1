@@ -362,7 +362,7 @@ def admin_dashboard_overview():
         cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM transactions")
         total_amount = float(cursor.fetchone()[0] or 0)
 
-        cursor.execute("SELECT COALESCE(SUM(round_up_amount), 0) FROM transactions WHERE round_up_amount > 0")
+        cursor.execute("SELECT COALESCE(SUM(round_up), 0) FROM transactions WHERE round_up > 0")
         total_roundups = float(cursor.fetchone()[0] or 0)
 
         # User Growth - get user registrations by month (last 6 months)
@@ -1582,16 +1582,16 @@ def admin_get_transactions():
 
             transaction_list.append({
                 'id': txn[0],
-                'amount': txn[1],
+                'amount': float(txn[1]) if txn[1] else 0,
                 'status': txn[2],
                 'created_at': str(txn[3]) if txn[3] else None,
                 'date': str(txn[3]) if txn[3] else None,
                 'merchant': txn[4] or 'Unknown Merchant',
                 'category': txn[5] or 'Unknown',
                 'description': txn[6],
-                'round_up': txn[7] or 0,
-                'total_debit': txn[8] or txn[1],
-                'fee': txn[9] or 0,
+                'round_up': float(txn[7]) if txn[7] else 0,
+                'total_debit': float(txn[8]) if txn[8] else (float(txn[1]) if txn[1] else 0),
+                'fee': float(txn[9]) if txn[9] else 0,
                 'ticker': None,
                 'account_type': txn[10],
                 'user_name': user.get('name', 'Unknown'),
