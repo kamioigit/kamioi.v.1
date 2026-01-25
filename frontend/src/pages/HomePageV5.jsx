@@ -1070,7 +1070,7 @@ Passive investing is perfect for busy people who want to build wealth without be
 
         {/* Stats Section - Only show if stats exist */}
         {stats && stats.length > 0 && (
-        <section ref={statsRef} className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-900/40 via-purple-900/40 to-pink-900/40 backdrop-blur-sm border-y border-blue-500/30">
+        <section ref={statsRef} className="py-20 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-8">
               <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">
@@ -1141,7 +1141,7 @@ Passive investing is perfect for busy people who want to build wealth without be
 
         {/* Educational Content Section - Only show if educationalContent exists */}
         {educationalContent && (
-        <section id="educational-content" className="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-emerald-900/40 via-teal-900/40 to-cyan-900/40 backdrop-blur-sm border-y border-emerald-500/30">
+        <section id="educational-content" className="py-24 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-16">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-emerald-500/30 to-cyan-500/30 rounded-2xl mb-6 border border-emerald-400/50">
@@ -1215,7 +1215,7 @@ Passive investing is perfect for busy people who want to build wealth without be
         </section>
 
         {/* Trust Badges Section */}
-        <section className="py-12 px-4 sm:px-6 lg:px-8 bg-black/10">
+        <section className="py-12 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12">
               <div className="flex items-center space-x-2 text-white/80">
@@ -1652,7 +1652,7 @@ Passive investing is perfect for busy people who want to build wealth without be
         )}
 
         {/* Final CTA */}
-        <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-lg border-t border-white/10">
+        <section className="py-20 px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto text-center">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
               Ready to Turn Your Purchases Into Wealth?
