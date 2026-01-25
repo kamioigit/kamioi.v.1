@@ -44,16 +44,26 @@ const LLMMappingCenter = ({ user }) => {
     try {
       setLoading(true)
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-      const response = await fetch(`${apiBaseUrl}/api/admin/llm/mapping-queues`, {
+      // FIXED: Use working endpoint /api/admin/llm-center/queue
+      const response = await fetch(`${apiBaseUrl}/api/admin/llm-center/queue`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3' || 'admin_token_3'}`
+          'Authorization': `Bearer ${localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'}`
         }
       })
-      
+
       if (response.ok) {
         const result = await response.json()
-        if (result.success) {
-          setMappingQueues(result.data.queues || {})
+        if (result.success && result.data) {
+          // Transform response to expected format
+          // Group queue items by status for display
+          const items = result.data.queue_items || []
+          const queues = {
+            'needs-recognition': items.filter(i => !i.ticker && i.status === 'pending'),
+            'conflicts': items.filter(i => i.confidence < 60 && i.status === 'pending'),
+            'low-confidence': items.filter(i => i.confidence >= 60 && i.confidence < 80 && i.status === 'pending'),
+            'pending-approval': items.filter(i => i.confidence >= 80 && i.status === 'pending')
+          }
+          setMappingQueues(queues)
         } else {
           setMappingQueues({})
         }
@@ -71,12 +81,13 @@ const LLMMappingCenter = ({ user }) => {
   const fetchMappingStats = async () => {
     try {
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-      const response = await fetch(`${apiBaseUrl}/api/admin/llm/mapping-stats`, {
+      // FIXED: Use working endpoint /api/admin/llm-center/processing-stats
+      const response = await fetch(`${apiBaseUrl}/api/admin/llm-center/processing-stats`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3' || 'admin_token_3'}`
+          'Authorization': `Bearer ${localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'}`
         }
       })
-      
+
       if (response.ok) {
         const result = await response.json()
         if (result.success) {
@@ -95,15 +106,20 @@ const LLMMappingCenter = ({ user }) => {
   const handleMappingAction = async (mappingId, action) => {
     try {
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-      const response = await fetch(`${apiBaseUrl}/api/admin/llm/mappings/${mappingId}`, {
-        method: 'PUT',
+      // FIXED: Use working endpoints for approve/reject
+      const endpoint = action === 'approve'
+        ? `${apiBaseUrl}/api/admin/llm-center/approve-mapping`
+        : `${apiBaseUrl}/api/admin/llm-center/reject-mapping`
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3' || 'admin_token_3'}`
+          'Authorization': `Bearer ${localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'}`
         },
-        body: JSON.stringify({ action, status: 'processed' })
+        body: JSON.stringify({ mapping_id: mappingId })
       })
-      
+
       if (response.ok) {
         // Refresh the data
         fetchMappingQueues()
@@ -117,20 +133,30 @@ const LLMMappingCenter = ({ user }) => {
   const handleBulkAction = async (action, mappingIds) => {
     try {
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-      const response = await fetch(`${apiBaseUrl}/api/admin/llm/bulk-actions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3' || 'admin_token_3'}`
-        },
-        body: JSON.stringify({ action, mappingIds })
-      })
-      
-      if (response.ok) {
-        // Refresh the data
-        fetchMappingQueues()
-        fetchMappingStats()
+      // FIXED: Process each mapping individually since bulk endpoint doesn't exist
+      // For approve all pending, use the dedicated endpoint
+      if (action === 'approve-all') {
+        const response = await fetch(`${apiBaseUrl}/api/admin/llm-center/mappings/approve-all-pending`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'}`
+          }
+        })
+        if (response.ok) {
+          fetchMappingQueues()
+          fetchMappingStats()
+        }
+        return
       }
+
+      // For individual bulk actions, process each one
+      for (const mappingId of mappingIds) {
+        await handleMappingAction(mappingId, action)
+      }
+      // Refresh after all done
+      fetchMappingQueues()
+      fetchMappingStats()
     } catch (error) {
       console.error('Error performing bulk action:', error)
     }

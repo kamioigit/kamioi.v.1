@@ -52,17 +52,11 @@ class RoundUpEngine:
             }
         
         rule = user_pref['rule']
-        
-        # Calculate round-up delta
-        if rule == 1.00:
-            delta = math.ceil(amount) - amount
-        elif rule == 2.00:
-            delta = math.ceil(amount / 2) * 2 - amount
-        elif rule == 3.00:
-            delta = math.ceil(amount / 3) * 3 - amount
-        else:
-            # Custom rule
-            delta = math.ceil(amount / rule) * rule - amount
+
+        # FIXED: rule is the FIXED round-up amount to add to each transaction
+        # NOT "round to nearest dollar" calculation
+        # If user sets $1.00 round-up, EVERY transaction gets $1.00 added
+        delta = rule
         
         # Apply Kamioi fee
         fee = self.kamioi_fee

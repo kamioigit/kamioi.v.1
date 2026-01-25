@@ -4109,8 +4109,8 @@ def sync_user_transactions():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Check if user has a bank connection
-        cursor.execute("SELECT mx_data FROM users WHERE id = %s", (user_id,))
+        # Check if user has a bank connection AND get their round-up setting
+        cursor.execute("SELECT mx_data, round_up_amount FROM users WHERE id = %s", (user_id,))
         result = cursor.fetchone()
 
         if not result or not result[0]:
@@ -4119,6 +4119,9 @@ def sync_user_transactions():
                 'success': False,
                 'error': 'No bank account connected. Please connect a bank first.'
             }), 400
+
+        # Get user's configured round-up amount (FIXED amount, not nearest dollar)
+        user_round_up_amount = float(result[1]) if result[1] else 1.00
 
         # In demo mode, generate sample transactions
         # In production, this would call MX API to fetch real transactions
@@ -4147,7 +4150,8 @@ def sync_user_transactions():
         for i in range(num_transactions):
             merchant = random.choice(merchants)
             amount = round(random.uniform(5.00, 75.00), 2)
-            round_up = round(1.00 - (amount % 1) if (amount % 1) > 0 else 1.00, 2)
+            # FIXED: Use user's configured round-up amount (not nearest dollar calculation)
+            round_up = user_round_up_amount
             tx_date = base_date - timedelta(days=random.randint(0, 7))
 
             tx = {
@@ -9905,16 +9909,21 @@ def admin_create_demo_transactions():
             # Create the demo user
             hashed_password = generate_password_hash("Demo123!")
             cursor.execute("""
-                INSERT INTO users (email, password, name, account_type, created_at)
-                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                INSERT INTO users (email, password, name, account_type, round_up_amount, created_at)
+                VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 RETURNING id
-            """, ('demo_user@kamioi.com', hashed_password, 'Demo User', 'individual'))
+            """, ('demo_user@kamioi.com', hashed_password, 'Demo User', 'individual', 1.00))
             user_id = cursor.fetchone()[0]
             conn.commit()
             user_created = True
+            user_round_up_amount = 1.00
         else:
             user_id = user[0]
             user_created = False
+            # Get user's round-up setting
+            cursor.execute("SELECT round_up_amount FROM users WHERE id = %s", (user_id,))
+            round_up_row = cursor.fetchone()
+            user_round_up_amount = float(round_up_row[0]) if round_up_row and round_up_row[0] else 1.00
 
         # Add 20 transactions
         num_transactions = 20
@@ -9924,7 +9933,8 @@ def admin_create_demo_transactions():
         for i in range(num_transactions):
             merchant, expected_ticker, category = random.choice(MERCHANTS)
             amount = round(random.uniform(5, 150), 2)
-            round_up = round(1 - (amount % 1), 2) if (amount % 1) > 0 else round(random.uniform(0.01, 0.99), 2)
+            # FIXED: Use user's configured round-up amount (not nearest dollar calculation)
+            round_up = user_round_up_amount
             date = now - timedelta(days=random.randint(0, 30), hours=random.randint(0, 23))
             fee = round(amount * 0.001, 2)
             total_debit = round(amount + round_up + fee, 2)
