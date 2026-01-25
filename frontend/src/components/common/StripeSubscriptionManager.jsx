@@ -4,10 +4,12 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { CreditCard, Loader2, AlertCircle, Settings, ExternalLink, CheckCircle, User } from 'lucide-react'
+import { CreditCard, Loader2, AlertCircle, Settings, ExternalLink, CheckCircle, User, Clock } from 'lucide-react'
 
 const StripeSubscriptionManager = ({ onSubscriptionUpdate }) => {
+  const navigate = useNavigate()
   const { user, token } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -136,15 +138,65 @@ const StripeSubscriptionManager = ({ onSubscriptionUpdate }) => {
     }).format(amount)
   }
 
+  const handleStartPayment = async () => {
+    const authToken = token || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token') || localStorage.getItem('authToken')
+
+    if (!authToken) {
+      setError('Please log in')
+      return
+    }
+
+    if (!subscription || !subscription.plan_id) {
+      setError('No plan selected')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+      const response = await fetch(`${apiBaseUrl}/api/stripe/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          plan_id: subscription.plan_id,
+          billing_cycle: subscription.billing_cycle || 'monthly'
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to create checkout session')
+      }
+
+      // Redirect to Stripe Checkout
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        throw new Error('No checkout URL received')
+      }
+    } catch (err) {
+      console.error('Checkout error:', err)
+      setError(err.message || 'Failed to start payment. Please try again.')
+      setLoading(false)
+    }
+  }
+
   const getStatusBadge = (status) => {
     const statusConfig = {
       active: { color: 'green', label: 'Active' },
       trialing: { color: 'blue', label: 'Trial' },
       past_due: { color: 'yellow', label: 'Past Due' },
       canceled: { color: 'red', label: 'Canceled' },
-      unpaid: { color: 'red', label: 'Unpaid' }
+      unpaid: { color: 'red', label: 'Unpaid' },
+      pending_payment: { color: 'yellow', label: 'Pending Payment' }
     }
-    
+
     const config = statusConfig[status] || { color: 'gray', label: status }
     return (
       <span className={`px-2 py-1 rounded text-xs bg-${config.color}-500/20 text-${config.color}-400 border border-${config.color}-500/30`}>
@@ -171,14 +223,90 @@ const StripeSubscriptionManager = ({ onSubscriptionUpdate }) => {
           <p className="text-gray-400 mb-4">
             You don't have an active subscription. Subscribe to access premium features.
           </p>
-          {onSubscriptionUpdate && (
-            <button
-              onClick={() => onSubscriptionUpdate('subscribe')}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              View Plans
-            </button>
+          <button
+            onClick={() => navigate('/pricing')}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            View Plans
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Show pending payment status with option to complete payment
+  if (subscription.status === 'pending_payment' || subscription.requires_payment) {
+    return (
+      <div className="p-6 bg-white/5 rounded-xl border border-white/10">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
+            <Clock className="w-5 h-5 text-yellow-400" />
+            <span>Selected Plan</span>
+          </h3>
+          {getStatusBadge('pending_payment')}
+        </div>
+
+        <div className="space-y-3 mb-4">
+          <div>
+            <label className="text-sm text-gray-400">Plan</label>
+            <p className="text-white font-semibold">{subscription.plan_name || 'N/A'}</p>
+          </div>
+          <div>
+            <label className="text-sm text-gray-400">Price</label>
+            <p className="text-white font-semibold">
+              {formatPrice(subscription.amount || 0)} / {subscription.billing_cycle === 'yearly' ? 'year' : 'month'}
+            </p>
+          </div>
+          {subscription.description && (
+            <div>
+              <label className="text-sm text-gray-400">Description</label>
+              <p className="text-gray-300 text-sm">{subscription.description}</p>
+            </div>
           )}
+        </div>
+
+        <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg mb-4">
+          <p className="text-yellow-400 text-sm flex items-center">
+            <AlertCircle className="w-4 h-4 mr-2" />
+            Complete payment to activate your subscription
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center space-x-2">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            <span className="text-red-400 text-sm">{error}</span>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <button
+            onClick={handleStartPayment}
+            disabled={loading}
+            className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+              loading
+                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700 text-white'
+            }`}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Processing...</span>
+              </>
+            ) : (
+              <>
+                <CreditCard className="w-5 h-5" />
+                <span>Complete Payment</span>
+              </>
+            )}
+          </button>
+          <button
+            onClick={() => navigate('/pricing')}
+            className="w-full px-4 py-2 text-gray-400 hover:text-white transition-colors text-sm"
+          >
+            Change Plan
+          </button>
         </div>
       </div>
     )

@@ -3597,20 +3597,134 @@ def user_ai_recommendations():
 @app.route('/api/user/subscriptions', methods=['GET'])
 @app.route('/api/user/subscriptions/current', methods=['GET'])
 def user_subscriptions():
-    """Stub endpoint for user subscriptions - returns empty for now"""
+    """Get user's current subscription - checks active subscriptions first, then pending selection"""
     try:
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
+        token = auth_header.split(' ')[1]
+        user_id = token.replace('user_token_', '')
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # First check user_subscriptions table for active/paid subscription
+        try:
+            cursor.execute("""
+                SELECT us.id, us.plan_id, us.status, us.billing_cycle, us.amount,
+                       us.current_period_start, us.current_period_end, us.cancel_at_period_end,
+                       sp.name, sp.description, sp.features
+                FROM user_subscriptions us
+                JOIN subscription_plans sp ON us.plan_id = sp.id
+                WHERE us.user_id = %s
+                ORDER BY us.created_at DESC
+                LIMIT 1
+            """, (user_id,))
+            active_sub = cursor.fetchone()
+
+            if active_sub and active_sub[2] in ('active', 'trialing'):
+                import json
+                features = []
+                if active_sub[10]:
+                    try:
+                        features = json.loads(active_sub[10]) if isinstance(active_sub[10], str) else active_sub[10]
+                    except:
+                        features = []
+
+                conn.close()
+                return jsonify({
+                    'success': True,
+                    'subscription': {
+                        'subscription_id': active_sub[0],
+                        'plan_id': active_sub[1],
+                        'status': active_sub[2],
+                        'billing_cycle': active_sub[3],
+                        'amount': float(active_sub[4]) if active_sub[4] else 0,
+                        'current_period_start': str(active_sub[5]) if active_sub[5] else None,
+                        'current_period_end': str(active_sub[6]) if active_sub[6] else None,
+                        'cancel_at_period_end': active_sub[7],
+                        'plan_name': active_sub[8],
+                        'description': active_sub[9],
+                        'features': features,
+                        'requires_payment': False
+                    },
+                    'has_subscription': True,
+                    'message': 'Active subscription found'
+                })
+        except Exception as e:
+            # Table might not exist yet, continue to check users table
+            print(f"user_subscriptions table check error: {e}")
+
+        # Fall back to checking users.subscription_plan_id for pending selection
+        cursor.execute("""
+            SELECT subscription_plan_id, billing_cycle FROM users WHERE id = %s
+        """, (user_id,))
+        user_result = cursor.fetchone()
+
+        if not user_result or not user_result[0]:
+            conn.close()
+            return jsonify({
+                'success': True,
+                'subscription': None,
+                'has_subscription': False,
+                'message': 'No subscription selected'
+            })
+
+        subscription_plan_id = user_result[0]
+        billing_cycle = user_result[1] or 'monthly'
+
+        # Get the plan details
+        cursor.execute("""
+            SELECT id, name, description, price, price_monthly, price_yearly, billing_period, account_type, features
+            FROM subscription_plans
+            WHERE id = %s
+        """, (subscription_plan_id,))
+        plan = cursor.fetchone()
+        conn.close()
+
+        if not plan:
+            return jsonify({
+                'success': True,
+                'subscription': None,
+                'has_subscription': False,
+                'message': 'Selected plan not found'
+            })
+
+        import json
+        features = []
+        if plan[8]:
+            try:
+                features = json.loads(plan[8]) if isinstance(plan[8], str) else plan[8]
+            except:
+                features = []
+
+        # Determine price based on billing cycle
+        price_monthly = float(plan[4]) if plan[4] else float(plan[3]) if plan[3] else 0
+        price_yearly = float(plan[5]) if plan[5] else price_monthly * 12
+        amount = price_yearly if billing_cycle == 'yearly' else price_monthly
+
         return jsonify({
             'success': True,
-            'subscription': None,
-            'has_subscription': False,
-            'message': 'No active subscription'
+            'subscription': {
+                'plan_id': plan[0],
+                'plan_name': plan[1],
+                'description': plan[2],
+                'amount': amount,
+                'price_monthly': price_monthly,
+                'price_yearly': price_yearly,
+                'billing_cycle': billing_cycle,
+                'account_type': plan[7],
+                'features': features,
+                'status': 'pending_payment',  # User selected but hasn't paid yet
+                'requires_payment': True
+            },
+            'has_subscription': True,
+            'message': 'Subscription plan selected - payment required'
         })
 
     except Exception as e:
+        print(f"Error getting subscription: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/user/subscriptions/plans', methods=['GET'])
@@ -14181,6 +14295,248 @@ def mx_disconnect():
         })
         
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ============================================
+# STRIPE PAYMENT ENDPOINTS
+# ============================================
+
+@app.route('/api/stripe/create-checkout-session', methods=['POST'])
+def stripe_create_checkout_session():
+    """Create a Stripe checkout session for subscription payment"""
+    try:
+        # Get auth token
+        auth_header = request.headers.get('Authorization')
+        user_id = None
+
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            user_id = token.replace('user_token_', '')
+
+        data = request.get_json() or {}
+        plan_id = data.get('plan_id')
+        billing_cycle = data.get('billing_cycle', 'monthly')
+
+        if not plan_id:
+            return jsonify({'success': False, 'error': 'Plan ID required'}), 400
+
+        # Get plan details from database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id, name, price_monthly, price_yearly, stripe_price_id
+            FROM subscription_plans WHERE id = %s
+        """, (plan_id,))
+        plan = cursor.fetchone()
+
+        if not plan:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Plan not found'}), 404
+
+        # Get price based on billing cycle
+        price_monthly = float(plan[2]) if plan[2] else 0
+        price_yearly = float(plan[3]) if plan[3] else price_monthly * 12
+        amount = price_yearly if billing_cycle == 'yearly' else price_monthly
+
+        # In sandbox/demo mode, we simulate Stripe checkout
+        # In production, you would use stripe.checkout.Session.create()
+
+        # For now, create a simulated checkout URL that will mark subscription as active
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+
+        # Generate a session ID for tracking
+        import uuid
+        session_id = str(uuid.uuid4())
+
+        # Store the pending checkout session (you might want a separate table for this)
+        # For now, we'll use a simpler approach - direct activation in sandbox mode
+
+        # In SANDBOX mode: Directly activate the subscription
+        if user_id:
+            # Create user_subscriptions table if not exists
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_subscriptions (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    plan_id INTEGER NOT NULL,
+                    status VARCHAR(50) DEFAULT 'active',
+                    billing_cycle VARCHAR(20) DEFAULT 'monthly',
+                    amount DECIMAL(10,2),
+                    stripe_subscription_id VARCHAR(255),
+                    stripe_customer_id VARCHAR(255),
+                    current_period_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    current_period_end TIMESTAMP,
+                    cancel_at_period_end BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Calculate period end
+            from datetime import datetime, timedelta
+            period_end = datetime.now() + (timedelta(days=365) if billing_cycle == 'yearly' else timedelta(days=30))
+
+            # Check if user already has a subscription
+            cursor.execute("SELECT id FROM user_subscriptions WHERE user_id = %s", (user_id,))
+            existing = cursor.fetchone()
+
+            if existing:
+                # Update existing subscription
+                cursor.execute("""
+                    UPDATE user_subscriptions
+                    SET plan_id = %s, status = 'active', billing_cycle = %s, amount = %s,
+                        current_period_start = CURRENT_TIMESTAMP, current_period_end = %s,
+                        cancel_at_period_end = FALSE, updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = %s
+                """, (plan_id, billing_cycle, amount, period_end, user_id))
+            else:
+                # Create new subscription
+                cursor.execute("""
+                    INSERT INTO user_subscriptions (user_id, plan_id, status, billing_cycle, amount, current_period_end)
+                    VALUES (%s, %s, 'active', %s, %s, %s)
+                """, (user_id, plan_id, billing_cycle, amount, period_end))
+
+            conn.commit()
+
+        conn.close()
+
+        # In sandbox mode, redirect to success page directly
+        success_url = f"{frontend_url}/dashboard?subscription=success&plan={plan_id}"
+
+        return jsonify({
+            'success': True,
+            'session_id': session_id,
+            'url': success_url,
+            'mode': 'sandbox',
+            'message': 'Subscription activated (sandbox mode)'
+        })
+
+    except Exception as e:
+        print(f"Stripe checkout error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/stripe/create-portal-session', methods=['POST'])
+def stripe_create_portal_session():
+    """Create a Stripe customer portal session for subscription management"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        token = auth_header.split(' ')[1]
+        user_id = token.replace('user_token_', '')
+
+        # Check if user has a subscription
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT us.id, us.plan_id, us.status, us.billing_cycle, us.amount,
+                   us.current_period_end, us.cancel_at_period_end, sp.name as plan_name
+            FROM user_subscriptions us
+            JOIN subscription_plans sp ON us.plan_id = sp.id
+            WHERE us.user_id = %s
+        """, (user_id,))
+        subscription = cursor.fetchone()
+        conn.close()
+
+        if not subscription:
+            return jsonify({
+                'success': False,
+                'error': 'No subscription found',
+                'code': 'NO_CUSTOMER'
+            }), 404
+
+        # In sandbox mode, redirect to a management page
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+        portal_url = f"{frontend_url}/settings?manage_subscription=true"
+
+        return jsonify({
+            'success': True,
+            'url': portal_url,
+            'mode': 'sandbox',
+            'message': 'Redirecting to subscription management'
+        })
+
+    except Exception as e:
+        print(f"Stripe portal error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/stripe/cancel-subscription', methods=['POST'])
+def stripe_cancel_subscription():
+    """Cancel a subscription (immediately or at period end)"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        token = auth_header.split(' ')[1]
+        user_id = token.replace('user_token_', '')
+
+        data = request.get_json() or {}
+        cancel_immediately = data.get('cancel_immediately', False)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if cancel_immediately:
+            # Cancel immediately
+            cursor.execute("""
+                UPDATE user_subscriptions
+                SET status = 'canceled', cancel_at_period_end = FALSE, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s
+            """, (user_id,))
+        else:
+            # Cancel at end of billing period
+            cursor.execute("""
+                UPDATE user_subscriptions
+                SET cancel_at_period_end = TRUE, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s
+            """, (user_id,))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'Subscription canceled' if cancel_immediately else 'Subscription will be canceled at the end of the billing period'
+        })
+
+    except Exception as e:
+        print(f"Cancel subscription error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/stripe/reactivate-subscription', methods=['POST'])
+def stripe_reactivate_subscription():
+    """Reactivate a subscription that was set to cancel at period end"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        token = auth_header.split(' ')[1]
+        user_id = token.replace('user_token_', '')
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            UPDATE user_subscriptions
+            SET cancel_at_period_end = FALSE, status = 'active', updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = %s AND status != 'canceled'
+        """, (user_id,))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'Subscription reactivated - auto-renewal enabled'
+        })
+
+    except Exception as e:
+        print(f"Reactivate subscription error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/journal-entries', methods=['GET'])

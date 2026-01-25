@@ -911,8 +911,8 @@ const Login = ({ initialMode = 'login' }) => {
               occupation: registrationData.occupation || '',
               roundUpAmount: registrationData.roundUpAmount || 1.0,
               riskTolerance: registrationData.riskTolerance || 'moderate',
-              dateOfBirth: registrationData.dateOfBirth || '',
-              ssnLast4: registrationData.ssnLast4 || '',
+              dateOfBirth: registrationData.dateOfBirth || registrationData.guardianDateOfBirth || '',
+              ssnLast4: (registrationData.ssn || registrationData.guardianSsn || registrationData.contactSsn || '').slice(-4),
               subscriptionPlanId: registrationData.selectedPlanId || null,
               billingCycle: registrationData.billingCycle || 'monthly',
               promoCode: registrationData.promoCode || ''
@@ -1173,8 +1173,8 @@ const Login = ({ initialMode = 'login' }) => {
         occupation: registrationData.occupation || '',
         roundUpAmount: registrationData.roundUpAmount || 1.0,
         riskTolerance: registrationData.riskTolerance || 'moderate',
-        dateOfBirth: registrationData.dateOfBirth || '',
-        ssnLast4: registrationData.ssnLast4 || '',
+        dateOfBirth: registrationData.dateOfBirth || registrationData.guardianDateOfBirth || '',
+        ssnLast4: (registrationData.ssn || registrationData.guardianSsn || registrationData.contactSsn || '').slice(-4),
         subscriptionPlanId: registrationData.selectedPlanId || null,
         billingCycle: registrationData.billingCycle || 'monthly',
         promoCode: registrationData.promoCode || ''
