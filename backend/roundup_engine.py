@@ -12,7 +12,7 @@ class RoundUpEngine:
     def __init__(self):
         self.roundup_ledger = []
         self.user_preferences = {}
-        self.kamioi_fee = 0.25  # $0.25 fee per successful mapping
+        self.kamioi_fee = 0  # No fee - subscription pays for service
         self.sweep_threshold = 10.00  # Auto-sweep when $10+ accumulated
         self.sweep_schedule = 'weekly'  # weekly or threshold
         

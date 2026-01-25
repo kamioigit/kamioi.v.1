@@ -29,7 +29,7 @@ except ImportError as e:
     # Create dummy objects to prevent errors
     class DummyAIEngine:
         def calculate_optimal_fee(self, *args, **kwargs):
-            return {'final_fee': 0.25}
+            return {'final_fee': 0}  # No fee - subscription pays for service
     class DummyTierManager:
         def process_tier_updates(self, *args, **kwargs):
             return {'success': False, 'processed_users': 0}
@@ -4161,7 +4161,7 @@ def sync_user_transactions():
                 'category': merchant[2],
                 'amount': amount,
                 'round_up': round_up,
-                'fee': 0.25,
+                'fee': 0,  # No fee - subscription pays for service
                 'date': tx_date.strftime('%Y-%m-%d'),
                 'status': 'pending'
             }
@@ -4172,7 +4172,7 @@ def sync_user_transactions():
                 INSERT INTO transactions (user_id, merchant, amount, round_up, fee, date, status, ticker, category)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
-            """, (user_id, merchant[0], amount, round_up, 0.25, tx_date, 'pending', merchant[1], merchant[2]))
+            """, (user_id, merchant[0], amount, round_up, 0, tx_date, 'pending', merchant[1], merchant[2]))
 
         conn.commit()
         conn.close()
@@ -7858,9 +7858,9 @@ def admin_settings_fees():
         return jsonify({
             'success': True,
             'fees': {
-                'platform_fee': 0.25,
-                'investment_fee': 0.01,
-                'withdrawal_fee': 0.00
+                'platform_fee': 0,  # No fee - subscription pays for service
+                'investment_fee': 0,
+                'withdrawal_fee': 0
             }
         })
     except Exception as e:
@@ -9936,8 +9936,8 @@ def admin_create_demo_transactions():
             # FIXED: Use user's configured round-up amount (not nearest dollar calculation)
             round_up = user_round_up_amount
             date = now - timedelta(days=random.randint(0, 30), hours=random.randint(0, 23))
-            fee = round(amount * 0.001, 2)
-            total_debit = round(amount + round_up + fee, 2)
+            fee = 0  # No fee - subscription pays for service
+            total_debit = round(amount + round_up, 2)
             description = f"Purchase at {merchant}"
 
             # First, ensure this merchant exists in llm_mappings (so auto-mapping can find it)
@@ -13864,24 +13864,29 @@ def process_transactions():
         
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
+        # Get user's round-up setting
+        cursor.execute("SELECT round_up_amount FROM users WHERE id = %s", (user_id,))
+        user_row = cursor.fetchone()
+        user_round_up_amount = float(user_row[0]) if user_row and user_row[0] else 1.00
+
         processed_transactions = []
-        
+
         for transaction in transactions:
             try:
                 # Extract merchant name from description
                 merchant_name = extract_merchant_from_description(transaction.get('description', ''))
-                
+
                 # Search for existing mapping
                 mapping = find_best_mapping(cursor, merchant_name, transaction.get('description', ''))
-                
-                # Calculate round-up amount
+
+                # Use user's FIXED round-up amount (not nearest dollar calculation)
                 amount = float(transaction.get('amount', 0))
-                round_up = math.ceil(amount) - amount if amount > 0 else 0
-                
-                # Calculate fee (platform fee)
-                fee = round_up * 0.25  # 25% platform fee
-                total_debit = amount + round_up + fee
+                round_up = user_round_up_amount if amount > 0 else 0
+
+                # No fee - subscription pays for service
+                fee = 0
+                total_debit = amount + round_up
                 
                 # Determine status and investment based on mapping
                 if mapping and mapping['confidence'] > 0.8:
