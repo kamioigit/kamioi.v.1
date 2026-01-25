@@ -1137,8 +1137,19 @@ const AdminTransactions = ({ user, onTransactionsUpdate }) => {
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Dashboard</label>
                   <div className="flex items-center space-x-2">
-                    <selectedTransaction.dashboardIcon className="w-4 h-4 text-blue-400" />
-                    <span className="text-white capitalize">{selectedTransaction.dashboard}</span>
+                    {(() => {
+                      // Get appropriate icon based on dashboard type
+                      const dashboard = (selectedTransaction.dashboard || '').toLowerCase()
+                      if (dashboard === 'user' || dashboard === 'individual') {
+                        return <User className="w-4 h-4 text-blue-400" />
+                      } else if (dashboard === 'family') {
+                        return <Home className="w-4 h-4 text-green-400" />
+                      } else if (dashboard === 'business') {
+                        return <Building className="w-4 h-4 text-purple-400" />
+                      }
+                      return <Users className="w-4 h-4 text-gray-400" />
+                    })()}
+                    <span className="text-white capitalize">{selectedTransaction.dashboard || 'Unknown'}</span>
                   </div>
                 </div>
               </div>
