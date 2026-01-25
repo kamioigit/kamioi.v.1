@@ -330,42 +330,43 @@ const Login = ({ initialMode = 'login' }) => {
     }
   }, [searchParams])
 
-  // Fetch subscription plans when entering subscription step
+  // Fetch all subscription plans on mount for account type selection page
   useEffect(() => {
-    const fetchSubscriptionPlans = async () => {
-      // Check if we're on a subscription step (step 5 for individual, step 6 for family, step 7 for business)
-      const isSubscriptionStep = 
-        (registrationType === 'individual' && registrationStep === 5) ||
-        (registrationType === 'family' && registrationStep === 6) ||
-        (registrationType === 'business' && registrationStep === 7)
-      
-      if (isSubscriptionStep && registrationType) {
-        setLoadingPlans(true)
-        try {
-          // Use public endpoint during registration (no auth required)
-          const endpoint = `/api/public/subscriptions/plans?account_type=${registrationType}`
-          
-          const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-          const response = await fetch(`${apiBaseUrl}${endpoint}`)
-          if (response.ok) {
-            const data = await response.json()
-            const plans = data.plans || data.data?.plans || data.data || []
-            setSubscriptionPlans(Array.isArray(plans) ? plans : [])
-          } else {
-            console.error('Failed to fetch subscription plans:', response.status, response.statusText)
-            setSubscriptionPlans([])
-          }
-        } catch (error) {
-          console.error('Error fetching subscription plans:', error)
+    const fetchAllPlans = async () => {
+      setLoadingPlans(true)
+      try {
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+        const response = await fetch(`${apiBaseUrl}/api/user/subscriptions/plans`)
+        if (response.ok) {
+          const data = await response.json()
+          const plans = data.plans || data.data?.plans || data.data || []
+          setSubscriptionPlans(Array.isArray(plans) ? plans : [])
+        } else {
+          console.error('Failed to fetch subscription plans:', response.status, response.statusText)
           setSubscriptionPlans([])
-        } finally {
-          setLoadingPlans(false)
         }
+      } catch (error) {
+        console.error('Error fetching subscription plans:', error)
+        setSubscriptionPlans([])
+      } finally {
+        setLoadingPlans(false)
       }
     }
-    
-    fetchSubscriptionPlans()
-  }, [registrationStep, registrationType])
+
+    fetchAllPlans()
+  }, [])
+
+  // Helper function to get price for account type
+  const getPriceForAccountType = (accountType) => {
+    const plan = subscriptionPlans.find(p => p.account_type === accountType)
+    if (plan) {
+      const price = plan.price_monthly || plan.price || 0
+      return `$${parseFloat(price).toFixed(0)}/month`
+    }
+    // Fallback prices
+    const fallbackPrices = { individual: '$9/month', family: '$19/month', business: '$49/month' }
+    return fallbackPrices[accountType] || '$0/month'
+  }
 
   const handleInputChange = (field, value, formType = registrationType) => {
     switch (formType) {
@@ -1613,7 +1614,7 @@ const Login = ({ initialMode = 'login' }) => {
                     </li>
                   </ul>
                   <div className="mt-4 pt-4 border-t border-white/10">
-                    <span className="text-white font-bold text-lg">$9/month</span>
+                    <span className="text-white font-bold text-lg">{getPriceForAccountType('individual')}</span>
                   </div>
                 </button>
 
@@ -1644,7 +1645,7 @@ const Login = ({ initialMode = 'login' }) => {
                     </li>
                   </ul>
                   <div className="mt-4 pt-4 border-t border-white/10">
-                    <span className="text-white font-bold text-lg">$19/month</span>
+                    <span className="text-white font-bold text-lg">{getPriceForAccountType('family')}</span>
                   </div>
                 </button>
 
@@ -1675,7 +1676,7 @@ const Login = ({ initialMode = 'login' }) => {
                     </li>
                   </ul>
                   <div className="mt-4 pt-4 border-t border-white/10">
-                    <span className="text-white font-bold text-lg">$49/month</span>
+                    <span className="text-white font-bold text-lg">{getPriceForAccountType('business')}</span>
                   </div>
                 </button>
               </div>
