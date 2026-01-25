@@ -678,7 +678,7 @@ const Pricing = () => {
         </section>
 
         {/* Feature Comparison Table */}
-        <section className="py-20 px-4 sm:px-6 lg:px-8 bg-black/20">
+        <section className="py-20 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-12 text-center">
               Compare All Plans Side-by-Side
@@ -782,7 +782,7 @@ const Pricing = () => {
 
         {/* FAQ Section */}
         {pricingData.faqs && pricingData.faqs.length > 0 && (
-          <section className="py-20 px-4 sm:px-6 lg:px-8 bg-black/20">
+          <section className="py-20 px-4 sm:px-6 lg:px-8">
             <div className="max-w-4xl mx-auto">
               <h2 className="text-4xl md:text-5xl font-bold text-white mb-12 text-center">
                 Pricing Questions Answered
