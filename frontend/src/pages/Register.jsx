@@ -91,21 +91,21 @@ const Register = () => {
   const getColorClasses = (color, isSelected) => {
     const colors = {
       indigo: {
-        bg: isSelected ? 'bg-indigo-50' : 'bg-white',
-        border: isSelected ? 'border-indigo-500' : 'border-gray-200',
-        icon: 'text-indigo-600',
+        bg: isSelected ? 'bg-indigo-500/20' : 'bg-white/10',
+        border: isSelected ? 'border-indigo-500' : 'border-white/20',
+        icon: 'text-indigo-400',
         button: 'bg-indigo-600 hover:bg-indigo-700'
       },
       purple: {
-        bg: isSelected ? 'bg-purple-50' : 'bg-white',
-        border: isSelected ? 'border-purple-500' : 'border-gray-200',
-        icon: 'text-purple-600',
+        bg: isSelected ? 'bg-purple-500/20' : 'bg-white/10',
+        border: isSelected ? 'border-purple-500' : 'border-white/20',
+        icon: 'text-purple-400',
         button: 'bg-purple-600 hover:bg-purple-700'
       },
       blue: {
-        bg: isSelected ? 'bg-blue-50' : 'bg-white',
-        border: isSelected ? 'border-blue-500' : 'border-gray-200',
-        icon: 'text-blue-600',
+        bg: isSelected ? 'bg-blue-500/20' : 'bg-white/10',
+        border: isSelected ? 'border-blue-500' : 'border-white/20',
+        icon: 'text-blue-400',
         button: 'bg-blue-600 hover:bg-blue-700'
       }
     };
@@ -126,7 +126,7 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 py-12 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-10">
@@ -141,7 +141,7 @@ const Register = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-3xl font-bold text-gray-900"
+            className="text-3xl font-bold text-white"
           >
             {showOnboarding ? `Create Your ${selectedType?.charAt(0).toUpperCase()}${selectedType?.slice(1)} Account` : 'Join Kamioi'}
           </motion.h1>
@@ -149,7 +149,7 @@ const Register = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mt-2 text-gray-600"
+            className="mt-2 text-white/70"
           >
             {showOnboarding
               ? 'Complete the steps below to get started'
@@ -179,7 +179,7 @@ const Register = () => {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.1 }}
                       onClick={() => handleTypeSelect(type.id)}
-                      className={`relative p-6 rounded-xl border-2 transition-all duration-300 text-left ${colors.bg} ${colors.border} hover:shadow-lg`}
+                      className={`relative p-6 rounded-xl border-2 transition-all duration-300 text-left backdrop-blur-lg ${colors.bg} ${colors.border} hover:shadow-lg hover:shadow-white/10`}
                     >
                       {isSelected && (
                         <div className="absolute top-3 right-3">
@@ -195,12 +195,12 @@ const Register = () => {
                         <Icon className="w-6 h-6 text-white" />
                       </div>
 
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">{type.title}</h3>
-                      <p className="text-sm text-gray-600 mb-4">{type.description}</p>
+                      <h3 className="text-xl font-bold text-white mb-2">{type.title}</h3>
+                      <p className="text-sm text-white/70 mb-4">{type.description}</p>
 
                       <ul className="space-y-2">
                         {type.features.map((feature, i) => (
-                          <li key={i} className="flex items-center text-sm text-gray-600">
+                          <li key={i} className="flex items-center text-sm text-white/70">
                             <svg className={`w-4 h-4 mr-2 ${colors.icon}`} fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
@@ -217,7 +217,7 @@ const Register = () => {
               <div className="flex justify-between items-center">
                 <button
                   onClick={() => navigate('/')}
-                  className="flex items-center text-gray-600 hover:text-gray-800 transition-colors"
+                  className="flex items-center text-white/70 hover:text-white transition-colors"
                 >
                   <ArrowLeft className="w-5 h-5 mr-2" />
                   Back to Home
@@ -229,7 +229,7 @@ const Register = () => {
                   className={`px-8 py-3 rounded-lg font-medium text-white transition-all ${
                     selectedType
                       ? `${getColorClasses(ACCOUNT_TYPES.find(t => t.id === selectedType)?.color || 'indigo', true).button}`
-                      : 'bg-gray-300 cursor-not-allowed'
+                      : 'bg-white/20 cursor-not-allowed'
                   }`}
                 >
                   Continue with {selectedType ? ACCOUNT_TYPES.find(t => t.id === selectedType)?.title : '...'} Account
@@ -238,11 +238,11 @@ const Register = () => {
 
               {/* Login Link */}
               <div className="mt-8 text-center">
-                <p className="text-gray-600">
+                <p className="text-white/70">
                   Already have an account?{' '}
                   <button
                     onClick={() => navigate('/login')}
-                    className="text-indigo-600 font-medium hover:underline"
+                    className="text-purple-400 font-medium hover:underline hover:text-purple-300"
                   >
                     Sign in
                   </button>
