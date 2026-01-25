@@ -2226,8 +2226,32 @@ def user_register():
         privacy_agreed = data.get('privacy_agreed', data.get('agreeToPrivacy', True))
         marketing_agreed = data.get('marketing_agreed', data.get('agreeToMarketing', False))
         account_type = data.get('account_type', data.get('accountType', 'individual'))
-        name = data.get('name') or f"{data.get('firstName', '').strip()} {data.get('lastName', '').strip()}".strip()
-        
+        first_name = data.get('firstName', '').strip()
+        last_name = data.get('lastName', '').strip()
+        name = data.get('name') or f"{first_name} {last_name}".strip()
+
+        # Extract additional profile fields
+        phone = data.get('phone', '').strip()
+        address = data.get('address', '').strip()
+        city = data.get('city', '').strip()
+        state = data.get('state', '').strip()
+        zip_code = data.get('zipCode', data.get('zip_code', '')).strip()
+        company_name = data.get('companyName', data.get('company_name', '')).strip()
+
+        # Additional profile fields
+        employer = data.get('employer', '').strip()
+        occupation = data.get('occupation', '').strip()
+        annual_income = data.get('annualIncome', data.get('annual_income', '')).strip()
+        employment_status = data.get('employmentStatus', data.get('employment_status', '')).strip()
+
+        # MX bank connection data
+        mx_data = data.get('mxData', data.get('mx_data'))
+        if mx_data and isinstance(mx_data, dict):
+            import json
+            mx_data = json.dumps(mx_data)
+        elif mx_data and not isinstance(mx_data, str):
+            mx_data = str(mx_data)
+
         # Validation
         if not email or not password:
             return jsonify({'success': False, 'error': 'Email and password are required'}), 400
@@ -2262,8 +2286,10 @@ def user_register():
         goals_list = investment_goals if isinstance(investment_goals, list) else []
         cursor.execute("""
             INSERT INTO users (email, password, name, account_type, role, round_up_amount, risk_tolerance, investment_goals,
-                             terms_agreed, privacy_agreed, marketing_agreed, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                             terms_agreed, privacy_agreed, marketing_agreed, created_at,
+                             phone, address, city, state, zip_code, company_name, mx_data,
+                             first_name, last_name, employer, occupation, annual_income, employment_status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, (
             email,
@@ -2277,12 +2303,25 @@ def user_register():
             bool(terms_agreed),
             bool(privacy_agreed),
             bool(marketing_agreed),
-            datetime.now().isoformat()
+            datetime.now().isoformat(),
+            phone or None,
+            address or None,
+            city or None,
+            state or None,
+            zip_code or None,
+            company_name or None,
+            mx_data,
+            first_name or None,
+            last_name or None,
+            employer or None,
+            occupation or None,
+            annual_income or None,
+            employment_status or None
         ))
 
         result = cursor.fetchone()
         user_id = result[0] if result else None
-        
+
         # Create initial portfolio entry (skip for now since portfolios table requires ticker)
         # cursor.execute("""
         #     INSERT INTO portfolios (user_id, total_invested, total_roundups, total_fees, created_at)
@@ -2332,24 +2371,48 @@ def user_auth_register():
         privacy_agreed = data.get('privacy_agreed', data.get('agreeToPrivacy', True))
         marketing_agreed = data.get('marketing_agreed', data.get('agreeToMarketing', False))
         account_type = data.get('account_type', data.get('accountType', 'individual'))
-        name = data.get('name') or f"{data.get('firstName', '').strip()} {data.get('lastName', '').strip()}".strip()
-        
+        first_name = data.get('firstName', '').strip()
+        last_name = data.get('lastName', '').strip()
+        name = data.get('name') or f"{first_name} {last_name}".strip()
+
+        # Extract additional profile fields
+        phone = data.get('phone', '').strip()
+        address = data.get('address', '').strip()
+        city = data.get('city', '').strip()
+        state = data.get('state', '').strip()
+        zip_code = data.get('zipCode', data.get('zip_code', '')).strip()
+        company_name = data.get('companyName', data.get('company_name', '')).strip()
+
+        # Additional profile fields
+        employer = data.get('employer', '').strip()
+        occupation = data.get('occupation', '').strip()
+        annual_income = data.get('annualIncome', data.get('annual_income', '')).strip()
+        employment_status = data.get('employmentStatus', data.get('employment_status', '')).strip()
+
+        # MX bank connection data
+        mx_data = data.get('mxData', data.get('mx_data'))
+        if mx_data and isinstance(mx_data, dict):
+            import json
+            mx_data = json.dumps(mx_data)
+        elif mx_data and not isinstance(mx_data, str):
+            mx_data = str(mx_data)
+
         # Validation
         if not email or not password:
             return jsonify({'success': False, 'error': 'Email and password are required'}), 400
-        
+
         if password != confirm_password:
             return jsonify({'success': False, 'error': 'Passwords do not match'}), 400
-        
+
         if len(password) < 8:
             return jsonify({'success': False, 'error': 'Password must be at least 8 characters long'}), 400
-        
+
         if not terms_agreed or not privacy_agreed:
             return jsonify({'success': False, 'error': 'You must agree to the Terms of Service and Privacy Policy'}), 400
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Check if user already exists
         cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
         existing_user = cursor.fetchone()
@@ -2368,8 +2431,10 @@ def user_auth_register():
         goals_list = investment_goals if isinstance(investment_goals, list) else []
         cursor.execute("""
             INSERT INTO users (email, password, name, account_type, role, round_up_amount, risk_tolerance, investment_goals,
-                             terms_agreed, privacy_agreed, marketing_agreed, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                             terms_agreed, privacy_agreed, marketing_agreed, created_at,
+                             phone, address, city, state, zip_code, company_name, mx_data,
+                             first_name, last_name, employer, occupation, annual_income, employment_status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, (
             email,
@@ -2383,12 +2448,25 @@ def user_auth_register():
             bool(terms_agreed),
             bool(privacy_agreed),
             bool(marketing_agreed),
-            datetime.now().isoformat()
+            datetime.now().isoformat(),
+            phone or None,
+            address or None,
+            city or None,
+            state or None,
+            zip_code or None,
+            company_name or None,
+            mx_data,
+            first_name or None,
+            last_name or None,
+            employer or None,
+            occupation or None,
+            annual_income or None,
+            employment_status or None
         ))
 
         result = cursor.fetchone()
         user_id = result[0] if result else None
-        
+
         # Create initial portfolio entry (skip for now since portfolios table requires ticker)
         # cursor.execute("""
         #     INSERT INTO portfolios (user_id, total_invested, total_roundups, total_fees, created_at)
@@ -2853,20 +2931,36 @@ def user_profile():
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
-        
+
         token = auth_header.split(' ')[1]
         user_id = token.replace('user_token_', '')
-        
+
         if request.method == 'GET':
             conn = get_db_connection()
             cursor = conn.cursor()
-            # PostgreSQL uses %s placeholders
-            cursor.execute("SELECT id, name, email, role, created_at FROM users WHERE id = %s", (user_id,))
+            cursor.execute("""
+                SELECT id, name, email, role, created_at, phone, address, city, state, zip_code,
+                       company_name, round_up_amount, risk_profile, account_type, mx_data,
+                       first_name, last_name, employer, occupation, annual_income, employment_status
+                FROM users WHERE id = %s
+            """, (user_id,))
             user = cursor.fetchone()
             conn.close()
 
             if user:
-                # psycopg2 returns tuples: (id, name, email, role, created_at)
+                # Use stored first_name/last_name if available, otherwise parse from name
+                full_name = user[1] or ''
+                stored_first = user[15] if len(user) > 15 else None
+                stored_last = user[16] if len(user) > 16 else None
+
+                if stored_first or stored_last:
+                    first_name = stored_first or ''
+                    last_name = stored_last or ''
+                else:
+                    name_parts = full_name.split(' ', 1) if full_name else ['', '']
+                    first_name = name_parts[0] if name_parts else ''
+                    last_name = name_parts[1] if len(name_parts) > 1 else ''
+
                 return jsonify({
                     'success': True,
                     'profile': {
@@ -2874,7 +2968,27 @@ def user_profile():
                         'name': user[1],
                         'email': user[2],
                         'role': user[3],
-                        'created_at': str(user[4]) if user[4] else None
+                        'created_at': str(user[4]) if user[4] else None,
+                        'phone': user[5] or '',
+                        'address': user[6] or '',
+                        'street': user[6] or '',  # Alias for frontend
+                        'city': user[7] or '',
+                        'state': user[8] or '',
+                        'zip': user[9] or '',
+                        'zip_code': user[9] or '',
+                        'company_name': user[10] or '',
+                        'roundUpAmount': str(user[11]) if user[11] else '1.00',
+                        'round_up_amount': user[11] or 1.0,
+                        'riskTolerance': user[12] or 'Moderate',
+                        'risk_profile': user[12] or 'Moderate',
+                        'account_type': user[13] or 'individual',
+                        'firstName': first_name,
+                        'lastName': last_name,
+                        'mx_data': user[14],
+                        'employer': user[17] if len(user) > 17 else '',
+                        'occupation': user[18] if len(user) > 18 else '',
+                        'annualIncome': user[19] if len(user) > 19 else '',
+                        'employmentStatus': user[20] if len(user) > 20 else ''
                     }
                 })
             else:
@@ -2882,23 +2996,90 @@ def user_profile():
 
         elif request.method == 'PUT':
             data = request.get_json() or {}
-            name = data.get('fullName', '').strip() or data.get('name', '').strip()
-            email = data.get('email', '').strip().lower()
-            round_up_preference = data.get('roundUpPreference', 1)
 
-            if not name or not email:
-                return jsonify({'success': False, 'error': 'Name and email are required'}), 400
+            # Extract fields from request
+            first_name = data.get('firstName', '').strip()
+            last_name = data.get('lastName', '').strip()
+            name = data.get('fullName', '').strip() or data.get('name', '').strip()
+            if not name and (first_name or last_name):
+                name = f"{first_name} {last_name}".strip()
+
+            email = data.get('email', '').strip().lower()
+            phone = data.get('phone', '').strip()
+            address = data.get('street', '').strip() or data.get('address', '').strip()
+            city = data.get('city', '').strip()
+            state = data.get('state', '').strip()
+            zip_code = data.get('zip', '').strip() or data.get('zipCode', '').strip() or data.get('zip_code', '').strip()
+            round_up_amount = data.get('roundUpAmount', data.get('roundUpPreference', 1.0))
+            risk_tolerance = data.get('riskTolerance', data.get('risk_profile', 'Moderate'))
+
+            # Additional profile fields
+            employer = data.get('employer', '').strip()
+            occupation = data.get('occupation', '').strip()
+            annual_income = data.get('annualIncome', data.get('annual_income', '')).strip()
+            employment_status = data.get('employmentStatus', data.get('employment_status', '')).strip()
 
             conn = get_db_connection()
             cursor = conn.cursor()
-            # PostgreSQL uses %s placeholders
-            cursor.execute("UPDATE users SET name = %s, email = %s, round_up_amount = %s WHERE id = %s",
-                         (name, email, round_up_preference, user_id))
+
+            # Build dynamic update query based on provided fields
+            update_fields = ['updated_at = CURRENT_TIMESTAMP']
+            update_values = []
+
+            if name:
+                update_fields.append('name = %s')
+                update_values.append(name)
+            if email:
+                update_fields.append('email = %s')
+                update_values.append(email)
+            if phone:
+                update_fields.append('phone = %s')
+                update_values.append(phone)
+            if address:
+                update_fields.append('address = %s')
+                update_values.append(address)
+            if city:
+                update_fields.append('city = %s')
+                update_values.append(city)
+            if state:
+                update_fields.append('state = %s')
+                update_values.append(state)
+            if zip_code:
+                update_fields.append('zip_code = %s')
+                update_values.append(zip_code)
+            if round_up_amount:
+                update_fields.append('round_up_amount = %s')
+                update_values.append(float(round_up_amount) if round_up_amount else 1.0)
+            if risk_tolerance:
+                update_fields.append('risk_profile = %s')
+                update_values.append(risk_tolerance)
+            if first_name:
+                update_fields.append('first_name = %s')
+                update_values.append(first_name)
+            if last_name:
+                update_fields.append('last_name = %s')
+                update_values.append(last_name)
+            if employer:
+                update_fields.append('employer = %s')
+                update_values.append(employer)
+            if occupation:
+                update_fields.append('occupation = %s')
+                update_values.append(occupation)
+            if annual_income:
+                update_fields.append('annual_income = %s')
+                update_values.append(annual_income)
+            if employment_status:
+                update_fields.append('employment_status = %s')
+                update_values.append(employment_status)
+
+            update_values.append(user_id)
+
+            cursor.execute(f"UPDATE users SET {', '.join(update_fields)} WHERE id = %s", tuple(update_values))
             conn.commit()
             conn.close()
-            
+
             return jsonify({'success': True, 'message': 'Profile updated successfully'})
-        
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -3112,20 +3293,72 @@ def ai_recommendations_post():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/user/bank-connections', methods=['GET'])
+@app.route('/api/user/bank-connections', methods=['GET', 'POST'])
 def user_bank_connections():
-    """Stub endpoint for user bank connections - returns empty for now"""
+    """Endpoint for user bank connections - GET retrieves, POST saves"""
     try:
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
-        return jsonify({
-            'success': True,
-            'connections': [],
-            'has_connections': False,
-            'message': 'No bank connections linked'
-        })
+        token = auth_header.split(' ')[1]
+        user_id = token.replace('user_token_', '')
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if request.method == 'POST':
+            # Save bank connection data
+            data = request.get_json() or {}
+            member_guid = data.get('member_guid')
+            user_guid = data.get('user_guid')
+            institution_name = data.get('institution_name', 'Connected Bank')
+
+            # Store as JSON in mx_data column
+            import json
+            mx_data = json.dumps({
+                'member_guid': member_guid,
+                'user_guid': user_guid,
+                'institution_name': institution_name,
+                'connected_at': datetime.now().isoformat()
+            })
+
+            cursor.execute("""
+                UPDATE users SET mx_data = %s, user_guid = %s WHERE id = %s
+            """, (mx_data, user_guid, user_id))
+            conn.commit()
+            conn.close()
+
+            return jsonify({
+                'success': True,
+                'message': 'Bank connection saved successfully'
+            })
+
+        else:
+            # GET - Retrieve bank connections
+            cursor.execute("SELECT mx_data, user_guid FROM users WHERE id = %s", (user_id,))
+            result = cursor.fetchone()
+            conn.close()
+
+            if result and result[0]:
+                import json
+                try:
+                    mx_data = json.loads(result[0]) if isinstance(result[0], str) else result[0]
+                    return jsonify({
+                        'success': True,
+                        'connections': [mx_data],
+                        'has_connections': True,
+                        'message': 'Bank connection found'
+                    })
+                except:
+                    pass
+
+            return jsonify({
+                'success': True,
+                'connections': [],
+                'has_connections': False,
+                'message': 'No bank connections linked'
+            })
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

@@ -126,10 +126,73 @@ def create_postgres_schema():
                 stripe_customer_id VARCHAR(255),
                 company_name VARCHAR(255),
                 address TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                first_name VARCHAR(100),
+                last_name VARCHAR(100),
+                employer VARCHAR(255),
+                occupation VARCHAR(255),
+                annual_income VARCHAR(50),
+                employment_status VARCHAR(50),
+                dob DATE,
+                country VARCHAR(100),
+                timezone VARCHAR(100),
+                risk_tolerance VARCHAR(50),
+                terms_agreed BOOLEAN DEFAULT FALSE,
+                privacy_agreed BOOLEAN DEFAULT FALSE,
+                marketing_agreed BOOLEAN DEFAULT FALSE,
+                investment_goals TEXT
             )
         ''')
         print("[OK] Created users table")
+
+        # Add missing columns if table already exists
+        cursor.execute('''
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='first_name') THEN
+                    ALTER TABLE users ADD COLUMN first_name VARCHAR(100);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='last_name') THEN
+                    ALTER TABLE users ADD COLUMN last_name VARCHAR(100);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='employer') THEN
+                    ALTER TABLE users ADD COLUMN employer VARCHAR(255);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='occupation') THEN
+                    ALTER TABLE users ADD COLUMN occupation VARCHAR(255);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='annual_income') THEN
+                    ALTER TABLE users ADD COLUMN annual_income VARCHAR(50);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='employment_status') THEN
+                    ALTER TABLE users ADD COLUMN employment_status VARCHAR(50);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='dob') THEN
+                    ALTER TABLE users ADD COLUMN dob DATE;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='country') THEN
+                    ALTER TABLE users ADD COLUMN country VARCHAR(100);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='timezone') THEN
+                    ALTER TABLE users ADD COLUMN timezone VARCHAR(100);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='risk_tolerance') THEN
+                    ALTER TABLE users ADD COLUMN risk_tolerance VARCHAR(50);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='terms_agreed') THEN
+                    ALTER TABLE users ADD COLUMN terms_agreed BOOLEAN DEFAULT FALSE;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='privacy_agreed') THEN
+                    ALTER TABLE users ADD COLUMN privacy_agreed BOOLEAN DEFAULT FALSE;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='marketing_agreed') THEN
+                    ALTER TABLE users ADD COLUMN marketing_agreed BOOLEAN DEFAULT FALSE;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='investment_goals') THEN
+                    ALTER TABLE users ADD COLUMN investment_goals TEXT;
+                END IF;
+            END $$;
+        ''')
         
         # Transactions table
         cursor.execute('''
