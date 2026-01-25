@@ -8344,6 +8344,148 @@ def admin_llm_reject():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+# Get single mapping by ID
+@app.route('/api/admin/llm-center/mapping/<int:mapping_id>', methods=['GET'])
+def admin_get_single_mapping(mapping_id):
+    """Get a single mapping by ID for viewing/editing"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn)
+
+        cursor.execute('''
+            SELECT id, merchant_name, category, notes, ticker_symbol, confidence,
+                   status, created_at, admin_id, admin_approved, company_name
+            FROM llm_mappings
+            WHERE id = %s
+        ''', (mapping_id,))
+
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if not row:
+            return jsonify({'success': False, 'error': 'Mapping not found'}), 404
+
+        mapping = {
+            'id': row[0],
+            'merchant_name': row[1],
+            'category': row[2],
+            'notes': row[3],
+            'ticker_symbol': row[4],
+            'confidence': float(row[5]) if row[5] else 0,
+            'status': row[6],
+            'created_at': row[7].isoformat() if row[7] else None,
+            'admin_id': row[8],
+            'admin_approved': row[9],
+            'company_name': row[10]
+        }
+
+        return jsonify({
+            'success': True,
+            'mapping': mapping
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# LLM Data Assets endpoint
+@app.route('/api/admin/llm-assets', methods=['GET'])
+def admin_llm_assets():
+    """Get LLM data assets summary for the LLM Data Assets tab"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn)
+
+        # Get total mappings count using fast pg_class estimate
+        cursor.execute("""
+            SELECT reltuples::bigint AS estimate
+            FROM pg_class
+            WHERE relname = 'llm_mappings'
+        """)
+        total_result = cursor.fetchone()
+        total_mappings = total_result[0] if total_result else 0
+
+        # Get category distribution (top 10)
+        cursor.execute("""
+            SELECT category, COUNT(*) as count
+            FROM llm_mappings
+            WHERE category IS NOT NULL AND category != ''
+            GROUP BY category
+            ORDER BY count DESC
+            LIMIT 10
+        """)
+        categories = [{'name': row[0], 'count': row[1]} for row in cursor.fetchall()]
+
+        # Get ticker distribution (top 10)
+        cursor.execute("""
+            SELECT ticker_symbol, COUNT(*) as count
+            FROM llm_mappings
+            WHERE ticker_symbol IS NOT NULL AND ticker_symbol != ''
+            GROUP BY ticker_symbol
+            ORDER BY count DESC
+            LIMIT 10
+        """)
+        tickers = [{'symbol': row[0], 'count': row[1]} for row in cursor.fetchall()]
+
+        # Get status distribution
+        cursor.execute("""
+            SELECT status, COUNT(*) as count
+            FROM llm_mappings
+            GROUP BY status
+        """)
+        status_dist = {row[0]: row[1] for row in cursor.fetchall()}
+
+        cursor.close()
+        conn.close()
+
+        # Calculate economic value estimate (based on mappings processed)
+        # Formula: Total Mappings × $0.072 per transaction value contribution
+        economic_value = total_mappings * 0.072
+        cost_basis = total_mappings * 0.025  # Estimated cost per mapping
+        carrying_value = economic_value - cost_basis
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'total_assets': 1,  # The LLM mapping dataset is the primary asset
+                'total_mappings': total_mappings,
+                'cost_basis': round(cost_basis, 2),
+                'economic_value': round(economic_value, 2),
+                'carrying_value': round(carrying_value, 2),
+                'categories': categories,
+                'tickers': tickers,
+                'status_distribution': status_dist,
+                'assets': [
+                    {
+                        'id': 1,
+                        'name': 'Merchant-Ticker Mapping Dataset',
+                        'description': 'Core LLM mapping database for merchant to stock ticker associations',
+                        'type': 'data_asset',
+                        'records': total_mappings,
+                        'cost_basis': round(cost_basis, 2),
+                        'economic_value': round(economic_value, 2),
+                        'last_updated': datetime.now().isoformat()
+                    }
+                ]
+            }
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # Manual submit endpoint
 @app.route('/api/admin/manual-submit', methods=['POST'])
 def admin_manual_submit():
@@ -8355,13 +8497,13 @@ def admin_manual_submit():
         data = request.get_json()
         
         conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        cursor = get_db_cursor(conn)
+
         # Insert new mapping
         cursor.execute('''
-            INSERT INTO llm_mappings 
+            INSERT INTO llm_mappings
             (merchant_name, category, notes, ticker_symbol, confidence, status, admin_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         ''', (
             data.get('merchant_name'),
             data.get('category'),
@@ -8371,8 +8513,9 @@ def admin_manual_submit():
             'pending',
             'manual_submit'
         ))
-        
+
         conn.commit()
+        cursor.close()
         conn.close()
         
         return jsonify({
@@ -8428,22 +8571,23 @@ def admin_llm_bulk_approve():
             return jsonify({'success': False, 'error': 'No mapping IDs provided'}), 400
         
         conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Bulk approve mappings
-        placeholders = ','.join(['?' for _ in mapping_ids])
+        cursor = get_db_cursor(conn)
+
+        # Bulk approve mappings - use %s for PostgreSQL
+        placeholders = ','.join(['%s' for _ in mapping_ids])
         cursor.execute(f'''
-            UPDATE llm_mappings 
-            SET admin_approved = 1, 
+            UPDATE llm_mappings
+            SET admin_approved = 1,
                 processed_at = CURRENT_TIMESTAMP,
                 status = 'approved',
-                admin_id = ?,
-                notes = ?
+                admin_id = %s,
+                notes = %s
             WHERE id IN ({placeholders})
         ''', [admin_id, notes] + mapping_ids)
-        
+
         approved_count = cursor.rowcount
         conn.commit()
+        cursor.close()
         conn.close()
         
         return jsonify({
@@ -8472,22 +8616,23 @@ def admin_llm_bulk_reject():
             return jsonify({'success': False, 'error': 'No mapping IDs provided'}), 400
         
         conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Bulk reject mappings
-        placeholders = ','.join(['?' for _ in mapping_ids])
+        cursor = get_db_cursor(conn)
+
+        # Bulk reject mappings - use %s for PostgreSQL
+        placeholders = ','.join(['%s' for _ in mapping_ids])
         cursor.execute(f'''
-            UPDATE llm_mappings 
-            SET admin_approved = 0, 
+            UPDATE llm_mappings
+            SET admin_approved = 0,
                 processed_at = CURRENT_TIMESTAMP,
                 status = 'rejected',
-                admin_id = ?,
-                notes = ?
+                admin_id = %s,
+                notes = %s
             WHERE id IN ({placeholders})
         ''', [admin_id, notes] + mapping_ids)
-        
+
         rejected_count = cursor.rowcount
         conn.commit()
+        cursor.close()
         conn.close()
         
         return jsonify({
