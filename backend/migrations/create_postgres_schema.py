@@ -149,6 +149,30 @@ def create_postgres_schema():
         cursor.execute('''
             DO $$
             BEGIN
+                -- Core profile columns
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='phone') THEN
+                    ALTER TABLE users ADD COLUMN phone VARCHAR(50);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='address') THEN
+                    ALTER TABLE users ADD COLUMN address TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='city') THEN
+                    ALTER TABLE users ADD COLUMN city VARCHAR(100);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='state') THEN
+                    ALTER TABLE users ADD COLUMN state VARCHAR(50);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='zip_code') THEN
+                    ALTER TABLE users ADD COLUMN zip_code VARCHAR(20);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='company_name') THEN
+                    ALTER TABLE users ADD COLUMN company_name VARCHAR(255);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='mx_data') THEN
+                    ALTER TABLE users ADD COLUMN mx_data TEXT;
+                END IF;
+
+                -- Extended profile columns
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='first_name') THEN
                     ALTER TABLE users ADD COLUMN first_name VARCHAR(100);
                 END IF;

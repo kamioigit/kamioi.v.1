@@ -506,6 +506,32 @@ def initialize_database():
         except Exception:
             pass  # Column already exists
 
+        # Add profile columns if they don't exist (required for registration)
+        profile_columns = [
+            ("phone", "VARCHAR(50)"),
+            ("address", "TEXT"),
+            ("city", "VARCHAR(100)"),
+            ("state", "VARCHAR(50)"),
+            ("zip_code", "VARCHAR(20)"),
+            ("company_name", "VARCHAR(255)"),
+            ("mx_data", "TEXT"),
+            ("first_name", "VARCHAR(100)"),
+            ("last_name", "VARCHAR(100)"),
+            ("employer", "VARCHAR(255)"),
+            ("occupation", "VARCHAR(255)"),
+            ("annual_income", "VARCHAR(100)"),
+            ("employment_status", "VARCHAR(100)"),
+            ("favorite_sectors", "TEXT"),
+            ("investment_style", "VARCHAR(100)"),
+            ("monthly_investment_target", "DECIMAL(10,2)"),
+        ]
+
+        for col_name, col_type in profile_columns:
+            try:
+                cursor.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_type}")
+            except Exception:
+                pass  # Column already exists
+
         # Seed test users if missing (for demo/login verification)
         test_users = [
             {

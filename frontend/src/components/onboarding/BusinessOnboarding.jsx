@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Building, UserCog, CreditCard, Users, ChevronRight, ChevronLeft, Check, X, Mail, Briefcase } from 'lucide-react';
+import { Building, UserCog, UserCircle, CreditCard, Users, ChevronRight, ChevronLeft, Check, X, Mail, Briefcase } from 'lucide-react';
 import MXConnectWidget from '../auth/MXConnectWidget';
 
 const STEPS = [
   { id: 1, title: 'Business Info', icon: Building },
   { id: 2, title: 'Admin Account', icon: UserCog },
-  { id: 3, title: 'Payment Setup', icon: CreditCard },
-  { id: 4, title: 'Team Invitation', icon: Users }
+  { id: 3, title: 'Admin Details', icon: UserCircle },
+  { id: 4, title: 'Payment Setup', icon: CreditCard },
+  { id: 5, title: 'Team Invitation', icon: Users }
 ];
 
 const BUSINESS_TYPES = [
@@ -51,11 +52,22 @@ const BusinessOnboarding = ({ onComplete, onBack }) => {
     adminTitle: '',
     termsAccepted: false,
 
-    // Step 3: Payment Setup
+    // Step 3: Admin Personal Details
+    phone: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    employer: '',
+    occupation: '',
+    annualIncome: '',
+    employmentStatus: 'employed',
+
+    // Step 4: Payment Setup
     bankConnected: false,
     mxData: null,
 
-    // Step 4: Team Members
+    // Step 5: Team Members
     teamMembers: [],
     newMemberEmail: '',
     newMemberRole: 'member',
@@ -141,8 +153,11 @@ const BusinessOnboarding = ({ onComplete, onBack }) => {
         }
         return true;
       case 3:
+        // Admin personal details - all optional
         return true;
       case 4:
+        return true;
+      case 5:
         return true;
       default:
         return true;
@@ -187,10 +202,36 @@ const BusinessOnboarding = ({ onComplete, onBack }) => {
       }
 
       if (currentStep === 3) {
+        // Save admin personal details / profile data
+        const token = localStorage.getItem('kamioi_user_token');
+        if (token) {
+          const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111';
+          await fetch(`${apiBaseUrl}/api/user/profile`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              phone: formData.phone,
+              address: formData.address,
+              city: formData.city,
+              state: formData.state,
+              zipCode: formData.zipCode,
+              employer: formData.employer || formData.businessName,
+              occupation: formData.occupation || formData.adminTitle,
+              annualIncome: formData.annualIncome,
+              employmentStatus: formData.employmentStatus
+            })
+          });
+        }
+      }
+
+      if (currentStep === 4) {
         setShowMXConnect(true);
       }
 
-      if (currentStep === 4 && formData.teamMembers.length > 0) {
+      if (currentStep === 5 && formData.teamMembers.length > 0) {
         // Send invitations to team members
         const token = localStorage.getItem('kamioi_user_token');
         if (token) {
@@ -216,7 +257,7 @@ const BusinessOnboarding = ({ onComplete, onBack }) => {
         }
       }
 
-      if (currentStep < 4) {
+      if (currentStep < 5) {
         setCurrentStep(prev => prev + 1);
       } else {
         await handleComplete();
@@ -459,6 +500,109 @@ const BusinessOnboarding = ({ onComplete, onBack }) => {
 
       case 3:
         return (
+          <div className="space-y-4">
+            <p className="text-sm text-white/70 mb-4">Help us personalize your experience. All fields are optional.</p>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-white/90 mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-transparent"
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-white/90 mb-1">Business Address</label>
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-transparent"
+                  placeholder="123 Business Street, Suite 100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white/90 mb-1">City</label>
+                <input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-transparent"
+                  placeholder="New York"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white/90 mb-1">State</label>
+                <input
+                  type="text"
+                  name="state"
+                  value={formData.state}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-transparent"
+                  placeholder="NY"
+                />
+              </div>
+
+              <div className="col-span-2 sm:col-span-1">
+                <label className="block text-sm font-medium text-white/90 mb-1">ZIP Code</label>
+                <input
+                  type="text"
+                  name="zipCode"
+                  value={formData.zipCode}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-transparent"
+                  placeholder="10001"
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-white/20 pt-4 mt-4">
+              <h4 className="text-sm font-medium text-white/90 mb-3">Your Information</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-1">Your Role</label>
+                  <input
+                    type="text"
+                    name="occupation"
+                    value={formData.occupation}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-transparent"
+                    placeholder={formData.adminTitle || "CEO, CFO, etc."}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-1">Annual Revenue Range</label>
+                  <select
+                    name="annualIncome"
+                    value={formData.annualIncome}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-transparent"
+                  >
+                    <option value="">Prefer not to say</option>
+                    <option value="under-100k">Under $100,000</option>
+                    <option value="100k-500k">$100,000 - $500,000</option>
+                    <option value="500k-1m">$500,000 - $1,000,000</option>
+                    <option value="1m-5m">$1,000,000 - $5,000,000</option>
+                    <option value="over-5m">Over $5,000,000</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 4:
+        return (
           <div className="space-y-6">
             {formData.bankConnected ? (
               <div className="text-center py-8">
@@ -497,7 +641,7 @@ const BusinessOnboarding = ({ onComplete, onBack }) => {
           </div>
         );
 
-      case 4:
+      case 5:
         return (
           <div className="space-y-6">
             <div>
@@ -694,7 +838,7 @@ const BusinessOnboarding = ({ onComplete, onBack }) => {
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
                 Processing...
               </>
-            ) : currentStep === 4 ? (
+            ) : currentStep === 5 ? (
               <>
                 Complete Setup
                 <Check className="w-5 h-5 ml-2" />

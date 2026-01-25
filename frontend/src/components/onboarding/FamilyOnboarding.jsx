@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, UserPlus, Building2, Target, ChevronRight, ChevronLeft, Check, X, Mail } from 'lucide-react';
+import { Users, UserCircle, UserPlus, Building2, Target, ChevronRight, ChevronLeft, Check, X, Mail } from 'lucide-react';
 import MXConnectWidget from '../auth/MXConnectWidget';
 
 const STEPS = [
   { id: 1, title: 'Family Account', icon: Users },
-  { id: 2, title: 'Invite Members', icon: UserPlus },
-  { id: 3, title: 'Bank Connection', icon: Building2 },
-  { id: 4, title: 'Family Goals', icon: Target }
+  { id: 2, title: 'Personal Details', icon: UserCircle },
+  { id: 3, title: 'Invite Members', icon: UserPlus },
+  { id: 4, title: 'Bank Connection', icon: Building2 },
+  { id: 5, title: 'Family Goals', icon: Target }
 ];
 
 const FAMILY_GOAL_TEMPLATES = [
@@ -38,16 +39,27 @@ const FamilyOnboarding = ({ onComplete, onBack }) => {
     familyName: '',
     termsAccepted: false,
 
-    // Step 2: Family Members
+    // Step 2: Personal Details
+    phone: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    employer: '',
+    occupation: '',
+    annualIncome: '',
+    employmentStatus: 'employed',
+
+    // Step 3: Family Members
     familyMembers: [],
     newMemberEmail: '',
     newMemberRole: 'member',
 
-    // Step 3: Bank Connection
+    // Step 4: Bank Connection
     bankConnected: false,
     mxData: null,
 
-    // Step 4: Goals
+    // Step 5: Goals
     selectedGoals: [],
     customGoalName: '',
     customGoalTarget: ''
@@ -129,12 +141,15 @@ const FamilyOnboarding = ({ onComplete, onBack }) => {
         }
         return true;
       case 2:
-        // Family members are optional
+        // Personal details - all optional
         return true;
       case 3:
-        // Bank connection is optional
+        // Family members are optional
         return true;
       case 4:
+        // Bank connection is optional
+        return true;
+      case 5:
         // Goals are optional
         return true;
       default:
@@ -175,7 +190,33 @@ const FamilyOnboarding = ({ onComplete, onBack }) => {
         }
       }
 
-      if (currentStep === 2 && formData.familyMembers.length > 0) {
+      if (currentStep === 2) {
+        // Save personal details / profile data
+        const token = localStorage.getItem('kamioi_user_token');
+        if (token) {
+          const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111';
+          await fetch(`${apiBaseUrl}/api/user/profile`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              phone: formData.phone,
+              address: formData.address,
+              city: formData.city,
+              state: formData.state,
+              zipCode: formData.zipCode,
+              employer: formData.employer,
+              occupation: formData.occupation,
+              annualIncome: formData.annualIncome,
+              employmentStatus: formData.employmentStatus
+            })
+          });
+        }
+      }
+
+      if (currentStep === 3 && formData.familyMembers.length > 0) {
         // Send invitations to family members
         const token = localStorage.getItem('kamioi_user_token');
         if (token) {
@@ -200,11 +241,11 @@ const FamilyOnboarding = ({ onComplete, onBack }) => {
         }
       }
 
-      if (currentStep === 3) {
+      if (currentStep === 4) {
         setShowMXConnect(true);
       }
 
-      if (currentStep < 4) {
+      if (currentStep < 5) {
         setCurrentStep(prev => prev + 1);
       } else {
         await handleComplete();
@@ -372,6 +413,137 @@ const FamilyOnboarding = ({ onComplete, onBack }) => {
 
       case 2:
         return (
+          <div className="space-y-4">
+            <p className="text-sm text-white/70 mb-4">Help us personalize your experience. All fields are optional.</p>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-white/90 mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-white/90 mb-1">Street Address</label>
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  placeholder="123 Main Street"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white/90 mb-1">City</label>
+                <input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  placeholder="New York"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white/90 mb-1">State</label>
+                <input
+                  type="text"
+                  name="state"
+                  value={formData.state}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  placeholder="NY"
+                />
+              </div>
+
+              <div className="col-span-2 sm:col-span-1">
+                <label className="block text-sm font-medium text-white/90 mb-1">ZIP Code</label>
+                <input
+                  type="text"
+                  name="zipCode"
+                  value={formData.zipCode}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  placeholder="10001"
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-white/20 pt-4 mt-4">
+              <h4 className="text-sm font-medium text-white/90 mb-3">Employment Information</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-1">Employment Status</label>
+                  <select
+                    name="employmentStatus"
+                    value={formData.employmentStatus}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  >
+                    <option value="employed">Employed</option>
+                    <option value="self-employed">Self-Employed</option>
+                    <option value="unemployed">Unemployed</option>
+                    <option value="student">Student</option>
+                    <option value="retired">Retired</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-1">Occupation</label>
+                  <input
+                    type="text"
+                    name="occupation"
+                    value={formData.occupation}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                    placeholder="Software Engineer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-1">Employer</label>
+                  <input
+                    type="text"
+                    name="employer"
+                    value={formData.employer}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                    placeholder="Company Name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-1">Annual Income</label>
+                  <select
+                    name="annualIncome"
+                    value={formData.annualIncome}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  >
+                    <option value="">Prefer not to say</option>
+                    <option value="under-25k">Under $25,000</option>
+                    <option value="25k-50k">$25,000 - $50,000</option>
+                    <option value="50k-100k">$50,000 - $100,000</option>
+                    <option value="100k-200k">$100,000 - $200,000</option>
+                    <option value="over-200k">Over $200,000</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 3:
+        return (
           <div className="space-y-6">
             <div>
               <p className="text-white/70 mb-4">
@@ -444,47 +616,7 @@ const FamilyOnboarding = ({ onComplete, onBack }) => {
           </div>
         );
 
-      case 3:
-        return (
-          <div className="space-y-6">
-            {formData.bankConnected ? (
-              <div className="text-center py-8">
-                <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                  <Check className="w-8 h-8 text-green-600" />
-                </div>
-                <h3 className="text-lg font-medium text-white">Bank Connected Successfully!</h3>
-                <p className="text-white/60 mt-2">Your family bank account is now linked.</p>
-              </div>
-            ) : showMXConnect ? (
-              <div className="border border-white/20 rounded-lg p-4">
-                <MXConnectWidget
-                  userGuid={userGuid}
-                  onSuccess={handleMXSuccess}
-                  onError={handleMXError}
-                  onClose={() => setShowMXConnect(false)}
-                  isVisible={true}
-                />
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Building2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-white">Connect Family Bank Account</h3>
-                <p className="text-white/60 mt-2 mb-6">
-                  Link your family's primary bank account. All family members can contribute through round-up investing.
-                </p>
-                <button
-                  onClick={() => setShowMXConnect(true)}
-                  className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                >
-                  Connect Bank Account
-                </button>
-                <p className="text-sm text-gray-400 mt-4">Each member can also link their own accounts later</p>
-              </div>
-            )}
-          </div>
-        );
-
-      case 4:
+      case 5:
         return (
           <div className="space-y-6">
             <div>
@@ -634,7 +766,7 @@ const FamilyOnboarding = ({ onComplete, onBack }) => {
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
                 Processing...
               </>
-            ) : currentStep === 4 ? (
+            ) : currentStep === 5 ? (
               <>
                 Complete Setup
                 <Check className="w-5 h-5 ml-2" />

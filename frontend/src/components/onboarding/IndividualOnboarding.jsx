@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, TrendingUp, Building2, Target, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { User, UserCircle, TrendingUp, Building2, Target, ChevronRight, ChevronLeft, Check } from 'lucide-react';
 import MXConnectWidget from '../auth/MXConnectWidget';
 
 const STEPS = [
   { id: 1, title: 'Account Info', icon: User },
-  { id: 2, title: 'Investment Preferences', icon: TrendingUp },
-  { id: 3, title: 'Bank Connection', icon: Building2 },
-  { id: 4, title: 'Goals Setup', icon: Target }
+  { id: 2, title: 'Personal Details', icon: UserCircle },
+  { id: 3, title: 'Investment Preferences', icon: TrendingUp },
+  { id: 4, title: 'Bank Connection', icon: Building2 },
+  { id: 5, title: 'Goals Setup', icon: Target }
 ];
 
 const RISK_LEVELS = [
@@ -51,16 +52,27 @@ const IndividualOnboarding = ({ onComplete, onBack }) => {
     confirmPassword: '',
     termsAccepted: false,
 
-    // Step 2: Investment Preferences
+    // Step 2: Personal Details
+    phone: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    employer: '',
+    occupation: '',
+    annualIncome: '',
+    employmentStatus: 'employed',
+
+    // Step 3: Investment Preferences
     riskTolerance: 'moderate',
     favoriteSectors: [],
     investmentExperience: 'beginner',
 
-    // Step 3: Bank Connection
+    // Step 4: Bank Connection
     bankConnected: false,
     mxData: null,
 
-    // Step 4: Goals
+    // Step 5: Goals
     selectedGoals: [],
     customGoalName: '',
     customGoalTarget: ''
@@ -114,15 +126,18 @@ const IndividualOnboarding = ({ onComplete, onBack }) => {
         }
         return true;
       case 2:
+        // Personal details - all optional but phone is recommended
+        return true;
+      case 3:
         if (!formData.riskTolerance) {
           setError('Please select your risk tolerance');
           return false;
         }
         return true;
-      case 3:
+      case 4:
         // Bank connection is optional but encouraged
         return true;
-      case 4:
+      case 5:
         // Goals are optional
         return true;
       default:
@@ -163,6 +178,32 @@ const IndividualOnboarding = ({ onComplete, onBack }) => {
       }
 
       if (currentStep === 2) {
+        // Save personal details / profile data
+        const token = localStorage.getItem('kamioi_user_token');
+        if (token) {
+          const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111';
+          await fetch(`${apiBaseUrl}/api/user/profile`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              phone: formData.phone,
+              address: formData.address,
+              city: formData.city,
+              state: formData.state,
+              zipCode: formData.zipCode,
+              employer: formData.employer,
+              occupation: formData.occupation,
+              annualIncome: formData.annualIncome,
+              employmentStatus: formData.employmentStatus
+            })
+          });
+        }
+      }
+
+      if (currentStep === 3) {
         // Save investment preferences
         const token = localStorage.getItem('kamioi_user_token');
         if (token) {
@@ -182,11 +223,11 @@ const IndividualOnboarding = ({ onComplete, onBack }) => {
         }
       }
 
-      if (currentStep === 3) {
+      if (currentStep === 4) {
         setShowMXConnect(true);
       }
 
-      if (currentStep < 4) {
+      if (currentStep < 5) {
         setCurrentStep(prev => prev + 1);
       } else {
         // Complete onboarding
@@ -345,6 +386,137 @@ const IndividualOnboarding = ({ onComplete, onBack }) => {
 
       case 2:
         return (
+          <div className="space-y-4">
+            <p className="text-sm text-white/70 mb-4">Help us personalize your experience. All fields are optional.</p>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-white/90 mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-white/90 mb-1">Street Address</label>
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  placeholder="123 Main Street"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white/90 mb-1">City</label>
+                <input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  placeholder="New York"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white/90 mb-1">State</label>
+                <input
+                  type="text"
+                  name="state"
+                  value={formData.state}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  placeholder="NY"
+                />
+              </div>
+
+              <div className="col-span-2 sm:col-span-1">
+                <label className="block text-sm font-medium text-white/90 mb-1">ZIP Code</label>
+                <input
+                  type="text"
+                  name="zipCode"
+                  value={formData.zipCode}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  placeholder="10001"
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-white/20 pt-4 mt-4">
+              <h4 className="text-sm font-medium text-white/90 mb-3">Employment Information</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-1">Employment Status</label>
+                  <select
+                    name="employmentStatus"
+                    value={formData.employmentStatus}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  >
+                    <option value="employed">Employed</option>
+                    <option value="self-employed">Self-Employed</option>
+                    <option value="unemployed">Unemployed</option>
+                    <option value="student">Student</option>
+                    <option value="retired">Retired</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-1">Occupation</label>
+                  <input
+                    type="text"
+                    name="occupation"
+                    value={formData.occupation}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                    placeholder="Software Engineer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-1">Employer</label>
+                  <input
+                    type="text"
+                    name="employer"
+                    value={formData.employer}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                    placeholder="Company Name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-1">Annual Income</label>
+                  <select
+                    name="annualIncome"
+                    value={formData.annualIncome}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                  >
+                    <option value="">Prefer not to say</option>
+                    <option value="under-25k">Under $25,000</option>
+                    <option value="25k-50k">$25,000 - $50,000</option>
+                    <option value="50k-100k">$50,000 - $100,000</option>
+                    <option value="100k-200k">$100,000 - $200,000</option>
+                    <option value="over-200k">Over $200,000</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 3:
+        return (
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-white/90 mb-3">Risk Tolerance</label>
@@ -415,7 +587,7 @@ const IndividualOnboarding = ({ onComplete, onBack }) => {
           </div>
         );
 
-      case 3:
+      case 4:
         return (
           <div className="space-y-6">
             {formData.bankConnected ? (
@@ -455,7 +627,7 @@ const IndividualOnboarding = ({ onComplete, onBack }) => {
           </div>
         );
 
-      case 4:
+      case 5:
         return (
           <div className="space-y-6">
             <div>
@@ -609,7 +781,7 @@ const IndividualOnboarding = ({ onComplete, onBack }) => {
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
                 Processing...
               </>
-            ) : currentStep === 4 ? (
+            ) : currentStep === 5 ? (
               <>
                 Complete Setup
                 <Check className="w-5 h-5 ml-2" />
