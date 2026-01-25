@@ -638,11 +638,48 @@ const UserSettings = () => {
           </div>
         </div>
 
-        <div className="mt-8 p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
-          <h4 className="text-lg font-semibold text-blue-400 mb-2">Coming Soon</h4>
-          <p className="text-gray-400 text-sm">
-            Advanced settings and customization options will be available in future updates.
-          </p>
+        <div className="mt-8 p-6 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/20">
+          <h4 className="text-lg font-semibold text-blue-400 mb-4 flex items-center">
+            <span className="mr-2">🚀</span> Coming Soon
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-start space-x-3">
+              <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-green-400">🔐</span>
+              </div>
+              <div>
+                <p className="text-white font-medium text-sm">Two-Factor Authentication</p>
+                <p className="text-gray-400 text-xs">Enhanced security with 2FA</p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-purple-400">📊</span>
+              </div>
+              <div>
+                <p className="text-white font-medium text-sm">Data Export</p>
+                <p className="text-gray-400 text-xs">Download transactions & reports</p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3">
+              <div className="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-yellow-400">🔔</span>
+              </div>
+              <div>
+                <p className="text-white font-medium text-sm">Advanced Notifications</p>
+                <p className="text-gray-400 text-xs">Granular alert preferences</p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-blue-400">📄</span>
+              </div>
+              <div>
+                <p className="text-white font-medium text-sm">Tax Documents</p>
+                <p className="text-gray-400 text-xs">Download 1099 & tax forms</p>
+              </div>
+            </div>
+          </div>
         </div>
         {showProfileModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
