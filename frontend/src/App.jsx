@@ -72,6 +72,7 @@ const Learn = lazy(() => import('./pages/Learn'))
 const Pricing = lazy(() => import('./pages/Pricing'))
 const SubscriptionSuccess = lazy(() => import('./pages/SubscriptionSuccess'))
 const SubscriptionCancel = lazy(() => import('./pages/SubscriptionCancel'))
+const SignupWizard = lazy(() => import('./components/signup/SignupWizard'))
 
 // Loading component
 const LoadingSpinner = () => (
@@ -202,6 +203,13 @@ const getUserDashboardPath = (user) => {
   }
 }
 
+// App redirect component - redirects authenticated users to their dashboard
+const AppRedirect = () => {
+  const { user } = useAuth()
+  const dashboardPath = getUserDashboardPath(user)
+  return <Navigate to={dashboardPath} replace />
+}
+
 // Helper to check if user can access a specific dashboard
 const canAccessDashboard = (user, dashboardType) => {
   if (!user) return false
@@ -247,8 +255,8 @@ const AppRoutes = () => {
         <Route path="/home-v5" element={<HomePageV5 />} />
         <Route path="/business-registration" element={<BusinessRegistration />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Register />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/signup" element={<SignupWizard />} />
+        <Route path="/register" element={<SignupWizard />} />
         <Route path="/admin-login" element={<AdminLogin />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/terms-of-service" element={<TermsOfService />} />
@@ -261,7 +269,17 @@ const AppRoutes = () => {
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/subscription/success" element={<SubscriptionSuccess />} />
         <Route path="/subscription/cancel" element={<SubscriptionCancel />} />
-        
+
+        {/* App redirect - sends authenticated users to their dashboard */}
+        <Route
+          path="/app"
+          element={
+            <ProtectedRoute>
+              <AppRedirect />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Protected dashboard routes - Admins can access all dashboards */}
         <Route 
           path="/dashboard/:userId/*" 
