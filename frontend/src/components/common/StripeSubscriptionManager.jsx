@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { CreditCard, Loader2, AlertCircle, Settings, ExternalLink, CheckCircle, User, Clock } from 'lucide-react'
+import { CreditCard, Loader2, AlertCircle, Settings, ExternalLink, CheckCircle, User, Clock, X, AlertTriangle } from 'lucide-react'
 
 const StripeSubscriptionManager = ({ onSubscriptionUpdate }) => {
   const navigate = useNavigate()
@@ -15,6 +15,9 @@ const StripeSubscriptionManager = ({ onSubscriptionUpdate }) => {
   const [error, setError] = useState(null)
   const [subscription, setSubscription] = useState(null)
   const [loadingSubscription, setLoadingSubscription] = useState(true)
+  const [showManageModal, setShowManageModal] = useState(false)
+  const [canceling, setCanceling] = useState(false)
+  const [reactivating, setReactivating] = useState(false)
 
   const fetchCurrentSubscription = useCallback(async () => {
     try {
@@ -104,7 +107,14 @@ const StripeSubscriptionManager = ({ onSubscriptionUpdate }) => {
         throw new Error(data.error || 'Failed to create portal session')
       }
 
-      // Redirect to Stripe Customer Portal
+      // Check if sandbox mode - show modal instead of redirecting
+      if (data.mode === 'sandbox') {
+        setShowManageModal(true)
+        setLoading(false)
+        return
+      }
+
+      // Redirect to Stripe Customer Portal (production mode)
       if (data.url) {
         window.location.href = data.url
       } else {
@@ -114,6 +124,72 @@ const StripeSubscriptionManager = ({ onSubscriptionUpdate }) => {
       console.error('Portal error:', err)
       setError(err.message || 'Failed to open subscription management. Please try again.')
       setLoading(false)
+    }
+  }
+
+  const handleCancelSubscription = async (immediately = false) => {
+    const authToken = token || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
+    if (!authToken) return
+
+    setCanceling(true)
+    setError(null)
+
+    try {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+      const response = await fetch(`${apiBaseUrl}/api/stripe/cancel-subscription`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ cancel_immediately: immediately })
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        // Refresh subscription data
+        await fetchCurrentSubscription()
+        setShowManageModal(false)
+        if (onSubscriptionUpdate) onSubscriptionUpdate()
+      } else {
+        setError(data.error || 'Failed to cancel subscription')
+      }
+    } catch (err) {
+      setError('Failed to cancel subscription. Please try again.')
+    } finally {
+      setCanceling(false)
+    }
+  }
+
+  const handleReactivateSubscription = async () => {
+    const authToken = token || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
+    if (!authToken) return
+
+    setReactivating(true)
+    setError(null)
+
+    try {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+      const response = await fetch(`${apiBaseUrl}/api/stripe/reactivate-subscription`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        await fetchCurrentSubscription()
+        setShowManageModal(false)
+        if (onSubscriptionUpdate) onSubscriptionUpdate()
+      } else {
+        setError(data.error || 'Failed to reactivate subscription')
+      }
+    } catch (err) {
+      setError('Failed to reactivate subscription. Please try again.')
+    } finally {
+      setReactivating(false)
     }
   }
 
@@ -391,6 +467,108 @@ const StripeSubscriptionManager = ({ onSubscriptionUpdate }) => {
           Manage payment methods, update billing, and cancel your subscription
         </p>
       </div>
+
+      {/* Subscription Management Modal */}
+      {showManageModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-white/20 rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-white flex items-center space-x-2">
+                <Settings className="w-5 h-5" />
+                <span>Manage Subscription</span>
+              </h3>
+              <button
+                onClick={() => setShowManageModal(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Current Plan Info */}
+              <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                <p className="text-sm text-gray-400">Current Plan</p>
+                <p className="text-lg font-semibold text-white">{subscription?.plan_name || 'Individual'}</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  {formatPrice(subscription?.amount || 0)} / {subscription?.billing_cycle === 'yearly' ? 'year' : 'month'}
+                </p>
+              </div>
+
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center space-x-2">
+                  <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+                  <span className="text-red-400 text-sm">{error}</span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="space-y-3">
+                {/* Change Plan */}
+                <button
+                  onClick={() => {
+                    setShowManageModal(false)
+                    navigate('/pricing')
+                  }}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all"
+                >
+                  <CreditCard className="w-5 h-5" />
+                  <span>Change Plan</span>
+                </button>
+
+                {/* Cancel or Reactivate based on status */}
+                {subscription?.cancel_at_period_end ? (
+                  <button
+                    onClick={handleReactivateSubscription}
+                    disabled={reactivating}
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all disabled:opacity-50"
+                  >
+                    {reactivating ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Reactivating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-5 h-5" />
+                        <span>Reactivate Subscription</span>
+                      </>
+                    )}
+                  </button>
+                ) : subscription?.status !== 'canceled' ? (
+                  <button
+                    onClick={() => handleCancelSubscription(false)}
+                    disabled={canceling}
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded-lg font-semibold transition-all disabled:opacity-50"
+                  >
+                    {canceling ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Canceling...</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="w-5 h-5" />
+                        <span>Cancel at Period End</span>
+                      </>
+                    )}
+                  </button>
+                ) : null}
+              </div>
+
+              {subscription?.cancel_at_period_end && (
+                <p className="text-sm text-yellow-400 text-center">
+                  Your subscription is set to cancel on {formatDate(subscription.current_period_end)}
+                </p>
+              )}
+
+              <p className="text-xs text-gray-500 text-center mt-4">
+                Contact support@kamioi.com for billing questions
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
