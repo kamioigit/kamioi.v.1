@@ -2264,6 +2264,7 @@ def user_register():
             INSERT INTO users (email, password, name, account_type, role, round_up_amount, risk_tolerance, investment_goals,
                              terms_agreed, privacy_agreed, marketing_agreed, created_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
         """, (
             email,
             password,  # In production, this should be hashed
@@ -2278,8 +2279,9 @@ def user_register():
             bool(marketing_agreed),
             datetime.now().isoformat()
         ))
-        
-        user_id = cursor.lastrowid
+
+        result = cursor.fetchone()
+        user_id = result[0] if result else None
         
         # Create initial portfolio entry (skip for now since portfolios table requires ticker)
         # cursor.execute("""
@@ -2368,6 +2370,7 @@ def user_auth_register():
             INSERT INTO users (email, password, name, account_type, role, round_up_amount, risk_tolerance, investment_goals,
                              terms_agreed, privacy_agreed, marketing_agreed, created_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
         """, (
             email,
             password,  # In production, this should be hashed
@@ -2382,8 +2385,9 @@ def user_auth_register():
             bool(marketing_agreed),
             datetime.now().isoformat()
         ))
-        
-        user_id = cursor.lastrowid
+
+        result = cursor.fetchone()
+        user_id = result[0] if result else None
         
         # Create initial portfolio entry (skip for now since portfolios table requires ticker)
         # cursor.execute("""
