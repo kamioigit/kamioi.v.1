@@ -2245,13 +2245,13 @@ def user_register():
         cursor = conn.cursor()
         
         # Check if user already exists
-        cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+        cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
         existing_user = cursor.fetchone()
-        
+
         if existing_user:
             conn.close()
             return jsonify({'success': False, 'error': 'User with this email already exists'}), 400
-        
+
         # Create new user
         role_mapping = {
             'individual': 'individual',
@@ -2261,9 +2261,9 @@ def user_register():
         user_role = role_mapping.get(account_type, 'individual')
         goals_list = investment_goals if isinstance(investment_goals, list) else []
         cursor.execute("""
-            INSERT INTO users (email, password, name, account_type, role, round_up_amount, risk_tolerance, investment_goals, 
+            INSERT INTO users (email, password, name, account_type, role, round_up_amount, risk_tolerance, investment_goals,
                              terms_agreed, privacy_agreed, marketing_agreed, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             email,
             password,  # In production, this should be hashed
@@ -2349,13 +2349,13 @@ def user_auth_register():
         cursor = conn.cursor()
         
         # Check if user already exists
-        cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+        cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
         existing_user = cursor.fetchone()
-        
+
         if existing_user:
             conn.close()
             return jsonify({'success': False, 'error': 'User with this email already exists'}), 400
-        
+
         # Create new user
         role_mapping = {
             'individual': 'individual',
@@ -2365,9 +2365,9 @@ def user_auth_register():
         user_role = role_mapping.get(account_type, 'individual')
         goals_list = investment_goals if isinstance(investment_goals, list) else []
         cursor.execute("""
-            INSERT INTO users (email, password, name, account_type, role, round_up_amount, risk_tolerance, investment_goals, 
+            INSERT INTO users (email, password, name, account_type, role, round_up_amount, risk_tolerance, investment_goals,
                              terms_agreed, privacy_agreed, marketing_agreed, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             email,
             password,  # In production, this should be hashed
@@ -4982,7 +4982,7 @@ def business_profile():
         if request.method == 'GET':
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, name, email, role, created_at FROM users WHERE id = ?", (business_id,))
+            cursor.execute("SELECT id, name, email, role, created_at FROM users WHERE id = %s", (business_id,))
             user = cursor.fetchone()
             conn.close()
             
@@ -5015,7 +5015,7 @@ def business_profile():
             
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("UPDATE users SET name = ?, email = ? WHERE id = ?", (name, email, business_id))
+            cursor.execute("UPDATE users SET name = %s, email = %s WHERE id = %s", (name, email, business_id))
             conn.commit()
             conn.close()
             
@@ -5120,15 +5120,25 @@ def business_settings():
             cursor = conn.cursor()
             
             # Update user's round-up amount
-            cursor.execute("UPDATE users SET round_up_amount = ? WHERE id = ?", (roundup_multiplier, business_id))
+            cursor.execute("UPDATE users SET round_up_amount = %s WHERE id = %s", (roundup_multiplier, business_id))
             
             cursor.execute("""
-                INSERT OR REPLACE INTO user_settings 
-                (user_id, roundup_multiplier, auto_invest, notifications, email_alerts, 
+                INSERT INTO user_settings
+                (user_id, roundup_multiplier, auto_invest, notifications, email_alerts,
                  theme, business_sharing, budget_alerts, department_limits, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-            """, (business_id, roundup_multiplier, auto_invest, notifications, 
-                  email_alerts, theme, business_sharing, budget_alerts, 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (user_id) DO UPDATE SET
+                    roundup_multiplier = EXCLUDED.roundup_multiplier,
+                    auto_invest = EXCLUDED.auto_invest,
+                    notifications = EXCLUDED.notifications,
+                    email_alerts = EXCLUDED.email_alerts,
+                    theme = EXCLUDED.theme,
+                    business_sharing = EXCLUDED.business_sharing,
+                    budget_alerts = EXCLUDED.budget_alerts,
+                    department_limits = EXCLUDED.department_limits,
+                    updated_at = NOW()
+            """, (business_id, roundup_multiplier, auto_invest, notifications,
+                  email_alerts, theme, business_sharing, budget_alerts,
                   str(department_limits)))
             
             conn.commit()
@@ -5158,7 +5168,7 @@ def business_account_settings():
         if request.method == 'GET':
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT name, email, company_name, phone, address FROM users WHERE id = ?", (business_id,))
+            cursor.execute("SELECT name, email, company_name, phone, address FROM users WHERE id = %s", (business_id,))
             user = cursor.fetchone()
             conn.close()
             
@@ -8102,7 +8112,7 @@ def llm_learn():
         cursor = conn.cursor()
         
         # Get the mapping details
-        cursor.execute('SELECT * FROM llm_mappings WHERE id = ?', (data['mapping_id'],))
+        cursor.execute('SELECT * FROM llm_mappings WHERE id = %s', (data['mapping_id'],))
         mapping = cursor.fetchone()
         
         if not mapping:
@@ -10112,7 +10122,7 @@ def auto_quality_check():
             }), 400
         
         # Get mapping data
-        cursor.execute("SELECT * FROM llm_mappings WHERE id = ?", (mapping_id,))
+        cursor.execute("SELECT * FROM llm_mappings WHERE id = %s", (mapping_id,))
         mapping = cursor.fetchone()
         
         if not mapping:
@@ -11416,7 +11426,7 @@ def bulk_upload_transactions():
                 description = row.get('Description', row.get('description', 'Transaction'))
                 
                 # Get user's account type for fee calculation
-                cursor.execute("SELECT role FROM users WHERE id = ?", (user_id,))
+                cursor.execute("SELECT role FROM users WHERE id = %s", (user_id,))
                 user = cursor.fetchone()
                 account_type = user['role'] if user else 'individual'
                 
@@ -12009,7 +12019,7 @@ def admin_create_blog_post():
         original_slug = slug
         counter = 1
         while True:
-            cursor.execute("SELECT id FROM blog_posts WHERE slug = ?", (slug,))
+            cursor.execute("SELECT id FROM blog_posts WHERE slug = %s", (slug,))
             if not cursor.fetchone():
                 break
             slug = f"{original_slug}-{counter}"
@@ -12036,7 +12046,7 @@ def admin_create_blog_post():
                 canonical_url, og_title, og_description, og_image, twitter_title,
                 twitter_description, twitter_image, schema_markup, read_time, word_count,
                 published_at, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             data['title'], slug, data['content'], data.get('excerpt', ''),
             data.get('featured_image', ''), data.get('status', 'published'),
@@ -12081,10 +12091,10 @@ def admin_update_blog_post(post_id):
         cursor = conn.cursor()
         
         # Check if post exists
-        cursor.execute("SELECT id FROM blog_posts WHERE id = ?", (post_id,))
+        cursor.execute("SELECT id FROM blog_posts WHERE id = %s", (post_id,))
         if not cursor.fetchone():
             return jsonify({'success': False, 'error': 'Post not found'}), 404
-        
+
         # Update post
         update_fields = []
         params = []
@@ -12136,12 +12146,12 @@ def admin_delete_blog_post(post_id):
         cursor = conn.cursor()
         
         # Check if post exists
-        cursor.execute("SELECT id FROM blog_posts WHERE id = ?", (post_id,))
+        cursor.execute("SELECT id FROM blog_posts WHERE id = %s", (post_id,))
         if not cursor.fetchone():
             return jsonify({'success': False, 'error': 'Post not found'}), 404
-        
+
         # Delete post
-        cursor.execute("DELETE FROM blog_posts WHERE id = ?", (post_id,))
+        cursor.execute("DELETE FROM blog_posts WHERE id = %s", (post_id,))
         conn.commit()
         conn.close()
         
@@ -13441,7 +13451,7 @@ def journal_entry_by_id(entry_id):
             
         elif request.method == 'DELETE':
             # Delete journal entry
-            cursor.execute('DELETE FROM journal_entries WHERE id = ?', (entry_id,))
+            cursor.execute('DELETE FROM journal_entries WHERE id = %s', (entry_id,))
             conn.commit()
             conn.close()
             
