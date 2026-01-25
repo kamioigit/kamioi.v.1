@@ -1012,6 +1012,68 @@ def admin_get_users():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+def admin_delete_user(user_id):
+    """Delete a user by ID (admin only)"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        # Verify admin token
+        token = auth_header.split(' ')[1]
+        if not token.startswith('admin_token_'):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn)
+
+        # Check if user exists
+        cursor.execute("SELECT id, email FROM users WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+
+        if not user:
+            conn.close()
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+
+        # Delete related data first (to avoid foreign key constraints)
+        # Delete user settings
+        try:
+            cursor.execute("DELETE FROM user_settings WHERE user_id = %s", (user_id,))
+        except Exception:
+            pass
+
+        # Delete transactions
+        try:
+            cursor.execute("DELETE FROM transactions WHERE user_id = %s", (user_id,))
+        except Exception:
+            pass
+
+        # Delete portfolios
+        try:
+            cursor.execute("DELETE FROM portfolios WHERE user_id = %s", (user_id,))
+        except Exception:
+            pass
+
+        # Delete goals
+        try:
+            cursor.execute("DELETE FROM goals WHERE user_id = %s", (user_id,))
+        except Exception:
+            pass
+
+        # Delete the user
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'User {user[1]} deleted successfully'
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/admin/family-users', methods=['GET'])
 def admin_get_family_users():
     try:
@@ -2966,7 +3028,7 @@ def user_profile():
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT id, name, email, role, created_at, phone, address, city, state, zip_code,
-                       company_name, round_up_amount, risk_profile, account_type, mx_data,
+                       company_name, round_up_amount, risk_tolerance, account_type, mx_data,
                        first_name, last_name, employer, occupation, annual_income, employment_status
                 FROM users WHERE id = %s
             """, (user_id,))
@@ -3077,7 +3139,7 @@ def user_profile():
                 update_fields.append('round_up_amount = %s')
                 update_values.append(float(round_up_amount) if round_up_amount else 1.0)
             if risk_tolerance:
-                update_fields.append('risk_profile = %s')
+                update_fields.append('risk_tolerance = %s')
                 update_values.append(risk_tolerance)
             if first_name:
                 update_fields.append('first_name = %s')
