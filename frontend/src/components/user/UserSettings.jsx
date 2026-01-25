@@ -38,7 +38,55 @@ const UserSettings = () => {
   const [roundUpEnabled, setRoundUpEnabled] = useState(true)
   const [savingRoundUp, setSavingRoundUp] = useState(false)
 
+  // Fetch full profile data from API
+  const fetchProfile = async () => {
+    try {
+      const token = localStorage.getItem('kamioi_user_token') || localStorage.getItem('authToken')
+      if (!token) return
+
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+      const response = await fetch(`${apiBaseUrl}/api/user/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success && result.profile) {
+          const p = result.profile
+          setProfileForm(prev => ({
+            ...prev,
+            name: p.name || prev.name,
+            email: p.email || prev.email,
+            phone: p.phone || prev.phone,
+            country: p.country || prev.country,
+            timezone: p.timezone || prev.timezone,
+            firstName: p.firstName || prev.firstName,
+            lastName: p.lastName || prev.lastName,
+            dob: p.dob || prev.dob,
+            ssn: p.ssn || prev.ssn,
+            street: p.street || p.address || prev.street,
+            city: p.city || prev.city,
+            state: p.state || prev.state,
+            zip: p.zip || p.zip_code || prev.zip,
+            annualIncome: p.annualIncome || prev.annualIncome,
+            employmentStatus: p.employmentStatus || prev.employmentStatus,
+            employer: p.employer || prev.employer,
+            occupation: p.occupation || prev.occupation,
+            roundUpAmount: p.roundUpAmount || prev.roundUpAmount,
+            riskTolerance: p.riskTolerance || prev.riskTolerance
+          }))
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error)
+    }
+  }
+
   useEffect(() => {
+    // First set from authUser (basic data)
     setProfileForm(prev => ({
       ...prev,
       name: authUser?.name || prev.name,
@@ -67,7 +115,9 @@ const UserSettings = () => {
     } catch (_) {
       // Ignore malformed stored preferences
     }
-    
+
+    // Load full profile from API (includes all registration data)
+    fetchProfile()
     // Load round-up settings
     fetchRoundUpSettings()
     // Load bank connections
