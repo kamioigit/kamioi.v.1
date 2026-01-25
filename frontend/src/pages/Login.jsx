@@ -1315,14 +1315,23 @@ const Login = ({ initialMode = 'login' }) => {
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 shadow-2xl">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-500/20 rounded-full mb-4">
+              {isDemo ? (
+                <Key className="w-8 h-8 text-purple-400" />
+              ) : isLogin ? (
+                <User className="w-8 h-8 text-purple-400" />
+              ) : (
+                <Users className="w-8 h-8 text-purple-400" />
+              )}
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-2">
               {isDemo ? 'Demo Access' : isLogin ? 'Welcome Back' : 'Join Kamioi'}
             </h1>
-            <p className="text-gray-400">
-              {isDemo 
+            <p className="text-white/70">
+              {isDemo
                 ? 'Enter your email and demo code to access the dashboard'
-                : isLogin 
-                ? 'Sign in to your account to continue investing' 
+                : isLogin
+                ? 'Sign in to your account to continue investing'
                 : 'Start your investment journey with round-up investing'
               }
             </p>
@@ -1331,16 +1340,16 @@ const Login = ({ initialMode = 'login' }) => {
           {/* Toggle between Login, Registration, and Demo */}
           {!registrationType && (
             <div className="flex justify-center mb-8">
-              <div className="bg-white/10 rounded-lg p-1 flex">
+              <div className="bg-white/5 rounded-lg p-1 flex border border-white/10">
                 <button
                   onClick={() => {
                     setIsLogin(true)
                     setIsDemo(false)
                   }}
-                  className={`px-6 py-2 rounded-md transition-all ${
+                  className={`px-6 py-2 rounded-md transition-all font-medium ${
                     isLogin && !isDemo
-                      ? 'bg-blue-500 text-white' 
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-white/60 hover:text-white hover:bg-white/5'
                   }`}
                 >
                   Sign In
@@ -1350,10 +1359,10 @@ const Login = ({ initialMode = 'login' }) => {
                     setIsLogin(false)
                     setIsDemo(false)
                   }}
-                  className={`px-6 py-2 rounded-md transition-all ${
+                  className={`px-6 py-2 rounded-md transition-all font-medium ${
                     !isLogin && !isDemo
-                      ? 'bg-blue-500 text-white' 
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-white/60 hover:text-white hover:bg-white/5'
                   }`}
                 >
                   Sign Up
@@ -1363,10 +1372,10 @@ const Login = ({ initialMode = 'login' }) => {
                     setIsLogin(false)
                     setIsDemo(true)
                   }}
-                  className={`px-6 py-2 rounded-md transition-all flex items-center space-x-2 ${
+                  className={`px-6 py-2 rounded-md transition-all flex items-center space-x-2 font-medium ${
                     isDemo
-                      ? 'bg-purple-500 text-white' 
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-white/60 hover:text-white hover:bg-white/5'
                   }`}
                 >
                   <Key className="w-4 h-4" />
@@ -1389,7 +1398,7 @@ const Login = ({ initialMode = 'login' }) => {
                   value={demoData.email}
                   onChange={(e) => setDemoData({ ...demoData, email: e.target.value })}
                   placeholder="Enter your email address"
-                  className="w-full px-4 py-3 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500/50"
+                  className="w-full px-4 py-3 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500/50"
                   disabled={demoLoading}
                 />
               </div>
@@ -1405,7 +1414,7 @@ const Login = ({ initialMode = 'login' }) => {
                     value={demoData.code}
                     onChange={(e) => setDemoData({ ...demoData, code: e.target.value.toUpperCase() })}
                     placeholder="Enter your demo code"
-                    className="w-full px-4 pr-10 py-3 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500/50 font-mono text-center tracking-wider"
+                    className="w-full px-4 pr-10 py-3 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500/50 font-mono text-center tracking-wider"
                     disabled={demoLoading}
                     autoFocus
                   />
@@ -1477,7 +1486,7 @@ const Login = ({ initialMode = 'login' }) => {
               </button>
 
               <div className="pt-6 border-t border-white/10">
-                <div className="space-y-3 text-sm text-gray-400">
+                <div className="space-y-3 text-sm text-white/70">
                   <div className="flex items-start space-x-2">
                     <CheckCircle className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
                     <span>Fully interactive demo with real data</span>
@@ -1499,55 +1508,73 @@ const Login = ({ initialMode = 'login' }) => {
           {isLogin && !registrationType && (
             <div className="space-y-6">
               <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={loginData.email}
-                  onChange={(e) => handleLoginInputChange('email', e.target.value)}
-                  className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
-                  placeholder="Enter your email"
-                  autoComplete="off"
-                  required
-                />
-        </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={loginData.email}
+                    onChange={(e) => handleLoginInputChange('email', e.target.value)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                    placeholder="Enter your email"
+                    autoComplete="off"
+                    required
+                  />
+                </div>
 
-            <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={loginData.password}
-                  onChange={(e) => handleLoginInputChange('password', e.target.value)}
-                  className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
-                  placeholder="Enter your password"
-                  autoComplete="off"
-                  required
-                />
-      </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-2">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={loginData.password}
+                    onChange={(e) => handleLoginInputChange('password', e.target.value)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                    placeholder="Enter your password"
+                    autoComplete="off"
+                    required
+                  />
+                </div>
 
-      {/* Forgot Password Link */}
-      <div className="text-right">
-        <button
-          type="button"
-          onClick={() => setShowForgotPassword(true)}
-          className="text-blue-400 hover:text-blue-300 text-sm underline"
-        >
-          Forgot Password?
-        </button>
-      </div>
+                {/* Forgot Password Link */}
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-purple-400 hover:text-purple-300 text-sm underline"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
 
-        <button
-          type="submit"
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 px-6 rounded-lg transition-all duration-200 font-medium"
-              >
-                Sign In
-              </button>
-            </form>
-          </div>
+                <button
+                  type="submit"
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-lg transition-all duration-200 font-semibold flex items-center justify-center space-x-2"
+                >
+                  <User className="w-5 h-5" />
+                  <span>Sign In to Dashboard</span>
+                </button>
+              </form>
+
+              {/* Divider */}
+              <div className="flex items-center">
+                <div className="flex-1 border-t border-white/20"></div>
+                <span className="px-4 text-white/50 text-sm">or</span>
+                <div className="flex-1 border-t border-white/20"></div>
+              </div>
+
+              {/* Admin Login Link */}
+              <div className="text-center">
+                <button
+                  onClick={() => navigate('/admin-login')}
+                  className="text-white/70 hover:text-white text-sm underline"
+                >
+                  Admin Login
+                </button>
+              </div>
+            </div>
           )}
 
           {/* Account Type Selection - Shows when Sign Up is clicked but no type selected */}
@@ -1555,23 +1582,23 @@ const Login = ({ initialMode = 'login' }) => {
             <div className="space-y-6">
               <div className="text-center mb-8">
                 <h2 className="text-2xl font-semibold text-white mb-2">Choose Your Account Type</h2>
-                <p className="text-gray-400">Select the account type that best fits your needs</p>
+                <p className="text-white/70">Select the account type that best fits your needs</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Individual Account */}
                 <button
                   onClick={() => setRegistrationType('individual')}
-                  className="glass-card p-6 rounded-lg hover:bg-white/10 transition-all duration-200 text-left group border border-white/10 hover:border-blue-500/50"
+                  className="bg-white/10 backdrop-blur-lg p-6 rounded-xl hover:bg-white/15 transition-all duration-200 text-left group border border-white/20 hover:border-purple-500/50"
                 >
                   <div className="flex items-center justify-center mb-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-blue-400/30 to-purple-400/30 rounded-xl flex items-center justify-center border border-white/20 group-hover:scale-110 transition-transform">
-                      <User className="w-8 h-8 text-white" />
+                    <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center border border-purple-400/30 group-hover:scale-110 transition-transform">
+                      <User className="w-8 h-8 text-purple-400" />
                     </div>
                   </div>
                   <h3 className="text-xl font-bold text-white mb-2">Individual</h3>
-                  <p className="text-gray-400 text-sm mb-4">Perfect for students and young professionals</p>
-                  <ul className="space-y-2 text-xs text-gray-500">
+                  <p className="text-white/70 text-sm mb-4">Perfect for students and young professionals</p>
+                  <ul className="space-y-2 text-xs text-white/60">
                     <li className="flex items-center">
                       <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
                       Personal investing
@@ -1586,23 +1613,23 @@ const Login = ({ initialMode = 'login' }) => {
                     </li>
                   </ul>
                   <div className="mt-4 pt-4 border-t border-white/10">
-                    <span className="text-blue-400 font-semibold">$9/month</span>
+                    <span className="text-purple-400 font-semibold">$9/month</span>
                   </div>
                 </button>
 
                 {/* Family Account */}
                 <button
                   onClick={() => setRegistrationType('family')}
-                  className="glass-card p-6 rounded-lg hover:bg-white/10 transition-all duration-200 text-left group border border-white/10 hover:border-blue-500/50"
+                  className="bg-white/10 backdrop-blur-lg p-6 rounded-xl hover:bg-white/15 transition-all duration-200 text-left group border border-white/20 hover:border-purple-500/50"
                 >
                   <div className="flex items-center justify-center mb-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-blue-400/40 to-purple-400/40 rounded-xl flex items-center justify-center border border-white/30 group-hover:scale-110 transition-transform">
-                      <Users className="w-8 h-8 text-white" />
+                    <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center border border-purple-400/30 group-hover:scale-110 transition-transform">
+                      <Users className="w-8 h-8 text-purple-400" />
                     </div>
                   </div>
                   <h3 className="text-xl font-bold text-white mb-2">Family</h3>
-                  <p className="text-gray-400 text-sm mb-4">Perfect for families managing finances together</p>
-                  <ul className="space-y-2 text-xs text-gray-500">
+                  <p className="text-white/70 text-sm mb-4">Perfect for families managing finances together</p>
+                  <ul className="space-y-2 text-xs text-white/60">
                     <li className="flex items-center">
                       <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
                       Up to 5 family members
@@ -1617,23 +1644,23 @@ const Login = ({ initialMode = 'login' }) => {
                     </li>
                   </ul>
                   <div className="mt-4 pt-4 border-t border-white/10">
-                    <span className="text-blue-400 font-semibold">$19/month</span>
+                    <span className="text-purple-400 font-semibold">$19/month</span>
                   </div>
                 </button>
 
                 {/* Business Account */}
                 <button
                   onClick={() => setRegistrationType('business')}
-                  className="glass-card p-6 rounded-lg hover:bg-white/10 transition-all duration-200 text-left group border border-white/10 hover:border-blue-500/50"
+                  className="bg-white/10 backdrop-blur-lg p-6 rounded-xl hover:bg-white/15 transition-all duration-200 text-left group border border-white/20 hover:border-purple-500/50"
                 >
                   <div className="flex items-center justify-center mb-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-blue-400/30 to-purple-400/30 rounded-xl flex items-center justify-center border border-white/20 group-hover:scale-110 transition-transform">
-                      <Building2 className="w-8 h-8 text-white" />
+                    <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center border border-purple-400/30 group-hover:scale-110 transition-transform">
+                      <Building2 className="w-8 h-8 text-purple-400" />
                     </div>
                   </div>
                   <h3 className="text-xl font-bold text-white mb-2">Business</h3>
-                  <p className="text-gray-400 text-sm mb-4">For businesses and teams</p>
-                  <ul className="space-y-2 text-xs text-gray-500">
+                  <p className="text-white/70 text-sm mb-4">For businesses and teams</p>
+                  <ul className="space-y-2 text-xs text-white/60">
                     <li className="flex items-center">
                       <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
                       Unlimited team members
@@ -1648,13 +1675,13 @@ const Login = ({ initialMode = 'login' }) => {
                     </li>
                   </ul>
                   <div className="mt-4 pt-4 border-t border-white/10">
-                    <span className="text-blue-400 font-semibold">$49/month</span>
+                    <span className="text-purple-400 font-semibold">$49/month</span>
                   </div>
                 </button>
               </div>
 
               <div className="text-center pt-6 border-t border-white/10">
-                <p className="text-gray-400 text-sm">
+                <p className="text-white/60 text-sm">
                   All plans include a 14-day free trial. No credit card required.
                 </p>
               </div>
@@ -1669,11 +1696,11 @@ const Login = ({ initialMode = 'login' }) => {
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => setRegistrationType(null)}
-                    className="text-gray-400 hover:text-white transition-colors"
+                    className="text-white/70 hover:text-white transition-colors"
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
-                  <span className="text-sm text-gray-400">
+                  <span className="text-sm text-white/70">
                     Step {registrationStep} of {getTotalSteps()}
                   </span>
         </div>
@@ -1685,27 +1712,27 @@ const Login = ({ initialMode = 'login' }) => {
                   <h3 className="text-lg font-medium text-white mb-4">Personal Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         First Name *
                       </label>
               <input
                 type="text"
                         value={individualData.firstName}
             onChange={(e) => handleInputChange('firstName', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your first name"
                         required
               />
             </div>
         <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Last Name *
                       </label>
           <input
             type="text"
                         value={individualData.lastName}
             onChange={(e) => handleInputChange('lastName', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your last name"
                         required
           />
@@ -1714,27 +1741,27 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Email Address *
                       </label>
             <input
               type="email"
                         value={individualData.email}
           onChange={(e) => handleInputChange('email', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your email"
                         required
             />
           </div>
           <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Phone Number *
                       </label>
         <input
           type="tel"
                         value={individualData.phone}
           onChange={(e) => handleInputChange('phone', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your phone number"
                         required
         />
@@ -1743,25 +1770,25 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Date of Birth
                       </label>
         <input
           type="date"
                         value={individualData.dateOfBirth}
           onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
         />
       </div>
       <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Social Security Number
                       </label>
         <input
           type="text"
                         value={individualData.ssn}
           onChange={(e) => handleInputChange('ssn', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
           placeholder="XXX-XX-XXXX"
         />
       </div>
@@ -1774,14 +1801,14 @@ const Login = ({ initialMode = 'login' }) => {
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium text-white mb-4">Address Information</h3>
       <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-white/90 mb-2">
                       Street Address *
                     </label>
             <input
                       type="text"
                       value={individualData.address}
                       onChange={(e) => handleInputChange('address', e.target.value)}
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                       placeholder="Enter your street address"
               required
             />
@@ -1789,40 +1816,40 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         City *
               </label>
           <input
                         type="text"
                         value={individualData.city}
                         onChange={(e) => handleInputChange('city', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your city"
             required
           />
       </div>
       <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         State *
             </label>
               <input
                 type="text"
                         value={individualData.state}
                         onChange={(e) => handleInputChange('state', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your state"
                 required
             />
           </div>
           <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         ZIP Code *
                       </label>
             <input
               type="text"
                         value={individualData.zipCode}
                         onChange={(e) => handleInputChange('zipCode', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your ZIP code"
               required
             />
@@ -1837,26 +1864,26 @@ const Login = ({ initialMode = 'login' }) => {
                   <h3 className="text-lg font-medium text-white mb-4">Financial Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Annual Income *
                       </label>
           <input
             type="number"
                         value={individualData.annualIncome}
                         onChange={(e) => handleInputChange('annualIncome', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your annual income"
             required
           />
         </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Employment Status *
                       </label>
           <select
                         value={individualData.employmentStatus}
                         onChange={(e) => handleInputChange('employmentStatus', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
             required
                       >
                         <option value="">Select employment status</option>
@@ -1871,26 +1898,26 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Employer
                       </label>
                 <input
                   type="text"
                         value={individualData.employer}
                         onChange={(e) => handleInputChange('employer', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your employer"
                 />
               </div>
               <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Occupation
                       </label>
                 <input
                         type="text"
                         value={individualData.occupation}
                         onChange={(e) => handleInputChange('occupation', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your occupation"
                 />
               </div>
@@ -1909,7 +1936,7 @@ const Login = ({ initialMode = 'login' }) => {
                       </svg>
                     </div>
                     <h3 className="text-xl font-semibold text-white mb-2">Connect Your Bank Account</h3>
-                    <p className="text-gray-400">
+                    <p className="text-white/70">
                       Link your bank account to enable round-up investing and automatic transfers.
                     </p>
                   </div>
@@ -1968,11 +1995,11 @@ const Login = ({ initialMode = 'login' }) => {
                   {loadingPlans ? (
                     <div className="text-center py-8">
                       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                      <p className="text-gray-400">Loading plans...</p>
+                      <p className="text-white/70">Loading plans...</p>
                     </div>
                   ) : subscriptionPlans.length === 0 ? (
                     <div className="text-center py-8">
-                      <p className="text-gray-400">No subscription plans available at this time.</p>
+                      <p className="text-white/70">No subscription plans available at this time.</p>
                     </div>
                   ) : (
                     <div className="flex justify-center">
@@ -1992,10 +2019,10 @@ const Login = ({ initialMode = 'login' }) => {
                           >
                             <h4 className="text-xl font-bold text-white mb-2">{plan.name}</h4>
                             <div className="mb-2">
-                              <span className="text-3xl font-bold text-blue-400">
+                              <span className="text-3xl font-bold text-purple-400">
                                 ${individualData.billingCycle === 'monthly' ? (plan.price_monthly || 0) : (plan.price_yearly || 0)}
                               </span>
-                              <span className="text-lg text-gray-400">/{individualData.billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+                              <span className="text-lg text-white/70">/{individualData.billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
                             </div>
                             {individualData.billingCycle === 'yearly' && plan.price_yearly && plan.price_monthly && (
                               <p className="text-sm text-green-400 mb-4">
@@ -2021,14 +2048,14 @@ const Login = ({ initialMode = 'login' }) => {
                     {/* Promo Code */}
                     <div className="flex justify-center">
                       <div className="w-full max-w-md">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Promo Code (Optional)</label>
+                        <label className="block text-sm font-medium text-white/90 mb-2">Promo Code (Optional)</label>
                         <div className="flex space-x-2">
                           <input
                             type="text"
                             value={individualData.promoCode}
                             onChange={(e) => handleInputChange('promoCode', e.target.value.toUpperCase())}
                             placeholder="Enter promo code"
-                            className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                            className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                           />
                           <button
                             type="button"
@@ -2105,7 +2132,7 @@ const Login = ({ initialMode = 'login' }) => {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Password *
                       </label>
                       <input
@@ -2122,7 +2149,7 @@ const Login = ({ initialMode = 'login' }) => {
                             handleInputChange('passwordErrors', [])
                           }
                         }}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your password"
                         required
                       />
@@ -2138,17 +2165,17 @@ const Login = ({ initialMode = 'login' }) => {
                       )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Confirm Password *
                       </label>
                       <input
                         type="password"
                         value={individualData.confirmPassword}
                         onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                        className={`w-full bg-white/10 border rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none ${
+                        className={`w-full bg-white/10 border rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none ${
                           individualData.confirmPassword && individualData.password !== individualData.confirmPassword
                             ? 'border-red-500/50 focus:border-red-500/50'
-                            : 'border-white/20 focus:border-blue-500/50'
+                            : 'border-white/20 focus:ring-2 focus:ring-purple-500/50 focus:border-transparent'
                         }`}
                         placeholder="Confirm your password"
                         required
@@ -2163,8 +2190,8 @@ const Login = ({ initialMode = 'login' }) => {
                   </div>
                   {individualData.password && (
                     <div className="mt-2 p-3 bg-white/5 rounded-lg border border-white/10">
-                      <p className="text-xs text-gray-400 mb-2">Password requirements:</p>
-                      <ul className="text-xs text-gray-400 space-y-1">
+                      <p className="text-xs text-white/70 mb-2">Password requirements:</p>
+                      <ul className="text-xs text-white/70 space-y-1">
                         <li className={individualData.password.length >= 8 ? 'text-green-400' : ''}>
                           {individualData.password.length >= 8 ? '✓' : '○'} At least 8 characters
                         </li>
@@ -2186,13 +2213,13 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Round-Up Amount
                       </label>
                       <select
                         value={individualData.roundUpAmount}
                         onChange={(e) => handleInputChange('roundUpAmount', parseFloat(e.target.value))}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                       >
                         <option value={0.50}>$0.50</option>
                         <option value={1.00}>$1.00</option>
@@ -2202,13 +2229,13 @@ const Login = ({ initialMode = 'login' }) => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Risk Tolerance
                       </label>
                       <select
                         value={individualData.riskTolerance}
                         onChange={(e) => handleInputChange('riskTolerance', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                       >
                         <option value="conservative">Conservative</option>
                         <option value="moderate">Moderate</option>
@@ -2218,7 +2245,7 @@ const Login = ({ initialMode = 'login' }) => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-white/90 mb-2">
                       Investment Goals (Select all that apply)
                     </label>
                     <div className="space-y-2">
@@ -2246,7 +2273,7 @@ const Login = ({ initialMode = 'login' }) => {
                         required
                       />
                       <span className="text-white text-sm">
-                        I agree to the <a href="/terms-of-service" className="text-blue-400 hover:underline">Terms of Service</a> *
+                        I agree to the <a href="/terms-of-service" className="text-purple-400 hover:underline">Terms of Service</a> *
                       </span>
                     </label>
 
@@ -2259,7 +2286,7 @@ const Login = ({ initialMode = 'login' }) => {
                         required
                       />
                       <span className="text-white text-sm">
-                        I agree to the <a href="/privacy-policy" className="text-blue-400 hover:underline">Privacy Policy</a> *
+                        I agree to the <a href="/privacy-policy" className="text-purple-400 hover:underline">Privacy Policy</a> *
                       </span>
                     </label>
 
@@ -2319,11 +2346,11 @@ const Login = ({ initialMode = 'login' }) => {
                 <div className="flex items-center space-x-2">
           <button
                     onClick={() => setRegistrationType(null)}
-                    className="text-gray-400 hover:text-white transition-colors"
+                    className="text-white/70 hover:text-white transition-colors"
           >
                     <ChevronLeft className="w-5 h-5" />
           </button>
-                  <span className="text-sm text-gray-400">
+                  <span className="text-sm text-white/70">
                     Step {registrationStep} of {getTotalSteps()}
                   </span>
               </div>
@@ -2335,27 +2362,27 @@ const Login = ({ initialMode = 'login' }) => {
                   <h3 className="text-lg font-medium text-white mb-4">Primary Guardian Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Guardian First Name *
                       </label>
                       <input
                         type="text"
                         value={familyData.guardianFirstName}
                         onChange={(e) => handleInputChange('guardianFirstName', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter guardian's first name"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Guardian Last Name *
                       </label>
                       <input
                         type="text"
                         value={familyData.guardianLastName}
                         onChange={(e) => handleInputChange('guardianLastName', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter guardian's last name"
                         required
                       />
@@ -2364,27 +2391,27 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Guardian Email *
                       </label>
                       <input
                         type="email"
                         value={familyData.guardianEmail}
                         onChange={(e) => handleInputChange('guardianEmail', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter guardian's email"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Guardian Phone *
                       </label>
                       <input
                         type="tel"
                         value={familyData.guardianPhone}
                         onChange={(e) => handleInputChange('guardianPhone', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter guardian's phone"
                         required
                       />
@@ -2393,25 +2420,25 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Guardian Date of Birth
                       </label>
                       <input
                         type="date"
                         value={familyData.guardianDateOfBirth}
                         onChange={(e) => handleInputChange('guardianDateOfBirth', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Guardian SSN
                       </label>
                       <input
                         type="text"
                         value={familyData.guardianSsn}
                         onChange={(e) => handleInputChange('guardianSsn', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="XXX-XX-XXXX"
                       />
                     </div>
@@ -2424,14 +2451,14 @@ const Login = ({ initialMode = 'login' }) => {
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium text-white mb-4">Address Information</h3>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-white/90 mb-2">
                       Street Address *
                     </label>
                     <input
                       type="text"
                       value={familyData.address}
                       onChange={(e) => handleInputChange('address', e.target.value)}
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                       placeholder="Enter your street address"
                       required
                     />
@@ -2439,40 +2466,40 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         City *
                       </label>
                       <input
                         type="text"
                         value={familyData.city}
                         onChange={(e) => handleInputChange('city', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your city"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         State *
                       </label>
                       <input
                         type="text"
                         value={familyData.state}
                         onChange={(e) => handleInputChange('state', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your state"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         ZIP Code *
                       </label>
                       <input
                         type="text"
                         value={familyData.zipCode}
                         onChange={(e) => handleInputChange('zipCode', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter your ZIP code"
                         required
                       />
@@ -2487,26 +2514,26 @@ const Login = ({ initialMode = 'login' }) => {
                   <h3 className="text-lg font-medium text-white mb-4">Spouse Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Spouse First Name
                       </label>
                       <input
                         type="text"
                         value={familyData.spouseFirstName}
                         onChange={(e) => handleInputChange('spouseFirstName', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter spouse's first name (optional)"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Spouse Last Name
                       </label>
                       <input
                         type="text"
                         value={familyData.spouseLastName}
                         onChange={(e) => handleInputChange('spouseLastName', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter spouse's last name (optional)"
                       />
                     </div>
@@ -2514,26 +2541,26 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Spouse Email
                       </label>
                       <input
                         type="email"
                         value={familyData.spouseEmail}
                         onChange={(e) => handleInputChange('spouseEmail', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter spouse's email (optional)"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Spouse Phone
                       </label>
                       <input
                         type="tel"
                         value={familyData.spousePhone}
                         onChange={(e) => handleInputChange('spousePhone', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter spouse's phone (optional)"
                       />
                     </div>
@@ -2575,7 +2602,7 @@ const Login = ({ initialMode = 'login' }) => {
                               type="text"
                               value={child.name}
                               onChange={(e) => handleChildChange(index, 'name', e.target.value)}
-                              className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50 text-sm"
+                              className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent text-sm"
                               placeholder="Child's name"
                             />
                           </div>
@@ -2587,7 +2614,7 @@ const Login = ({ initialMode = 'login' }) => {
                               type="number"
                               value={child.age}
                               onChange={(e) => handleChildChange(index, 'age', e.target.value)}
-                              className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50 text-sm"
+                              className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent text-sm"
                               placeholder="Age"
                             />
                           </div>
@@ -2598,7 +2625,7 @@ const Login = ({ initialMode = 'login' }) => {
                             <select
                               value={child.relationship}
                               onChange={(e) => handleChildChange(index, 'relationship', e.target.value)}
-                              className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500/50 text-sm"
+                              className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent text-sm"
                             >
                               <option value="child">Child</option>
                               <option value="stepchild">Stepchild</option>
@@ -2618,26 +2645,26 @@ const Login = ({ initialMode = 'login' }) => {
                   <h3 className="text-lg font-medium text-white mb-4">Financial Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Household Income *
                       </label>
                       <input
                         type="number"
                         value={familyData.householdIncome}
                         onChange={(e) => handleInputChange('householdIncome', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter household income"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Employment Status *
                       </label>
                       <select
                         value={familyData.employmentStatus}
                         onChange={(e) => handleInputChange('employmentStatus', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         required
                       >
                         <option value="">Select employment status</option>
@@ -2651,14 +2678,14 @@ const Login = ({ initialMode = 'login' }) => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-white/90 mb-2">
                       Employer
                     </label>
                     <input
                       type="text"
                       value={familyData.employer}
                       onChange={(e) => handleInputChange('employer', e.target.value)}
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                       placeholder="Enter employer name"
                     />
                   </div>
@@ -2672,7 +2699,7 @@ const Login = ({ initialMode = 'login' }) => {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Password *
                       </label>
                       <input
@@ -2689,7 +2716,7 @@ const Login = ({ initialMode = 'login' }) => {
                             handleInputChange('passwordErrors', [], 'family')
                           }
                         }}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Create a strong password"
                         required
                       />
@@ -2705,17 +2732,17 @@ const Login = ({ initialMode = 'login' }) => {
                       )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Confirm Password *
                       </label>
                       <input
                         type="password"
                         value={familyData.confirmPassword}
                         onChange={(e) => handleInputChange('confirmPassword', e.target.value, 'family')}
-                        className={`w-full bg-white/10 border rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none ${
+                        className={`w-full bg-white/10 border rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none ${
                           familyData.confirmPassword && familyData.password !== familyData.confirmPassword
                             ? 'border-red-500/50 focus:border-red-500/50'
-                            : 'border-white/20 focus:border-blue-500/50'
+                            : 'border-white/20 focus:ring-2 focus:ring-purple-500/50 focus:border-transparent'
                         }`}
                         placeholder="Confirm your password"
                         required
@@ -2730,8 +2757,8 @@ const Login = ({ initialMode = 'login' }) => {
                   </div>
                   {familyData.password && (
                     <div className="mt-2 p-3 bg-white/5 rounded-lg border border-white/10">
-                      <p className="text-xs text-gray-400 mb-2">Password requirements:</p>
-                      <ul className="text-xs text-gray-400 space-y-1">
+                      <p className="text-xs text-white/70 mb-2">Password requirements:</p>
+                      <ul className="text-xs text-white/70 space-y-1">
                         <li className={familyData.password.length >= 8 ? 'text-green-400' : ''}>
                           {familyData.password.length >= 8 ? '✓' : '○'} At least 8 characters
                         </li>
@@ -2752,13 +2779,13 @@ const Login = ({ initialMode = 'login' }) => {
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-white/90 mb-2">
                       Round-Up Amount
                     </label>
                     <select
                       value={familyData.roundUpAmount}
                       onChange={(e) => handleInputChange('roundUpAmount', parseFloat(e.target.value))}
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                     >
                       <option value={1.00}>$1.00</option>
                       <option value={1.50}>$1.50</option>
@@ -2769,13 +2796,13 @@ const Login = ({ initialMode = 'login' }) => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-white/90 mb-2">
                       Risk Tolerance
                     </label>
                     <select
                       value={familyData.riskTolerance}
                       onChange={(e) => handleInputChange('riskTolerance', e.target.value)}
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                     >
                       <option value="conservative">Conservative</option>
                       <option value="moderate">Moderate</option>
@@ -2784,7 +2811,7 @@ const Login = ({ initialMode = 'login' }) => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-white/90 mb-2">
                       Family Goals (Select all that apply)
                     </label>
                     <div className="space-y-2">
@@ -2812,7 +2839,7 @@ const Login = ({ initialMode = 'login' }) => {
                         required
                       />
                       <span className="text-white text-sm">
-                        I agree to the <a href="/terms-of-service" className="text-blue-400 hover:underline">Terms of Service</a> *
+                        I agree to the <a href="/terms-of-service" className="text-purple-400 hover:underline">Terms of Service</a> *
                       </span>
                     </label>
 
@@ -2825,7 +2852,7 @@ const Login = ({ initialMode = 'login' }) => {
                         required
                       />
                       <span className="text-white text-sm">
-                        I agree to the <a href="/privacy-policy" className="text-blue-400 hover:underline">Privacy Policy</a> *
+                        I agree to the <a href="/privacy-policy" className="text-purple-400 hover:underline">Privacy Policy</a> *
                       </span>
                     </label>
 
@@ -2868,10 +2895,10 @@ const Login = ({ initialMode = 'login' }) => {
                           <h4 className="text-lg font-semibold text-white">Try Free Trial</h4>
                           <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold">FREE</span>
                         </div>
-                        <p className="text-gray-400 text-sm mt-2">
+                        <p className="text-white/70 text-sm mt-2">
                           Experience the full dashboard in simulation mode. No stocks will be purchased. Perfect for exploring all features risk-free!
                         </p>
-                        <p className="text-blue-400 text-xs mt-1">✓ Full dashboard access ✓ Simulated transactions ✓ No commitments</p>
+                        <p className="text-purple-400 text-xs mt-1">✓ Full dashboard access ✓ Simulated transactions ✓ No commitments</p>
                       </div>
                     </label>
                   </div>
@@ -2881,7 +2908,7 @@ const Login = ({ initialMode = 'login' }) => {
                     <div>
                       {/* Billing Cycle Selector */}
                       <div className="mb-4 flex items-center justify-center space-x-4">
-                        <span className="text-gray-400 text-sm">Billing Cycle:</span>
+                        <span className="text-white/70 text-sm">Billing Cycle:</span>
                         <div className="flex bg-white/10 rounded-lg p-1 border border-white/20">
                           <button
                             type="button"
@@ -2907,14 +2934,14 @@ const Login = ({ initialMode = 'login' }) => {
                           </button>
                         </div>
                       </div>
-                      <p className="text-gray-400 mb-4">Or select a subscription plan:</p>
+                      <p className="text-white/70 mb-4">Or select a subscription plan:</p>
                       {loadingPlans ? (
                         <div className="text-center py-8">
-                          <p className="text-gray-400">Loading plans...</p>
+                          <p className="text-white/70">Loading plans...</p>
                         </div>
                       ) : subscriptionPlans.length === 0 ? (
                         <div className="text-center py-8">
-                          <p className="text-gray-400">No subscription plans available at this time.</p>
+                          <p className="text-white/70">No subscription plans available at this time.</p>
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2940,9 +2967,9 @@ const Login = ({ initialMode = 'login' }) => {
                               />
                               <div>
                                 <h4 className="text-xl font-bold text-white mb-2">{plan.name}</h4>
-                                <div className="text-3xl font-bold text-blue-400 mb-2">
+                                <div className="text-3xl font-bold text-purple-400 mb-2">
                                   ${familyData.billingCycle === 'monthly' ? plan.price_monthly : plan.price_yearly}
-                                  <span className="text-lg text-gray-400">/{familyData.billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+                                  <span className="text-lg text-white/70">/{familyData.billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
                                 </div>
                                 {familyData.billingCycle === 'yearly' && plan.price_yearly && plan.price_monthly && (
                                   <p className="text-sm text-green-400 mb-4">
@@ -2958,7 +2985,7 @@ const Login = ({ initialMode = 'login' }) => {
                                       </li>
                                     ))}
                                     {plan.features.length > 5 && (
-                                      <li className="text-gray-400">+ {plan.features.length - 5} more features</li>
+                                      <li className="text-white/70">+ {plan.features.length - 5} more features</li>
                                     )}
                                   </ul>
                                 )}
@@ -2974,14 +3001,14 @@ const Login = ({ initialMode = 'login' }) => {
                   {!familyData.isTrial && (
                     <div className="mt-6 flex justify-center">
                       <div className="w-full max-w-md">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Promo Code (Optional)</label>
+                        <label className="block text-sm font-medium text-white/90 mb-2">Promo Code (Optional)</label>
                         <div className="flex space-x-2">
                           <input
                             type="text"
                             value={familyData.promoCode}
                             onChange={(e) => handleInputChange('promoCode', e.target.value.toUpperCase())}
                             placeholder="Enter promo code"
-                            className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                            className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                           />
                           <button
                             type="button"
@@ -3048,7 +3075,7 @@ const Login = ({ initialMode = 'login' }) => {
                       </svg>
                     </div>
                     <h3 className="text-xl font-semibold text-white mb-2">Connect Your Bank Account</h3>
-                    <p className="text-gray-400">
+                    <p className="text-white/70">
                       Link your family bank account to enable round-up investing and automatic transfers.
                     </p>
                   </div>
@@ -3109,11 +3136,11 @@ const Login = ({ initialMode = 'login' }) => {
                 <div className="flex items-center space-x-2">
           <button
                     onClick={() => setRegistrationType(null)}
-                    className="text-gray-400 hover:text-white transition-colors"
+                    className="text-white/70 hover:text-white transition-colors"
                   >
                     <ChevronLeft className="w-5 h-5" />
           </button>
-                  <span className="text-sm text-gray-400">
+                  <span className="text-sm text-white/70">
                     Step {registrationStep} of {getTotalSteps()}
                   </span>
         </div>
@@ -3125,26 +3152,26 @@ const Login = ({ initialMode = 'login' }) => {
                   <h3 className="text-lg font-medium text-white mb-4">Business Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Business Name *
                       </label>
                       <input
                         type="text"
                         value={businessData.businessName}
                         onChange={(e) => handleInputChange('businessName', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter business name"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Business Type *
                       </label>
                       <select
                         value={businessData.businessType}
                         onChange={(e) => handleInputChange('businessType', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         required
                       >
                         <option value="">Select business type</option>
@@ -3159,14 +3186,14 @@ const Login = ({ initialMode = 'login' }) => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-white/90 mb-2">
                       Business Address *
                     </label>
                     <input
                       type="text"
                       value={businessData.businessAddress}
                       onChange={(e) => handleInputChange('businessAddress', e.target.value)}
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                       placeholder="Enter business address"
                       required
                     />
@@ -3174,40 +3201,40 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Business City *
                       </label>
                       <input
                         type="text"
                         value={businessData.businessCity}
                         onChange={(e) => handleInputChange('businessCity', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter business city"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Business State *
                       </label>
                       <input
                         type="text"
                         value={businessData.businessState}
                         onChange={(e) => handleInputChange('businessState', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter business state"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Business ZIP Code *
                       </label>
                       <input
                         type="text"
                         value={businessData.businessZipCode}
                         onChange={(e) => handleInputChange('businessZipCode', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter business ZIP code"
                         required
                       />
@@ -3222,27 +3249,27 @@ const Login = ({ initialMode = 'login' }) => {
                   <h3 className="text-lg font-medium text-white mb-4">Business Contact & Details</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Business Phone *
                       </label>
                       <input
                         type="tel"
                         value={businessData.businessPhone}
                         onChange={(e) => handleInputChange('businessPhone', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter business phone"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Business Email *
                       </label>
                       <input
                         type="email"
                         value={businessData.businessEmail}
                         onChange={(e) => handleInputChange('businessEmail', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter business email"
                         required
                       />
@@ -3250,26 +3277,26 @@ const Login = ({ initialMode = 'login' }) => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-white/90 mb-2">
                       Business Website
                     </label>
                     <input
                       type="url"
                       value={businessData.businessWebsite}
                       onChange={(e) => handleInputChange('businessWebsite', e.target.value)}
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                       placeholder="https://www.example.com"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-white/90 mb-2">
                       Business Description
                     </label>
                     <textarea
                       value={businessData.businessDescription}
                       onChange={(e) => handleInputChange('businessDescription', e.target.value)}
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                       placeholder="Describe your business"
                       rows={3}
                     />
@@ -3277,13 +3304,13 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Business Industry *
                       </label>
                       <select
                         value={businessData.businessIndustry}
                         onChange={(e) => handleInputChange('businessIndustry', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         required
                       >
                         <option value="">Select industry</option>
@@ -3299,13 +3326,13 @@ const Login = ({ initialMode = 'login' }) => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Business Size *
                       </label>
                       <select
                         value={businessData.businessSize}
                         onChange={(e) => handleInputChange('businessSize', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         required
                       >
                         <option value="">Select business size</option>
@@ -3326,27 +3353,27 @@ const Login = ({ initialMode = 'login' }) => {
                   <h3 className="text-lg font-medium text-white mb-4">Primary Contact Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Contact First Name *
                       </label>
                       <input
                         type="text"
                         value={businessData.contactFirstName}
                         onChange={(e) => handleInputChange('contactFirstName', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter contact's first name"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Contact Last Name *
                       </label>
                       <input
                         type="text"
                         value={businessData.contactLastName}
                         onChange={(e) => handleInputChange('contactLastName', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter contact's last name"
                         required
                       />
@@ -3355,27 +3382,27 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Contact Email *
                       </label>
                       <input
                         type="email"
                         value={businessData.contactEmail}
                         onChange={(e) => handleInputChange('contactEmail', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter contact's email"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Contact Phone *
                       </label>
                       <input
                         type="tel"
                         value={businessData.contactPhone}
                         onChange={(e) => handleInputChange('contactPhone', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter contact's phone"
                         required
                       />
@@ -3384,26 +3411,26 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Contact Title
                       </label>
                       <input
                         type="text"
                         value={businessData.contactTitle}
                         onChange={(e) => handleInputChange('contactTitle', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="e.g., CEO, Manager, Owner"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Contact SSN
                       </label>
                       <input
                         type="text"
                         value={businessData.contactSsn}
                         onChange={(e) => handleInputChange('contactSsn', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="XXX-XX-XXXX"
                       />
                     </div>
@@ -3417,27 +3444,27 @@ const Login = ({ initialMode = 'login' }) => {
                   <h3 className="text-lg font-medium text-white mb-4">Financial Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Annual Revenue *
                       </label>
                       <input
                         type="number"
                         value={businessData.annualRevenue}
                         onChange={(e) => handleInputChange('annualRevenue', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter annual revenue"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Number of Employees *
                       </label>
                       <input
                         type="number"
                         value={businessData.numberOfEmployees}
                         onChange={(e) => handleInputChange('numberOfEmployees', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter number of employees"
                         required
                       />
@@ -3446,26 +3473,26 @@ const Login = ({ initialMode = 'login' }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Business Bank Account
                       </label>
                       <input
                         type="text"
                         value={businessData.businessBankAccount}
                         onChange={(e) => handleInputChange('businessBankAccount', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter bank account info"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Business Credit Score
                       </label>
                       <input
                         type="number"
                         value={businessData.businessCreditScore}
                         onChange={(e) => handleInputChange('businessCreditScore', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter credit score"
                       />
                     </div>
@@ -3479,27 +3506,27 @@ const Login = ({ initialMode = 'login' }) => {
                   <h3 className="text-lg font-medium text-white mb-4">Business Documentation</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Business Tax ID *
                       </label>
                       <input
                         type="text"
                         value={businessData.businessTaxId}
                         onChange={(e) => handleInputChange('businessTaxId', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter business tax ID"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Business License *
                       </label>
                       <input
                         type="text"
                         value={businessData.businessLicense}
                         onChange={(e) => handleInputChange('businessLicense', e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Enter business license number"
                         required
                       />
@@ -3515,7 +3542,7 @@ const Login = ({ initialMode = 'login' }) => {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Password *
                       </label>
                       <input
@@ -3532,7 +3559,7 @@ const Login = ({ initialMode = 'login' }) => {
                             handleInputChange('passwordErrors', [], 'business')
                           }
                         }}
-                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                         placeholder="Create a strong password"
                         required
                       />
@@ -3548,17 +3575,17 @@ const Login = ({ initialMode = 'login' }) => {
                       )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-white/90 mb-2">
                         Confirm Password *
                       </label>
                       <input
                         type="password"
                         value={businessData.confirmPassword}
                         onChange={(e) => handleInputChange('confirmPassword', e.target.value, 'business')}
-                        className={`w-full bg-white/10 border rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none ${
+                        className={`w-full bg-white/10 border rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none ${
                           businessData.confirmPassword && businessData.password !== businessData.confirmPassword
                             ? 'border-red-500/50 focus:border-red-500/50'
-                            : 'border-white/20 focus:border-blue-500/50'
+                            : 'border-white/20 focus:ring-2 focus:ring-purple-500/50 focus:border-transparent'
                         }`}
                         placeholder="Confirm your password"
                         required
@@ -3573,8 +3600,8 @@ const Login = ({ initialMode = 'login' }) => {
                   </div>
                   {businessData.password && (
                     <div className="mt-2 p-3 bg-white/5 rounded-lg border border-white/10">
-                      <p className="text-xs text-gray-400 mb-2">Password requirements:</p>
-                      <ul className="text-xs text-gray-400 space-y-1">
+                      <p className="text-xs text-white/70 mb-2">Password requirements:</p>
+                      <ul className="text-xs text-white/70 space-y-1">
                         <li className={businessData.password.length >= 8 ? 'text-green-400' : ''}>
                           {businessData.password.length >= 8 ? '✓' : '○'} At least 8 characters
                         </li>
@@ -3595,13 +3622,13 @@ const Login = ({ initialMode = 'login' }) => {
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-white/90 mb-2">
                       Round-Up Amount
                     </label>
                     <select
                       value={businessData.roundUpAmount}
                       onChange={(e) => handleInputChange('roundUpAmount', parseFloat(e.target.value))}
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                     >
                       <option value={2.00}>$2.00</option>
                       <option value={3.00}>$3.00</option>
@@ -3612,13 +3639,13 @@ const Login = ({ initialMode = 'login' }) => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-white/90 mb-2">
                       Risk Tolerance
                     </label>
                     <select
                       value={businessData.riskTolerance}
                       onChange={(e) => handleInputChange('riskTolerance', e.target.value)}
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                     >
                       <option value="conservative">Conservative</option>
                       <option value="moderate">Moderate</option>
@@ -3627,7 +3654,7 @@ const Login = ({ initialMode = 'login' }) => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-white/90 mb-2">
                       Business Goals (Select all that apply)
                     </label>
                     <div className="space-y-2">
@@ -3655,7 +3682,7 @@ const Login = ({ initialMode = 'login' }) => {
                         required
                       />
                       <span className="text-white text-sm">
-                        I agree to the <a href="/terms-of-service" className="text-blue-400 hover:underline">Terms of Service</a> *
+                        I agree to the <a href="/terms-of-service" className="text-purple-400 hover:underline">Terms of Service</a> *
                       </span>
                     </label>
 
@@ -3668,7 +3695,7 @@ const Login = ({ initialMode = 'login' }) => {
                         required
                       />
                       <span className="text-white text-sm">
-                        I agree to the <a href="/privacy-policy" className="text-blue-400 hover:underline">Privacy Policy</a> *
+                        I agree to the <a href="/privacy-policy" className="text-purple-400 hover:underline">Privacy Policy</a> *
                       </span>
                     </label>
 
@@ -3711,10 +3738,10 @@ const Login = ({ initialMode = 'login' }) => {
                           <h4 className="text-lg font-semibold text-white">Try Free Trial</h4>
                           <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold">FREE</span>
                         </div>
-                        <p className="text-gray-400 text-sm mt-2">
+                        <p className="text-white/70 text-sm mt-2">
                           Experience the full dashboard in simulation mode. No stocks will be purchased. Perfect for exploring all features risk-free!
                         </p>
-                        <p className="text-blue-400 text-xs mt-1">✓ Full dashboard access ✓ Simulated transactions ✓ No commitments</p>
+                        <p className="text-purple-400 text-xs mt-1">✓ Full dashboard access ✓ Simulated transactions ✓ No commitments</p>
                       </div>
                     </label>
                   </div>
@@ -3724,7 +3751,7 @@ const Login = ({ initialMode = 'login' }) => {
                     <div>
                       {/* Billing Cycle Selector */}
                       <div className="mb-4 flex items-center justify-center space-x-4">
-                        <span className="text-gray-400 text-sm">Billing Cycle:</span>
+                        <span className="text-white/70 text-sm">Billing Cycle:</span>
                         <div className="flex bg-white/10 rounded-lg p-1 border border-white/20">
                           <button
                             type="button"
@@ -3750,14 +3777,14 @@ const Login = ({ initialMode = 'login' }) => {
                           </button>
                         </div>
                       </div>
-                      <p className="text-gray-400 mb-4">Or select a subscription plan:</p>
+                      <p className="text-white/70 mb-4">Or select a subscription plan:</p>
                       {loadingPlans ? (
                         <div className="text-center py-8">
-                          <p className="text-gray-400">Loading plans...</p>
+                          <p className="text-white/70">Loading plans...</p>
                         </div>
                       ) : subscriptionPlans.length === 0 ? (
                         <div className="text-center py-8">
-                          <p className="text-gray-400">No subscription plans available at this time.</p>
+                          <p className="text-white/70">No subscription plans available at this time.</p>
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3783,9 +3810,9 @@ const Login = ({ initialMode = 'login' }) => {
                               />
                               <div>
                                 <h4 className="text-xl font-bold text-white mb-2">{plan.name}</h4>
-                                <div className="text-3xl font-bold text-blue-400 mb-2">
+                                <div className="text-3xl font-bold text-purple-400 mb-2">
                                   ${businessData.billingCycle === 'monthly' ? plan.price_monthly : plan.price_yearly}
-                                  <span className="text-lg text-gray-400">/{businessData.billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+                                  <span className="text-lg text-white/70">/{businessData.billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
                                 </div>
                                 {businessData.billingCycle === 'yearly' && plan.price_yearly && plan.price_monthly && (
                                   <p className="text-sm text-green-400 mb-4">
@@ -3801,7 +3828,7 @@ const Login = ({ initialMode = 'login' }) => {
                                       </li>
                                     ))}
                                     {plan.features.length > 5 && (
-                                      <li className="text-gray-400">+ {plan.features.length - 5} more features</li>
+                                      <li className="text-white/70">+ {plan.features.length - 5} more features</li>
                                     )}
                                   </ul>
                                 )}
@@ -3817,14 +3844,14 @@ const Login = ({ initialMode = 'login' }) => {
                   {!businessData.isTrial && (
                     <div className="mt-6 flex justify-center">
                       <div className="w-full max-w-md">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Promo Code (Optional)</label>
+                        <label className="block text-sm font-medium text-white/90 mb-2">Promo Code (Optional)</label>
                         <div className="flex space-x-2">
                           <input
                             type="text"
                             value={businessData.promoCode}
                             onChange={(e) => handleInputChange('promoCode', e.target.value.toUpperCase())}
                             placeholder="Enter promo code"
-                            className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                            className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
                           />
                           <button
                             type="button"
@@ -3891,7 +3918,7 @@ const Login = ({ initialMode = 'login' }) => {
                       </svg>
                     </div>
                     <h3 className="text-xl font-semibold text-white mb-2">Connect Your Bank Account</h3>
-                    <p className="text-gray-400">
+                    <p className="text-white/70">
                       Link your business bank account to enable round-ups and automatic transfers.
                     </p>
                   </div>
@@ -3950,7 +3977,7 @@ const Login = ({ initialMode = 'login' }) => {
       {/* Forgot Password Modal */}
       {showForgotPassword && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-card rounded-lg shadow-2xl border border-blue-500/20 max-w-md w-full p-6">
+          <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-lg shadow-2xl border border-blue-500/20 max-w-md w-full p-6">
             <ForgotPassword 
               onBack={() => setShowForgotPassword(false)}
               onSuccess={() => setShowForgotPassword(false)}
