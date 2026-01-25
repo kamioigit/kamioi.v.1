@@ -55,10 +55,17 @@ const LLMMappingCenter = ({ user }) => {
         const result = await response.json()
         if (result.success && result.data) {
           // Transform response to expected format
-          // Group queue items by status for display
+          // IMPORTANT: Combine llm_mappings queue items AND pending transactions
           const items = result.data.queue_items || []
+          const pendingTxns = result.data.pending_transactions || []
+
+          // Pending transactions (from transactions table, no ticker assigned yet)
+          // These need to be processed by the LLM system
           const queues = {
-            'needs-recognition': items.filter(i => !i.ticker && i.status === 'pending'),
+            'needs-recognition': [
+              ...items.filter(i => !i.ticker && i.status === 'pending'),
+              ...pendingTxns  // ALL pending transactions need recognition
+            ],
             'conflicts': items.filter(i => i.confidence < 60 && i.status === 'pending'),
             'low-confidence': items.filter(i => i.confidence >= 60 && i.confidence < 80 && i.status === 'pending'),
             'pending-approval': items.filter(i => i.confidence >= 80 && i.status === 'pending')
@@ -159,6 +166,41 @@ const LLMMappingCenter = ({ user }) => {
       fetchMappingStats()
     } catch (error) {
       console.error('Error performing bulk action:', error)
+    }
+  }
+
+  // Handler for processing pending transactions (from transactions table)
+  const handleProcessTransaction = async (transactionId, ticker, category) => {
+    try {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+      const response = await fetch(`${apiBaseUrl}/api/admin/llm-center/process-transaction`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'}`
+        },
+        body: JSON.stringify({
+          transaction_id: transactionId,
+          ticker: ticker,
+          category: category || 'General',
+          confidence: 0.95
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        addNotification(`Transaction processed: ${ticker}`, 'success')
+        // Refresh the data
+        fetchMappingQueues()
+        fetchMappingStats()
+        return result
+      } else {
+        const errorData = await response.json()
+        addNotification(`Error: ${errorData.error || 'Failed to process transaction'}`, 'error')
+      }
+    } catch (error) {
+      console.error('Error processing transaction:', error)
+      addNotification('Error processing transaction', 'error')
     }
   }
 
@@ -522,50 +564,91 @@ const LLMMappingCenter = ({ user }) => {
               </tr>
             </thead>
             <tbody>
-              {(mappingQueues[selectedQueue] || []).map((item) => (
-                <tr key={item.id} className="border-b border-white/5 hover:bg-white/5">
-                  <td className="py-3 px-4 text-white">{item.description}</td>
-                  <td className="py-3 px-4 text-gray-300">{item.merchant}</td>
-                  <td className="py-3 px-4 text-center">
-                    <span className={`font-semibold ${getConfidenceColor(item.confidence)}`}>
-                      {(item.confidence / 100).toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(item.status)}`}>
-                      {item.status.replace('-', ' ')}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-gray-300">{item.created}</td>
-                  <td className="py-3 px-4 text-center">
-                    <div className="flex justify-center space-x-2">
-                      <button 
-                        onClick={() => handleEditMapping(item.id)}
-                        className="text-blue-400 hover:text-blue-300"
-                        title="Edit Mapping"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleApproveMapping(item.id)}
-                        className="text-green-400 hover:text-green-300"
-                        title="Approve"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                      </button>
-                      <button className="text-gray-400 hover:text-gray-300" title="View Details">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {(mappingQueues[selectedQueue] || []).map((item) => {
+                // Handle both llm_mappings items and pending transactions
+                const merchantName = item.merchant_name || item.merchant || 'Unknown'
+                const description = item.notes || item.description || `$${item.amount?.toFixed(2) || '0.00'} at ${merchantName}`
+                const confidence = item.confidence || 0
+                const status = item.status || 'pending'
+                const createdAt = item.created_at || item.created || 'N/A'
+                const isTransaction = item.source === 'transaction'
+                const transactionId = item.transaction_id
+
+                return (
+                  <tr key={item.id} className="border-b border-white/5 hover:bg-white/5">
+                    <td className="py-3 px-4 text-white">
+                      {description}
+                      {isTransaction && (
+                        <span className="ml-2 text-xs text-blue-400">(Transaction)</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-gray-300">{merchantName}</td>
+                    <td className="py-3 px-4 text-center">
+                      {isTransaction ? (
+                        <span className="text-yellow-400 font-semibold">Needs Mapping</span>
+                      ) : (
+                        <span className={`font-semibold ${getConfidenceColor(confidence)}`}>
+                          {(confidence / 100).toFixed(1)}%
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(status)}`}>
+                        {status.replace('-', ' ')}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-gray-300">{createdAt}</td>
+                    <td className="py-3 px-4 text-center">
+                      <div className="flex justify-center space-x-2">
+                        {isTransaction ? (
+                          <>
+                            <button
+                              onClick={() => {
+                                // For demo: prompt for ticker or use merchant-based suggestion
+                                const ticker = prompt(`Enter ticker symbol for "${merchantName}":`, '')
+                                if (ticker) {
+                                  handleProcessTransaction(transactionId, ticker.toUpperCase(), item.category)
+                                }
+                              }}
+                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium"
+                              title="Assign Ticker"
+                            >
+                              Map Ticker
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleEditMapping(item.id)}
+                              className="text-blue-400 hover:text-blue-300"
+                              title="Edit Mapping"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleApproveMapping(item.id)}
+                              className="text-green-400 hover:text-green-300"
+                              title="Approve"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                        <button className="text-gray-400 hover:text-gray-300" title="View Details">
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
               {(mappingQueues[selectedQueue] || []).length === 0 && (
                 <tr>
                   <td colSpan="6" className="py-8 text-center text-gray-400">
                     <div className="flex flex-col items-center">
-                      <p>No items in this queue</p>
-                      <p className="text-sm mt-2">All data has been cleared. System is ready for real data integration.</p>
+                      <CheckCircle className="w-12 h-12 text-green-500 mb-4" />
+                      <p className="text-lg font-semibold text-white">System Idle - No Pending Transactions</p>
+                      <p className="text-sm mt-2">All transactions have been processed.</p>
                     </div>
                   </td>
                 </tr>

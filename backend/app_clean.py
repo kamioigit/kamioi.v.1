@@ -1561,7 +1561,7 @@ def admin_get_transactions():
         # Simple query - get transactions with LEFT JOIN to users
         cursor.execute("""
             SELECT t.id, t.amount, t.status, t.created_at, t.merchant, t.category,
-                   t.description, t.round_up, t.total_debit, t.fee, t.account_type, t.user_id
+                   t.description, t.round_up, t.total_debit, t.fee, t.account_type, t.user_id, t.ticker
             FROM transactions t
             ORDER BY t.created_at DESC NULLS LAST
             LIMIT 100
@@ -1596,6 +1596,7 @@ def admin_get_transactions():
 
             transaction_list.append({
                 'id': txn[0],
+                'user_id': user_id,
                 'amount': float(txn[1]) if txn[1] else 0,
                 'status': txn[2],
                 'created_at': str(txn[3]) if txn[3] else None,
@@ -1606,7 +1607,7 @@ def admin_get_transactions():
                 'round_up': float(txn[7]) if txn[7] else 0,
                 'total_debit': float(txn[8]) if txn[8] else (float(txn[1]) if txn[1] else 0),
                 'fee': float(txn[9]) if txn[9] else 0,
-                'ticker': None,
+                'ticker': txn[12] if len(txn) > 12 else None,
                 'account_type': txn[10],
                 'user_name': user.get('name', 'Unknown'),
                 'user_email': user.get('email', ''),
@@ -1878,19 +1879,75 @@ def admin_llm_queue():
                 'last_processed': processed_at if processed_at else 'Not processed'
             })
         
+        # ALSO query transactions table for pending items (transactions without tickers)
+        cursor.execute("""
+            SELECT t.id, t.merchant, t.amount, t.category, t.status, t.created_at,
+                   t.user_id, t.description, t.round_up, t.ticker
+            FROM transactions t
+            WHERE t.ticker IS NULL OR t.ticker = '' OR t.ticker = 'UNKNOWN' OR t.status = 'pending'
+            ORDER BY t.created_at DESC
+            LIMIT 100
+        """)
+        pending_transactions = cursor.fetchall()
+
+        # Create queue items from pending transactions
+        pending_transaction_items = []
+        for row in pending_transactions:
+            created_at = row[5] if row[5] else None
+            if created_at:
+                try:
+                    from datetime import datetime
+                    if isinstance(created_at, str):
+                        created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    created_at = created_at.strftime('%Y-%m-%d %H:%M:%S')
+                except:
+                    created_at = str(created_at)
+
+            pending_transaction_items.append({
+                'id': f"txn_{row[0]}",
+                'transaction_id': row[0],
+                'merchant_name': row[1] or 'Unknown Merchant',
+                'ticker': row[9],
+                'category': row[3] or 'Unknown',
+                'confidence': 0,
+                'confidence_status': 'Pending',
+                'status': row[4] or 'pending',
+                'admin_approved': False,
+                'ai_processed': False,
+                'company_name': row[1] or 'Unknown',
+                'user_id': row[6],
+                'created_at': created_at,
+                'notes': row[7] or '',
+                'ticker_symbol': row[9],
+                'admin_id': None,
+                'processed_at': None,
+                'last_processed': 'Not processed',
+                'amount': float(row[2]) if row[2] else 0,
+                'source': 'transaction'  # Mark as coming from transactions table
+            })
+
+        # Count pending transactions (without tickers)
+        cursor.execute("""
+            SELECT COUNT(*) FROM transactions
+            WHERE ticker IS NULL OR ticker = '' OR ticker = 'UNKNOWN' OR status = 'pending'
+        """)
+        pending_transaction_count = cursor.fetchone()[0]
+
         conn.close()
-        
+
         return jsonify({
             'success': True,
             'data': {
                 'queue_items': queue_items,
+                'pending_transactions': pending_transaction_items,
                 'total_items': total_items,
                 'pending_count': pending_count,
                 'processing_count': processing_count,
-                'completed_count': completed_count
+                'completed_count': completed_count,
+                'pending_transaction_count': pending_transaction_count
             }
         })
-        
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

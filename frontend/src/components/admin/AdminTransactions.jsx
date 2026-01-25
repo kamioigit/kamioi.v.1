@@ -342,107 +342,59 @@ const AdminTransactions = ({ user, onTransactionsUpdate }) => {
     )
   }
 
-  // Helper function to get ticker from transaction (from DB or merchant lookup)
-  // This matches the logic from BusinessTransactions.jsx
+  // Helper function to get ticker from transaction (from DB ONLY - no hardcoded mappings)
   const getTransactionTicker = (transaction) => {
-    // First check if ticker exists in database
-    const dbTicker = transaction.ticker || transaction.stock_symbol || transaction.ticker_symbol
-    if (dbTicker) return dbTicker
-    
-    // Try merchant lookup
-    if (transaction.merchant) {
-      const merchantTickerMap = {
-        'NETFLIX': 'NFLX', 'APPLE': 'AAPL', 'APPLE STORE': 'AAPL', 'AMAZON': 'AMZN',
-        'STARBUCKS': 'SBUX', 'WALMART': 'WMT', 'TARGET': 'TGT', 'COSTCO': 'COST',
-        'GOOGLE': 'GOOGL', 'MICROSOFT': 'MSFT', 'META': 'META', 'FACEBOOK': 'META',
-        'TESLA': 'TSLA', 'NVIDIA': 'NVDA', 'SPOTIFY': 'SPOT', 'UBER': 'UBER',
-        'MACY': 'M', 'MACYS': 'M', 'CHIPOTLE': 'CMG', 'DISNEY': 'DIS', 'NIKE': 'NKE',
-        'ADOBE': 'ADBE', 'SALESFORCE': 'CRM', 'PAYPAL': 'PYPL', 'INTEL': 'INTC',
-        'AMD': 'AMD', 'ORACLE': 'ORCL', 'IBM': 'IBM', 'CISCO': 'CSCO',
-        'JPMORGAN': 'JPM', 'BANK OF AMERICA': 'BAC', 'WELLS FARGO': 'WFC',
-        'GOLDMAN SACHS': 'GS', 'VISA': 'V', 'MASTERCARD': 'MA',
-        'JOHNSON & JOHNSON': 'JNJ', 'PFIZER': 'PFE', 'UNITEDHEALTH': 'UNH',
-        'HOME DEPOT': 'HD', 'LOWES': 'LOW', 'COCA-COLA': 'KO', 'PEPSI': 'PEP',
-        'MCDONALDS': 'MCD', 'YUM': 'YUM', 'ESTEE LAUDER': 'EL', 'BURLINGTON': 'BURL',
-        'FOOT LOCKER': 'FL', 'CHARTER': 'CHTR', 'SPECTRUM': 'CHTR',
-        'DICKS': 'DKS', 'DICKS SPORTING GOODS': 'DKS'
-      }
-      const merchantUpper = transaction.merchant.toUpperCase().trim()
-      if (merchantTickerMap[merchantUpper]) return merchantTickerMap[merchantUpper]
-      for (const [key, value] of Object.entries(merchantTickerMap)) {
-        if (merchantUpper.includes(key)) return value
-      }
-    }
-    return null
+    // ONLY use database ticker - no hardcoded merchant lookups
+    return transaction.ticker || transaction.stock_symbol || transaction.ticker_symbol || null
   }
 
-  // Helper function to check if transaction has a ticker (from DB or merchant lookup)
-  // This matches the logic from BusinessTransactions.jsx
+  // Helper function to check if transaction has a ticker (from DB ONLY)
   const transactionHasTicker = (transaction) => {
     return getTransactionTicker(transaction) !== null
   }
 
   const getStatusText = (transaction) => {
-    // Use same logic as BusinessTransactions.jsx
-    // If transaction has a ticker (from DB or merchant lookup), treat as "mapped"
-    const hasTicker = transactionHasTicker(transaction)
-    
-    // If transaction has a ticker, treat as "mapped" (same as BusinessTransactions logic)
-    const rawStatus = transaction.status
-    const rawStatusLower = (rawStatus || '').toLowerCase().trim()
-    
-    // If has ticker and status is pending/staged, treat as mapped
-    if (hasTicker && (rawStatusLower === 'pending' || rawStatusLower === 'staged')) {
-      return 'Mapped'
-    }
-    
-    // Otherwise use standard status logic
-    switch (rawStatusLower) {
+    // Use database status DIRECTLY - NO hardcoded overrides
+    // This matches UserTransactions.jsx for consistency
+    const status = (transaction.status || '').toLowerCase().trim()
+
+    switch (status) {
       case 'completed': return 'Completed'
       case 'mapped': return 'Mapped'
-      case 'staged': return 'Mapped' // Treat staged as mapped
-      case 'pending-mapping': return 'Pending Mapping'
-      case 'pending-approval': return 'Pending Approval'
-      case 'needs-recognition': return 'Needs Recognition'
       case 'pending': return 'Pending'
-      case 'no-investment': return 'No Investment'
+      case 'staged': return 'Staged'
+      case 'rejected': return 'Rejected'
       case 'processing': return 'Processing'
       case 'failed': return 'Failed'
-      case 'rejected': return 'Rejected'
       default: return 'Unknown'
     }
   }
 
   const getStatusColor = (transaction) => {
-    // Use display status text first (which handles ticker logic)
-    const displayStatus = getStatusText(transaction).toLowerCase()
-    
-    switch (displayStatus) {
+    // Use database status directly - matches UserTransactions.jsx
+    const status = (transaction.status || '').toLowerCase().trim()
+
+    switch (status) {
       case 'mapped': return 'bg-green-500/20 text-green-400 border border-green-500/30'
       case 'completed': return 'bg-green-500/20 text-green-400'
-      case 'pending-mapping': return 'bg-orange-500/20 text-orange-400'
-      case 'pending approval': return 'bg-yellow-500/20 text-yellow-400'
-      case 'needs recognition': return 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
       case 'pending': return 'bg-yellow-500/20 text-yellow-400'
+      case 'staged': return 'bg-blue-500/20 text-blue-400'
       case 'processing': return 'bg-purple-500/20 text-purple-400'
       case 'failed': return 'bg-red-500/20 text-red-400'
       case 'rejected': return 'bg-red-500/20 text-red-400 border border-red-500/30'
-      case 'no investment': return 'bg-gray-500/20 text-gray-400'
       default: return 'bg-gray-500/20 text-gray-400'
     }
   }
 
   const getStatusIcon = (transaction) => {
-    // Use display status text first (which handles ticker logic)
-    const displayStatus = getStatusText(transaction).toLowerCase()
-    
-    switch (displayStatus) {
+    // Use database status directly - matches UserTransactions.jsx
+    const status = (transaction.status || '').toLowerCase().trim()
+
+    switch (status) {
       case 'mapped': return <CheckCircle className="w-3 h-3" />
       case 'completed': return <CheckCircle className="w-4 h-4" />
-      case 'pending-mapping': return <Clock className="w-4 h-4" />
-      case 'pending approval': return <Clock className="w-4 h-4" />
-      case 'needs recognition': return <AlertTriangle className="w-3 h-3" />
       case 'pending': return <Clock className="w-4 h-4" />
+      case 'staged': return <Clock className="w-4 h-4" />
       case 'processing': return <TrendingUp className="w-4 h-4" />
       case 'failed': return <AlertTriangle className="w-4 h-4" />
       case 'rejected': return <X className="w-4 h-4" />
