@@ -1132,13 +1132,25 @@ const Login = ({ initialMode = 'login' }) => {
     if (isBankConnectionStep) {
       console.log('🏦 Bank connection completed - storing MX data')
       setShowMXConnect(false)
-      
+
       // For Business: Account already exists (created at step 7), so complete registration with MX data
       if (registrationType === 'business' && currentUserGuid) {
         console.log('🏢 Business - Account exists, completing registration with MX data')
         // Continue to complete registration below
+      } else if (registrationType === 'individual' && registrationStep === 4) {
+        // For Individual at step 4: Store data and auto-advance to next step (Plan Selection)
+        console.log('🏦 Individual - Bank connected! Auto-advancing to next step')
+        // Small delay to let user see the success message before advancing
+        setTimeout(() => {
+          nextStep()
+        }, 500)
+        return
+      } else if (registrationType === 'family' && registrationStep === 7) {
+        // For Family: Step 7 is both bank connection AND final step
+        console.log('🏦 Family - Bank connected! Completing registration...')
+        // Continue to complete registration below
       } else {
-        // For Individual and Family: Store data, account will be created when user clicks "Create Account"
+        // Fallback: Store data, account will be created when user clicks "Create Account"
         console.log('🏦 Storing MX data - account will be created when user clicks "Create Account"')
         return
       }
@@ -1276,7 +1288,8 @@ const Login = ({ initialMode = 'login' }) => {
     console.log('🔒 MX Connect Closed')
     setShowMXConnect(false)
     // If on bank connection step and user closes, allow them to continue without bank connection
-    const isBankConnectionStep = (registrationType === 'individual' && registrationStep === 6) ||
+    // FIXED: Individual bank connection is step 4 (not 6!)
+    const isBankConnectionStep = (registrationType === 'individual' && registrationStep === 4) ||
                                 (registrationType === 'family' && registrationStep === 7) ||
                                 (registrationType === 'business' && registrationStep === 8)
       if (isBankConnectionStep) {
