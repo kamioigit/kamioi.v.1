@@ -2273,9 +2273,9 @@ def user_register():
             round_up_amount,
             risk_tolerance,
             ','.join(goals_list),
-            1 if terms_agreed else 0,
-            1 if privacy_agreed else 0,
-            1 if marketing_agreed else 0,
+            bool(terms_agreed),
+            bool(privacy_agreed),
+            bool(marketing_agreed),
             datetime.now().isoformat()
         ))
         
@@ -2377,9 +2377,9 @@ def user_auth_register():
             round_up_amount,
             risk_tolerance,
             ','.join(goals_list),
-            1 if terms_agreed else 0,
-            1 if privacy_agreed else 0,
-            1 if marketing_agreed else 0,
+            bool(terms_agreed),
+            bool(privacy_agreed),
+            bool(marketing_agreed),
             datetime.now().isoformat()
         ))
         
