@@ -13120,32 +13120,42 @@ def admin_delete_user(user_id):
     # ok, res = require_role('admin')
     # if ok is False:
     #     return res
-    
+
+    conn = None
     try:
         # Check if user exists
         conn = db_manager.get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT id, name, email FROM users WHERE id = ?", (user_id,))
+        # Use correct placeholder based on database type
+        placeholder = '%s' if db_manager._use_postgresql else '?'
+        cur.execute(f"SELECT id, name, email FROM users WHERE id = {placeholder}", (user_id,))
         user = cur.fetchone()
         conn.close()
-        
+        conn = None
+
         if not user:
             return jsonify({'success': False, 'error': 'User not found'}), 404
-        
+
         # Delete user and all associated data
         success = db_manager.delete_user(user_id)
-        
+
         if success:
             return jsonify({
-                'success': True, 
+                'success': True,
                 'message': f'User {user[1]} ({user[2]}) deleted successfully'
             })
         else:
             return jsonify({'success': False, 'error': 'Failed to delete user'}), 500
-            
+
     except Exception as e:
         print(f"Error deleting user {user_id}: {e}")
-        return jsonify({'success': False, 'error': 'Failed to delete user'}), 500
+        if conn:
+            try:
+                conn.rollback()
+                conn.close()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/admin/users/migrate-account-numbers', methods=['POST'])
 def admin_migrate_account_numbers():

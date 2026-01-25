@@ -1497,32 +1497,72 @@ class DatabaseManager:
 
     def delete_user(self, user_id):
         """Delete a user and all associated data"""
+        conn = None
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
-            
+
+            # Use correct placeholder based on database type
+            placeholder = '%s' if self._use_postgresql else '?'
+
             # Delete in order to respect foreign key constraints
+            # Delete from all tables that reference user_id
+
+            # Delete promo code usage
+            cursor.execute(f"DELETE FROM promo_code_usage WHERE user_id = {placeholder}", (user_id,))
+
+            # Delete subscription changes
+            cursor.execute(f"DELETE FROM subscription_changes WHERE user_id = {placeholder}", (user_id,))
+
+            # Delete user subscriptions
+            cursor.execute(f"DELETE FROM user_subscriptions WHERE user_id = {placeholder}", (user_id,))
+
+            # Delete user settings
+            cursor.execute(f"DELETE FROM user_settings WHERE user_id = {placeholder}", (user_id,))
+
+            # Delete statements
+            cursor.execute(f"DELETE FROM statements WHERE user_id = {placeholder}", (user_id,))
+
+            # Delete roundup ledger
+            cursor.execute(f"DELETE FROM roundup_ledger WHERE user_id = {placeholder}", (user_id,))
+
+            # Delete market queue
+            cursor.execute(f"DELETE FROM market_queue WHERE user_id = {placeholder}", (user_id,))
+
+            # Delete notifications
+            cursor.execute(f"DELETE FROM notifications WHERE user_id = {placeholder}", (user_id,))
+
             # Delete transactions
-            cursor.execute("DELETE FROM transactions WHERE user_id = ?", (user_id,))
-            
+            cursor.execute(f"DELETE FROM transactions WHERE user_id = {placeholder}", (user_id,))
+
             # Delete goals
-            cursor.execute("DELETE FROM goals WHERE user_id = ?", (user_id,))
-            
+            cursor.execute(f"DELETE FROM goals WHERE user_id = {placeholder}", (user_id,))
+
             # Delete portfolios
-            cursor.execute("DELETE FROM portfolios WHERE user_id = ?", (user_id,))
-            
-            # Delete LLM mappings
-            cursor.execute("DELETE FROM llm_mappings WHERE user_id = ?", (user_id,))
-            
+            cursor.execute(f"DELETE FROM portfolios WHERE user_id = {placeholder}", (user_id,))
+
+            # Delete LLM mappings (user_id is TEXT in this table)
+            cursor.execute(f"DELETE FROM llm_mappings WHERE user_id = {placeholder}", (str(user_id),))
+
             # Delete user
-            cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
-            
+            cursor.execute(f"DELETE FROM users WHERE id = {placeholder}", (user_id,))
+
             conn.commit()
-            conn.close()
             return True
         except Exception as e:
             print(f"Error deleting user {user_id}: {e}")
+            if conn:
+                try:
+                    conn.rollback()
+                except:
+                    pass
             return False
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
 
 # Global database manager instance - lazy initialization
 _db_manager_instance = None
