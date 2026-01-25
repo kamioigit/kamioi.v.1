@@ -1925,6 +1925,124 @@ def admin_llm_stats():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/admin/llm-center/pending-transactions', methods=['GET'])
+def admin_llm_pending_transactions():
+    """Get transactions that need LLM mapping (ticker is NULL or status='pending')"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Get pending transactions (no ticker assigned)
+        cursor.execute("""
+            SELECT t.id, t.merchant, t.amount, t.category, t.status, t.created_at,
+                   t.user_id, t.description, t.round_up, t.ticker
+            FROM transactions t
+            WHERE t.ticker IS NULL OR t.ticker = '' OR t.ticker = 'UNKNOWN' OR t.status = 'pending'
+            ORDER BY t.created_at DESC
+            LIMIT 100
+        """)
+        rows = cursor.fetchall()
+
+        transactions = []
+        for row in rows:
+            transactions.append({
+                'id': row[0],
+                'merchant': row[1] or 'Unknown',
+                'amount': float(row[2]) if row[2] else 0,
+                'category': row[3] or 'Unknown',
+                'status': row[4] or 'pending',
+                'created_at': str(row[5]) if row[5] else None,
+                'user_id': row[6],
+                'description': row[7],
+                'round_up': float(row[8]) if row[8] else 0,
+                'ticker': row[9]
+            })
+
+        # Get counts
+        cursor.execute("SELECT COUNT(*) FROM transactions WHERE ticker IS NULL OR ticker = '' OR ticker = 'UNKNOWN'")
+        pending_count = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM transactions WHERE ticker IS NOT NULL AND ticker != '' AND ticker != 'UNKNOWN'")
+        mapped_count = cursor.fetchone()[0]
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'pending_count': pending_count,
+            'mapped_count': mapped_count,
+            'transactions': transactions
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/llm-center/process-transaction', methods=['POST'])
+def admin_llm_process_transaction():
+    """Process a single transaction - assign ticker and update status"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        data = request.get_json()
+        transaction_id = data.get('transaction_id')
+        ticker = data.get('ticker')
+        category = data.get('category', 'Unknown')
+        confidence = data.get('confidence', 0.95)
+
+        if not transaction_id or not ticker:
+            return jsonify({'success': False, 'error': 'transaction_id and ticker required'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Get transaction details
+        cursor.execute("SELECT merchant, user_id FROM transactions WHERE id = %s", (transaction_id,))
+        tx_row = cursor.fetchone()
+        if not tx_row:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Transaction not found'}), 404
+
+        merchant = tx_row[0]
+
+        # Update transaction with ticker and status
+        cursor.execute("""
+            UPDATE transactions
+            SET ticker = %s, category = %s, status = 'mapped'
+            WHERE id = %s
+        """, (ticker, category, transaction_id))
+
+        # Also save mapping to llm_mappings for future auto-matching
+        cursor.execute("""
+            INSERT INTO llm_mappings (merchant_name, ticker_symbol, category, confidence, status, admin_approved, created_at)
+            VALUES (%s, %s, %s, %s, 'approved', 1, CURRENT_TIMESTAMP)
+            ON CONFLICT (merchant_name) DO UPDATE SET
+                ticker_symbol = EXCLUDED.ticker_symbol,
+                category = EXCLUDED.category,
+                confidence = EXCLUDED.confidence,
+                status = 'approved',
+                admin_approved = 1
+        """, (merchant, ticker, category, confidence))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'Transaction {transaction_id} mapped to {ticker}',
+            'mapping_saved': True
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # Analytics endpoints
 @app.route('/api/admin/settings/analytics', methods=['GET'])
 def admin_analytics():
@@ -4125,20 +4243,27 @@ def sync_user_transactions():
 
         # In demo mode, generate sample transactions
         # In production, this would call MX API to fetch real transactions
+        # IMPORTANT: Transactions come in with NO TICKER - they need LLM processing
         import random
         from datetime import datetime, timedelta
 
+        # Merchants - just names, NO tickers (tickers assigned by LLM processing)
         merchants = [
-            ('Starbucks', 'SBUX', 'Coffee & Beverages'),
-            ('Amazon', 'AMZN', 'E-commerce'),
-            ('Walmart', 'WMT', 'Retail'),
-            ('Target', 'TGT', 'Retail'),
-            ('McDonalds', 'MCD', 'Fast Food'),
-            ('Apple Store', 'AAPL', 'Technology'),
-            ('Netflix', 'NFLX', 'Entertainment'),
-            ('Uber', 'UBER', 'Transportation'),
-            ('Chipotle', 'CMG', 'Fast Food'),
-            ('Home Depot', 'HD', 'Home Improvement')
+            'Starbucks',
+            'Amazon',
+            'Walmart',
+            'Target',
+            'McDonalds',
+            'Apple Store',
+            'Netflix',
+            'Uber',
+            'Chipotle',
+            'Home Depot',
+            'Costco',
+            'Best Buy',
+            'Whole Foods',
+            'Trader Joes',
+            'CVS Pharmacy'
         ]
 
         transactions = []
@@ -4148,7 +4273,7 @@ def sync_user_transactions():
         num_transactions = random.randint(5, 10)
 
         for i in range(num_transactions):
-            merchant = random.choice(merchants)
+            merchant_name = random.choice(merchants)
             amount = round(random.uniform(5.00, 75.00), 2)
             # FIXED: Use user's configured round-up amount (not nearest dollar calculation)
             round_up = user_round_up_amount
@@ -4156,23 +4281,23 @@ def sync_user_transactions():
 
             tx = {
                 'id': f'tx_{user_id}_{int(datetime.now().timestamp())}_{i}',
-                'merchant': merchant[0],
-                'ticker': merchant[1],
-                'category': merchant[2],
+                'merchant': merchant_name,
+                'ticker': None,  # NO TICKER - needs LLM processing
+                'category': 'Unknown',  # Will be determined by LLM
                 'amount': amount,
                 'round_up': round_up,
                 'fee': 0,  # No fee - subscription pays for service
                 'date': tx_date.strftime('%Y-%m-%d'),
-                'status': 'pending'
+                'status': 'pending'  # Pending LLM processing
             }
             transactions.append(tx)
 
-            # Save to database
+            # Save to database - NO TICKER, status=pending, needs LLM processing
             cursor.execute("""
                 INSERT INTO transactions (user_id, merchant, amount, round_up, fee, date, status, ticker, category)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
-            """, (user_id, merchant[0], amount, round_up, 0, tx_date, 'pending', merchant[1], merchant[2]))
+            """, (user_id, merchant_name, amount, round_up, 0, tx_date, 'pending', None, 'Unknown'))
 
         conn.commit()
         conn.close()
@@ -8036,6 +8161,46 @@ def admin_fix_transactions():
                 }
                 for row in sample
             ]
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/clear-all-data', methods=['POST'])
+def admin_clear_all_data():
+    """DESTRUCTIVE: Clear all transactions and LLM mappings for fresh start"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Count before deletion
+        cursor.execute("SELECT COUNT(*) FROM transactions")
+        tx_count = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM llm_mappings")
+        mapping_count = cursor.fetchone()[0]
+
+        # Delete all transactions
+        cursor.execute("DELETE FROM transactions")
+
+        # Delete all LLM mappings
+        cursor.execute("DELETE FROM llm_mappings")
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'All data cleared successfully',
+            'deleted': {
+                'transactions': tx_count,
+                'llm_mappings': mapping_count
+            }
         })
 
     except Exception as e:
