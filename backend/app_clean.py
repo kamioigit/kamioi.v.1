@@ -771,7 +771,24 @@ def initialize_database():
                 FOREIGN KEY (post_id) REFERENCES blog_posts (id)
             )
         """)
-        
+
+        # Create subscription_plans table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS subscription_plans (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                price DECIMAL(10, 2) NOT NULL,
+                billing_period VARCHAR(50) DEFAULT 'monthly',
+                account_type VARCHAR(50) DEFAULT 'individual',
+                features TEXT,
+                is_active BOOLEAN DEFAULT TRUE,
+                stripe_price_id VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         conn.commit()
         print("✅ Database tables created successfully")
         
@@ -815,7 +832,76 @@ def initialize_database():
         except Exception as index_error:
             print(f"Warning: Could not create indexes: {index_error}")
             conn.rollback()
-        
+
+        # Seed default subscription plans if none exist
+        try:
+            cursor.execute("SELECT COUNT(*) FROM subscription_plans")
+            plan_count = cursor.fetchone()[0]
+            if plan_count == 0:
+                import json
+                default_plans = [
+                    {
+                        'name': 'Individual',
+                        'description': 'Perfect for individual investors looking to grow their wealth through automated micro-investing.',
+                        'price': 9.00,
+                        'billing_period': 'monthly',
+                        'account_type': 'individual',
+                        'features': json.dumps([
+                            'Automatic round-ups on purchases',
+                            'AI-powered investment insights',
+                            'Real-time portfolio tracking',
+                            'Personalized recommendations',
+                            'Mobile app access',
+                            'Email support'
+                        ])
+                    },
+                    {
+                        'name': 'Family',
+                        'description': 'Ideal for families who want to invest together and teach financial literacy.',
+                        'price': 19.00,
+                        'billing_period': 'monthly',
+                        'account_type': 'family',
+                        'features': json.dumps([
+                            'Up to 5 family members',
+                            'Shared family goals',
+                            'Family dashboard',
+                            'Individual portfolios per member',
+                            'Parental controls',
+                            'All Individual features',
+                            'Priority email support'
+                        ])
+                    },
+                    {
+                        'name': 'Business',
+                        'description': 'For businesses looking to offer investment benefits to employees or manage corporate funds.',
+                        'price': 49.00,
+                        'billing_period': 'monthly',
+                        'account_type': 'business',
+                        'features': json.dumps([
+                            'Unlimited team members',
+                            'Advanced analytics dashboard',
+                            'API access',
+                            'Custom integrations',
+                            'Dedicated account manager',
+                            'White-label options',
+                            'Priority phone support',
+                            'All Family features'
+                        ])
+                    }
+                ]
+
+                for plan in default_plans:
+                    cursor.execute("""
+                        INSERT INTO subscription_plans (name, description, price, billing_period, account_type, features)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, (plan['name'], plan['description'], plan['price'], plan['billing_period'], plan['account_type'], plan['features']))
+
+                conn.commit()
+                print("✅ Default subscription plans created successfully")
+        except Exception as plan_error:
+            print(f"Warning: Could not seed subscription plans: {plan_error}")
+            conn.rollback()
+
         print("✅ Database initialized successfully")
         
     except Exception as e:
@@ -3309,11 +3395,45 @@ def user_subscriptions():
 
 @app.route('/api/user/subscriptions/plans', methods=['GET'])
 def user_subscription_plans():
-    """Stub endpoint for subscription plans"""
+    """Endpoint for subscription plans - fetches from database"""
     try:
-        return jsonify({
-            'success': True,
-            'plans': [
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn)
+
+        cursor.execute("""
+            SELECT id, name, description, price, billing_period, account_type, features, stripe_price_id
+            FROM subscription_plans
+            WHERE is_active = TRUE
+            ORDER BY price
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+
+        import json
+        plans = []
+        for row in rows:
+            features = []
+            if row[6]:
+                try:
+                    features = json.loads(row[6]) if isinstance(row[6], str) else row[6]
+                except:
+                    features = []
+
+            plans.append({
+                'id': row[0],
+                'name': row[1],
+                'description': row[2],
+                'price': float(row[3]) if row[3] else 0,
+                'interval': row[4] if row[4] else 'month',
+                'billing_period': row[4],
+                'account_type': row[5],
+                'features': features,
+                'stripe_price_id': row[7]
+            })
+
+        # Fallback to hardcoded plans if database is empty
+        if not plans:
+            plans = [
                 {
                     'id': 'individual',
                     'name': 'Individual',
@@ -3336,10 +3456,19 @@ def user_subscription_plans():
                     'features': ['Unlimited team members', 'Advanced analytics', 'API access']
                 }
             ]
-        })
+
+        return jsonify({'success': True, 'plans': plans})
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        # Fallback on error
+        return jsonify({
+            'success': True,
+            'plans': [
+                {'id': 'individual', 'name': 'Individual', 'price': 9.00, 'interval': 'month', 'features': ['Automatic round-ups', 'AI insights', 'Portfolio tracking']},
+                {'id': 'family', 'name': 'Family', 'price': 19.00, 'interval': 'month', 'features': ['Up to 5 family members', 'Shared goals', 'Family dashboard']},
+                {'id': 'business', 'name': 'Business', 'price': 49.00, 'interval': 'month', 'features': ['Unlimited team members', 'Advanced analytics', 'API access']}
+            ]
+        })
 
 @app.route('/api/business/subscriptions/current', methods=['GET'])
 def business_subscriptions_current():
@@ -6318,19 +6447,141 @@ def admin_subscription_plans():
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
-        return jsonify({'success': True, 'data': []})
+        token = auth_header.split(' ')[1]
+        if not token.startswith('admin_token_'):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn)
+
+        if request.method == 'POST':
+            data = request.get_json() or {}
+            name = data.get('name', '').strip()
+            description = data.get('description', '').strip()
+            price = data.get('price', 0)
+            billing_period = data.get('billing_period', data.get('billingPeriod', 'monthly'))
+            account_type = data.get('account_type', data.get('accountType', 'individual'))
+            features = data.get('features', [])
+            stripe_price_id = data.get('stripe_price_id', data.get('stripePriceId', ''))
+
+            if not name:
+                conn.close()
+                return jsonify({'success': False, 'error': 'Plan name is required'}), 400
+
+            # Convert features list to JSON string
+            import json
+            features_json = json.dumps(features) if isinstance(features, list) else features
+
+            cursor.execute("""
+                INSERT INTO subscription_plans (name, description, price, billing_period, account_type, features, stripe_price_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (name, description, price, billing_period, account_type, features_json, stripe_price_id))
+
+            result = cursor.fetchone()
+            plan_id = result[0] if result else None
+            conn.commit()
+            conn.close()
+
+            return jsonify({
+                'success': True,
+                'message': 'Plan created successfully',
+                'plan': {
+                    'id': plan_id,
+                    'name': name,
+                    'description': description,
+                    'price': float(price),
+                    'billing_period': billing_period,
+                    'account_type': account_type,
+                    'features': features,
+                    'stripe_price_id': stripe_price_id
+                }
+            })
+
+        else:
+            # GET - Fetch all plans
+            cursor.execute("""
+                SELECT id, name, description, price, billing_period, account_type, features, is_active, stripe_price_id, created_at
+                FROM subscription_plans
+                ORDER BY account_type, price
+            """)
+            rows = cursor.fetchall()
+            conn.close()
+
+            import json
+            plans = []
+            for row in rows:
+                features = []
+                if row[6]:
+                    try:
+                        features = json.loads(row[6]) if isinstance(row[6], str) else row[6]
+                    except:
+                        features = []
+
+                plans.append({
+                    'id': row[0],
+                    'name': row[1],
+                    'description': row[2],
+                    'price': float(row[3]) if row[3] else 0,
+                    'billing_period': row[4],
+                    'account_type': row[5],
+                    'features': features,
+                    'is_active': row[7],
+                    'stripe_price_id': row[8],
+                    'created_at': str(row[9]) if row[9] else None
+                })
+
+            return jsonify({'success': True, 'data': plans})
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/public/subscriptions/plans', methods=['GET'])
 def public_subscription_plans():
     """Public subscription plans for signup flow"""
-    account_type = request.args.get('account_type', 'individual')
-    return jsonify({
-        'success': True,
-        'account_type': account_type,
-        'plans': []
-    })
+    try:
+        account_type = request.args.get('account_type', 'individual')
+
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn)
+
+        cursor.execute("""
+            SELECT id, name, description, price, billing_period, account_type, features, stripe_price_id
+            FROM subscription_plans
+            WHERE is_active = TRUE AND account_type = %s
+            ORDER BY price
+        """, (account_type,))
+        rows = cursor.fetchall()
+        conn.close()
+
+        import json
+        plans = []
+        for row in rows:
+            features = []
+            if row[6]:
+                try:
+                    features = json.loads(row[6]) if isinstance(row[6], str) else row[6]
+                except:
+                    features = []
+
+            plans.append({
+                'id': row[0],
+                'name': row[1],
+                'description': row[2],
+                'price': float(row[3]) if row[3] else 0,
+                'billing_period': row[4],
+                'account_type': row[5],
+                'features': features,
+                'stripe_price_id': row[7]
+            })
+
+        return jsonify({
+            'success': True,
+            'account_type': account_type,
+            'plans': plans
+        })
+    except Exception as e:
+        return jsonify({'success': True, 'account_type': account_type, 'plans': []})
 
 @app.route('/api/admin/subscriptions/plans/<plan_id>', methods=['PUT', 'DELETE'])
 def admin_subscription_plan_update(plan_id):
@@ -6339,7 +6590,46 @@ def admin_subscription_plan_update(plan_id):
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
-        return jsonify({'success': True})
+        token = auth_header.split(' ')[1]
+        if not token.startswith('admin_token_'):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn)
+
+        if request.method == 'DELETE':
+            cursor.execute("DELETE FROM subscription_plans WHERE id = %s", (plan_id,))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True, 'message': 'Plan deleted successfully'})
+
+        else:
+            # PUT - Update plan
+            data = request.get_json() or {}
+            name = data.get('name', '').strip()
+            description = data.get('description', '').strip()
+            price = data.get('price', 0)
+            billing_period = data.get('billing_period', data.get('billingPeriod', 'monthly'))
+            account_type = data.get('account_type', data.get('accountType', 'individual'))
+            features = data.get('features', [])
+            is_active = data.get('is_active', data.get('isActive', True))
+            stripe_price_id = data.get('stripe_price_id', data.get('stripePriceId', ''))
+
+            import json
+            features_json = json.dumps(features) if isinstance(features, list) else features
+
+            cursor.execute("""
+                UPDATE subscription_plans
+                SET name = %s, description = %s, price = %s, billing_period = %s,
+                    account_type = %s, features = %s, is_active = %s, stripe_price_id = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (name, description, price, billing_period, account_type, features_json, is_active, stripe_price_id, plan_id))
+            conn.commit()
+            conn.close()
+
+            return jsonify({'success': True, 'message': 'Plan updated successfully'})
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
