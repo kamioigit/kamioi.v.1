@@ -2703,23 +2703,25 @@ def user_auth_register():
         result = cursor.fetchone()
         user_id = result[0] if result else None
 
-        # Create initial portfolio entry (skip for now since portfolios table requires ticker)
-        # cursor.execute("""
-        #     INSERT INTO portfolios (user_id, total_invested, total_roundups, total_fees, created_at)
-        #     VALUES (?, ?, ?, ?, ?)
-        # """, (user_id, 0.0, 0.0, 0.0, datetime.now().isoformat()))
-        
+        # Generate userGuid for the user
+        user_guid = f"kamioi_user_{user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+        # Update user with userGuid
+        cursor.execute("UPDATE users SET user_guid = %s WHERE id = %s", (user_guid, user_id))
+
         conn.commit()
         conn.close()
-        
+
         # Generate token
         token = f"user_token_{user_id}"
-        
+
         return jsonify({
             'success': True,
             'token': token,
+            'userGuid': user_guid,
             'user': {
                 'id': user_id,
+                'account_number': user_id,
                 'email': email,
                 'name': name or email.split('@')[0],
                 'role': user_role,
@@ -2727,7 +2729,7 @@ def user_auth_register():
             },
             'message': 'Account created successfully'
         })
-        
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
