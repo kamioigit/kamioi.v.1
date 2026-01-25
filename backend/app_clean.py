@@ -778,9 +778,12 @@ def initialize_database():
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
                 description TEXT,
-                price DECIMAL(10, 2) NOT NULL,
+                price DECIMAL(10, 2) DEFAULT 0,
+                price_monthly DECIMAL(10, 2) DEFAULT 0,
+                price_yearly DECIMAL(10, 2) DEFAULT 0,
                 billing_period VARCHAR(50) DEFAULT 'monthly',
                 account_type VARCHAR(50) DEFAULT 'individual',
+                tier VARCHAR(50) DEFAULT 'basic',
                 features TEXT,
                 is_active BOOLEAN DEFAULT TRUE,
                 stripe_price_id VARCHAR(255),
@@ -788,6 +791,17 @@ def initialize_database():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # Add new columns if they don't exist (for existing databases)
+        for col_name, col_type, col_default in [
+            ("price_monthly", "DECIMAL(10, 2)", "0"),
+            ("price_yearly", "DECIMAL(10, 2)", "0"),
+            ("tier", "VARCHAR(50)", "'basic'")
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS {col_name} {col_type} DEFAULT {col_default}")
+            except Exception:
+                pass
 
         conn.commit()
         print("✅ Database tables created successfully")
@@ -6459,9 +6473,13 @@ def admin_subscription_plans():
             name = data.get('name', '').strip()
             description = data.get('description', '').strip()
             price = data.get('price', 0)
+            price_monthly = data.get('price_monthly', data.get('priceMonthly', price or 0))
+            price_yearly = data.get('price_yearly', data.get('priceYearly', 0))
             billing_period = data.get('billing_period', data.get('billingPeriod', 'monthly'))
             account_type = data.get('account_type', data.get('accountType', 'individual'))
-            features = data.get('features', [])
+            tier = data.get('tier', 'basic')
+            features = data.get('features', data.get('selectedFeatures', []))
+            is_active = data.get('is_active', data.get('isActive', True))
             stripe_price_id = data.get('stripe_price_id', data.get('stripePriceId', ''))
 
             if not name:
@@ -6473,10 +6491,10 @@ def admin_subscription_plans():
             features_json = json.dumps(features) if isinstance(features, list) else features
 
             cursor.execute("""
-                INSERT INTO subscription_plans (name, description, price, billing_period, account_type, features, stripe_price_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO subscription_plans (name, description, price, price_monthly, price_yearly, billing_period, account_type, tier, features, is_active, stripe_price_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (name, description, price, billing_period, account_type, features_json, stripe_price_id))
+            """, (name, description, price_monthly, price_monthly, price_yearly, billing_period, account_type, tier, features_json, is_active, stripe_price_id))
 
             result = cursor.fetchone()
             plan_id = result[0] if result else None
@@ -6490,10 +6508,14 @@ def admin_subscription_plans():
                     'id': plan_id,
                     'name': name,
                     'description': description,
-                    'price': float(price),
+                    'price': float(price_monthly) if price_monthly else 0,
+                    'price_monthly': float(price_monthly) if price_monthly else 0,
+                    'price_yearly': float(price_yearly) if price_yearly else 0,
                     'billing_period': billing_period,
                     'account_type': account_type,
+                    'tier': tier,
                     'features': features,
+                    'is_active': is_active,
                     'stripe_price_id': stripe_price_id
                 }
             })
@@ -6501,7 +6523,8 @@ def admin_subscription_plans():
         else:
             # GET - Fetch all plans
             cursor.execute("""
-                SELECT id, name, description, price, billing_period, account_type, features, is_active, stripe_price_id, created_at
+                SELECT id, name, description, price, billing_period, account_type, features, is_active, stripe_price_id, created_at,
+                       COALESCE(price_monthly, price, 0) as price_monthly, COALESCE(price_yearly, 0) as price_yearly, COALESCE(tier, 'basic') as tier
                 FROM subscription_plans
                 ORDER BY account_type, price
             """)
@@ -6528,7 +6551,10 @@ def admin_subscription_plans():
                     'features': features,
                     'is_active': row[7],
                     'stripe_price_id': row[8],
-                    'created_at': str(row[9]) if row[9] else None
+                    'created_at': str(row[9]) if row[9] else None,
+                    'price_monthly': float(row[10]) if row[10] else 0,
+                    'price_yearly': float(row[11]) if row[11] else 0,
+                    'tier': row[12] or 'basic'
                 })
 
             return jsonify({'success': True, 'data': plans})
@@ -6609,9 +6635,12 @@ def admin_subscription_plan_update(plan_id):
             name = data.get('name', '').strip()
             description = data.get('description', '').strip()
             price = data.get('price', 0)
+            price_monthly = data.get('price_monthly', data.get('priceMonthly', price or 0))
+            price_yearly = data.get('price_yearly', data.get('priceYearly', 0))
             billing_period = data.get('billing_period', data.get('billingPeriod', 'monthly'))
             account_type = data.get('account_type', data.get('accountType', 'individual'))
-            features = data.get('features', [])
+            tier = data.get('tier', 'basic')
+            features = data.get('features', data.get('selectedFeatures', []))
             is_active = data.get('is_active', data.get('isActive', True))
             stripe_price_id = data.get('stripe_price_id', data.get('stripePriceId', ''))
 
@@ -6620,11 +6649,11 @@ def admin_subscription_plan_update(plan_id):
 
             cursor.execute("""
                 UPDATE subscription_plans
-                SET name = %s, description = %s, price = %s, billing_period = %s,
-                    account_type = %s, features = %s, is_active = %s, stripe_price_id = %s,
-                    updated_at = CURRENT_TIMESTAMP
+                SET name = %s, description = %s, price = %s, price_monthly = %s, price_yearly = %s,
+                    billing_period = %s, account_type = %s, tier = %s, features = %s, is_active = %s,
+                    stripe_price_id = %s, updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s
-            """, (name, description, price, billing_period, account_type, features_json, is_active, stripe_price_id, plan_id))
+            """, (name, description, price_monthly, price_monthly, price_yearly, billing_period, account_type, tier, features_json, is_active, stripe_price_id, plan_id))
             conn.commit()
             conn.close()
 

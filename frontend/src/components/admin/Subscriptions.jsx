@@ -98,8 +98,8 @@ const CreatePlanForm = ({ onClose, onSuccess, isLightMode, getTextColor, getSubt
           name: formData.name,
           account_type: formData.account_type,
           tier: formData.tier,
-          price_monthly: parseFloat(formData.price_monthly),
-          price_yearly: parseFloat(formData.price_yearly),
+          price_monthly: parseFloat(formData.price_monthly) || 0,
+          price_yearly: parseFloat(formData.price_yearly) || 0,
           features: formData.selectedFeatures,
           is_active: formData.is_active
         })
@@ -281,7 +281,7 @@ const EditPlanForm = ({ plan, onClose, onSuccess, isLightMode, getTextColor, get
     name: plan.name || '',
     account_type: plan.account_type || 'individual',
     tier: plan.tier || 'basic',
-    price_monthly: plan.price_monthly || '',
+    price_monthly: plan.price_monthly || plan.price || '',
     price_yearly: plan.price_yearly || '',
     selectedFeatures: Array.isArray(plan.features) ? plan.features : [],
     is_active: plan.is_active !== undefined ? plan.is_active : true
@@ -289,8 +289,11 @@ const EditPlanForm = ({ plan, onClose, onSuccess, isLightMode, getTextColor, get
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // Get available features for selected account type
-  const availableFeatures = FEATURE_LISTS[formData.account_type] || []
+  // Get available features: combine FEATURE_LISTS with any extra features from the plan
+  const baseFeatures = FEATURE_LISTS[formData.account_type] || []
+  const planFeatures = Array.isArray(plan.features) ? plan.features : []
+  // Combine and deduplicate: FEATURE_LISTS first, then any extra plan features
+  const availableFeatures = [...new Set([...baseFeatures, ...planFeatures])]
 
   // Handle feature checkbox change
   const handleFeatureToggle = (feature) => {
@@ -321,8 +324,8 @@ const EditPlanForm = ({ plan, onClose, onSuccess, isLightMode, getTextColor, get
           name: formData.name,
           account_type: formData.account_type,
           tier: formData.tier,
-          price_monthly: parseFloat(formData.price_monthly),
-          price_yearly: parseFloat(formData.price_yearly),
+          price_monthly: parseFloat(formData.price_monthly) || 0,
+          price_yearly: parseFloat(formData.price_yearly) || 0,
           features: formData.selectedFeatures,
           is_active: formData.is_active
         })
