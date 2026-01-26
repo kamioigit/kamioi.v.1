@@ -2209,7 +2209,7 @@ def admin_llm_process_pending_transactions():
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
         conn = get_db_connection()
-        cursor = get_db_cursor(conn)
+        cursor = get_db_cursor(conn, dict_cursor=True)
 
         # Get all pending transactions (case-insensitive status check)
         cursor.execute("""
@@ -2358,7 +2358,7 @@ def admin_llm_transaction_stats():
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
         conn = get_db_connection()
-        cursor = get_db_cursor(conn)
+        cursor = get_db_cursor(conn, dict_cursor=True)
 
         # Get transaction counts by status (case-insensitive comparison)
         cursor.execute("""
