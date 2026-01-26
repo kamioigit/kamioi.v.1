@@ -237,9 +237,11 @@ class AlpacaService:
             dob = user_data.get('dob', '1990-01-01')
             ssn_last4 = user_data.get('ssn_last4', '1234')
 
-            # For sandbox, generate a test SSN (666-xx-xxxx is reserved for testing)
+            # For sandbox, generate a test SSN
+            # Alpaca rejects SSNs starting with 000, 666, or 900-999
+            # Use a valid-looking format like 123-45-xxxx for sandbox testing
             # In production, you'd need the real full SSN from the user
-            test_ssn = f"666-{ssn_last4[:2] if len(ssn_last4) >= 2 else '12'}-{ssn_last4 if len(ssn_last4) == 4 else '1234'}"
+            test_ssn = f"123-45-{ssn_last4 if len(ssn_last4) == 4 else '6789'}"
 
             # Address info
             street = user_data.get('address', '123 Main Street')
