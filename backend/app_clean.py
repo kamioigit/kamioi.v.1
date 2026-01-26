@@ -2196,6 +2196,156 @@ def admin_llm_process_transaction():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@app.route('/api/admin/llm-center/process-pending-transactions', methods=['POST'])
+def admin_llm_process_pending_transactions():
+    """
+    Process ALL pending transactions by looking up mappings in llm_mappings table.
+    This is the main LLM processing endpoint that should be called periodically or on-demand.
+    """
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn)
+
+        # Get all pending transactions
+        cursor.execute("""
+            SELECT id, merchant, category, user_id, round_up, amount
+            FROM transactions
+            WHERE status = 'pending' AND (ticker IS NULL OR ticker = '')
+            ORDER BY id ASC
+        """)
+        pending_transactions = cursor.fetchall()
+
+        if not pending_transactions:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                'success': True,
+                'message': 'No pending transactions to process',
+                'processed': 0,
+                'mapped': 0,
+                'no_match': 0
+            })
+
+        processed = 0
+        mapped = 0
+        no_match = 0
+        results = []
+
+        for tx in pending_transactions:
+            tx_id = tx['id']
+            merchant = tx['merchant'] or ''
+
+            # Look up mapping in llm_mappings table (case-insensitive)
+            cursor.execute("""
+                SELECT ticker_symbol, category, confidence
+                FROM llm_mappings
+                WHERE LOWER(merchant_name) = LOWER(%s)
+                AND status = 'approved'
+                AND admin_approved = 1
+                ORDER BY confidence DESC
+                LIMIT 1
+            """, (merchant,))
+            mapping = cursor.fetchone()
+
+            if mapping and mapping['ticker_symbol']:
+                # Found a mapping - update the transaction
+                ticker = mapping['ticker_symbol']
+                category = mapping['category'] or tx['category'] or 'Unknown'
+                confidence = mapping['confidence'] or 0.90
+
+                cursor.execute("""
+                    UPDATE transactions
+                    SET ticker = %s, category = %s, status = 'mapped'
+                    WHERE id = %s
+                """, (ticker, category, tx_id))
+
+                mapped += 1
+                results.append({
+                    'transaction_id': tx_id,
+                    'merchant': merchant,
+                    'ticker': ticker,
+                    'category': category,
+                    'confidence': float(confidence),
+                    'status': 'mapped'
+                })
+            else:
+                # No mapping found - try fuzzy match
+                cursor.execute("""
+                    SELECT ticker_symbol, category, confidence, merchant_name
+                    FROM llm_mappings
+                    WHERE LOWER(merchant_name) LIKE LOWER(%s)
+                    AND status = 'approved'
+                    AND admin_approved = 1
+                    ORDER BY confidence DESC
+                    LIMIT 1
+                """, (f'%{merchant}%',))
+                fuzzy_mapping = cursor.fetchone()
+
+                if fuzzy_mapping and fuzzy_mapping['ticker_symbol']:
+                    ticker = fuzzy_mapping['ticker_symbol']
+                    category = fuzzy_mapping['category'] or 'Unknown'
+                    confidence = fuzzy_mapping['confidence'] or 0.80
+
+                    cursor.execute("""
+                        UPDATE transactions
+                        SET ticker = %s, category = %s, status = 'mapped'
+                        WHERE id = %s
+                    """, (ticker, category, tx_id))
+
+                    mapped += 1
+                    results.append({
+                        'transaction_id': tx_id,
+                        'merchant': merchant,
+                        'matched_to': fuzzy_mapping['merchant_name'],
+                        'ticker': ticker,
+                        'category': category,
+                        'confidence': float(confidence),
+                        'status': 'mapped',
+                        'match_type': 'fuzzy'
+                    })
+                else:
+                    # No mapping at all - mark for manual review
+                    cursor.execute("""
+                        UPDATE transactions
+                        SET status = 'pending-mapping'
+                        WHERE id = %s
+                    """, (tx_id,))
+
+                    no_match += 1
+                    results.append({
+                        'transaction_id': tx_id,
+                        'merchant': merchant,
+                        'status': 'pending-mapping',
+                        'reason': 'No mapping found'
+                    })
+
+            processed += 1
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'Processed {processed} transactions: {mapped} mapped, {no_match} need manual review',
+            'processed': processed,
+            'mapped': mapped,
+            'no_match': no_match,
+            'results': results
+        })
+
+    except Exception as e:
+        print(f"Error processing pending transactions: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # Analytics endpoints
 @app.route('/api/admin/settings/analytics', methods=['GET'])
 def admin_analytics():
@@ -7833,17 +7983,25 @@ def admin_llm_center_automation_status():
         result = cursor.fetchone()
         avg_conf = float(result[0]) if result and result[0] else 0
 
+        # Get ACTUAL pending transactions count (transactions needing LLM processing)
+        cursor.execute("""
+            SELECT COUNT(*) FROM transactions
+            WHERE status = 'pending' AND (ticker IS NULL OR ticker = '')
+        """)
+        pending_transactions = cursor.fetchone()[0] or 0
+
         conn.close()
 
-        # Build consolidated response - reflect reality
+        # Build consolidated response - reflect ACTUAL reality
         return jsonify({
             'success': True,
             'data': {
-                # Real-time processing status
+                # Real-time processing status - shows actual pending transactions
                 'realtime': {
-                    'status': 'active' if total_mappings > 0 else 'idle',
-                    'processing_rate': min(total_mappings / 100, 500) if total_mappings > 0 else 0,
-                    'queue_size': pending,
+                    'status': 'active' if pending_transactions > 0 else 'idle',
+                    'processing_rate': 0,  # No fake rate - will show actual when processing
+                    'queue_size': pending_transactions,  # ACTUAL pending transactions
+                    'pending_transactions': pending_transactions,
                     'last_processed': datetime.now().isoformat()
                 },
                 # Batch processing status

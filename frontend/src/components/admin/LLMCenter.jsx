@@ -3893,16 +3893,55 @@ Errors: ${errorCount}`,
           </div>
           <div className="flex space-x-4">
             <button
-              onClick={() => {
-                // 🚀 PERFORMANCE FIX: Use React Query refetch instead of manual fetch
-                refetchLLMData()
-                fetchAutomationData() // Also refresh automation data
+              onClick={async () => {
+                // Process pending transactions through LLM mapping system
                 addNotification({
                   type: 'info',
-                  title: 'Refreshing Data',
-                  message: 'Fetching latest LLM Center data...',
+                  title: 'Processing Transactions',
+                  message: 'Running LLM mapping on pending transactions...',
                   timestamp: new Date()
                 })
+
+                try {
+                  const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_1'
+                  const response = await fetch(`${apiBaseUrl}/api/admin/llm-center/process-pending-transactions`, {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                      'Content-Type': 'application/json'
+                    }
+                  })
+
+                  const result = await response.json()
+
+                  if (result.success) {
+                    addNotification({
+                      type: 'success',
+                      title: 'Transactions Processed',
+                      message: `${result.mapped} transactions mapped, ${result.no_match} need manual review`,
+                      timestamp: new Date()
+                    })
+                  } else {
+                    addNotification({
+                      type: 'error',
+                      title: 'Processing Failed',
+                      message: result.error || 'Unknown error',
+                      timestamp: new Date()
+                    })
+                  }
+                } catch (error) {
+                  console.error('Error processing transactions:', error)
+                  addNotification({
+                    type: 'error',
+                    title: 'Processing Error',
+                    message: error.message || 'Failed to process transactions',
+                    timestamp: new Date()
+                  })
+                }
+
+                // Refresh data after processing
+                refetchLLMData()
+                fetchAutomationData()
               }}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-all flex items-center space-x-2"
             >
