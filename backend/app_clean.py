@@ -10804,7 +10804,7 @@ def admin_process_mapped_investments():
             AND t.ticker IS NOT NULL
             AND t.ticker != 'UNKNOWN'
             AND t.ticker != ''
-            AND (t.alpaca_order_id IS NULL OR t.alpaca_order_id = '')
+            AND (t.alpaca_order_id IS NULL OR t.alpaca_order_id = '' OR t.alpaca_order_id = 'null')
             ORDER BY t.created_at ASC
             LIMIT 100
         """)
@@ -11338,7 +11338,7 @@ def admin_investments_debug():
             AND t.ticker IS NOT NULL
             AND t.ticker != 'UNKNOWN'
             AND t.ticker != ''
-            AND (t.alpaca_order_id IS NULL OR t.alpaca_order_id = '')
+            AND (t.alpaca_order_id IS NULL OR t.alpaca_order_id = '' OR t.alpaca_order_id = 'null')
             ORDER BY t.created_at ASC
             LIMIT 100
         """)
@@ -11359,9 +11359,9 @@ def admin_investments_debug():
             elif ticker == '':
                 issues.append("ticker is empty string")
 
-            # Check alpaca_order_id
+            # Check alpaca_order_id - note: string "null" is treated as NULL
             order_id = txn_dict.get('alpaca_order_id')
-            if order_id and order_id != '':
+            if order_id and order_id != '' and order_id != 'null':
                 issues.append(f"alpaca_order_id already set: {order_id}")
 
             # Check if user exists
