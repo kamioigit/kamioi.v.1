@@ -19,18 +19,34 @@ class AlpacaService:
         # Set ALPACA_USE_SANDBOX=false in production to use live trading
         use_sandbox = os.getenv('ALPACA_USE_SANDBOX', 'true').lower() == 'true'
 
-        if use_sandbox:
-            self.base_url = "https://broker-api.sandbox.alpaca.markets"
-            self.data_url = "https://data.sandbox.alpaca.markets"
+        # Determine which API to use: Trading API (simple) or Broker API (multi-account)
+        # Default to Trading API for simplicity
+        use_broker_api = os.getenv('ALPACA_USE_BROKER_API', 'false').lower() == 'true'
+
+        if use_broker_api:
+            # Broker API - for fintech apps managing multiple customer accounts
+            if use_sandbox:
+                self.base_url = "https://broker-api.sandbox.alpaca.markets"
+            else:
+                self.base_url = "https://broker-api.alpaca.markets"
+            self.api_type = "broker"
         else:
-            self.base_url = "https://broker-api.alpaca.markets"
-            self.data_url = "https://data.alpaca.markets"
+            # Trading API - for direct trading (paper or live)
+            if use_sandbox:
+                self.base_url = "https://paper-api.alpaca.markets"
+            else:
+                self.base_url = "https://api.alpaca.markets"
+            self.api_type = "trading"
+
+        self.data_url = "https://data.alpaca.markets"
 
         self.api_key = os.getenv('ALPACA_API_KEY')
         self.api_secret = os.getenv('ALPACA_API_SECRET')
 
         if not self.api_key or not self.api_secret:
             print("WARNING: ALPACA_API_KEY and ALPACA_API_SECRET must be set in environment variables")
+        else:
+            print(f"Alpaca initialized: {self.api_type} API, sandbox={use_sandbox}")
 
         # Headers for API requests
         self.headers = {
@@ -127,24 +143,51 @@ class AlpacaService:
             prices[symbol] = self.get_stock_price(symbol)
         return prices
     
-    def get_accounts(self):
-        """Get all accounts"""
+    def get_account(self):
+        """Get account info (Trading API returns single account, Broker API returns list)"""
         try:
-            response = requests.get(f"{self.base_url}/v1/accounts", headers=self.headers, verify=False)
-            if response.status_code == 200:
-                return response.json()
+            if self.api_type == "trading":
+                # Trading API: single account at /v2/account
+                response = requests.get(f"{self.base_url}/v2/account", headers=self.headers, timeout=10)
+                if response.status_code == 200:
+                    account = response.json()
+                    print(f"Trading API account: {account.get('id')} - Status: {account.get('status')}")
+                    return account
+                else:
+                    print(f"Error getting account: {response.status_code} - {response.text}")
+                    return None
             else:
-                print(f"Error getting accounts: {response.status_code} - {response.text}")
-                return []
+                # Broker API: multiple accounts at /v1/accounts
+                response = requests.get(f"{self.base_url}/v1/accounts", headers=self.headers, verify=False, timeout=10)
+                if response.status_code == 200:
+                    accounts = response.json()
+                    if accounts:
+                        return accounts[0]  # Return first account for compatibility
+                    return None
+                else:
+                    print(f"Error getting accounts: {response.status_code} - {response.text}")
+                    return None
         except Exception as e:
-            print(f"Exception getting accounts: {e}")
-            return []
+            print(f"Exception getting account: {e}")
+            return None
+
+    def get_accounts(self):
+        """Get all accounts (for backward compatibility)"""
+        account = self.get_account()
+        if account:
+            return [account]  # Wrap single account in list
+        return []
     
     def create_account(self, account_data):
-        """Create a new trading account"""
+        """Create a new trading account (only for Broker API)"""
+        if self.api_type == "trading":
+            # Trading API doesn't support creating accounts - use existing account
+            print("Trading API: Account creation not supported. Use existing account.")
+            return self.get_account()
+
         try:
-            response = requests.post(f"{self.base_url}/v1/accounts", headers=self.headers, json=account_data, verify=False)
-            if response.status_code == 200:
+            response = requests.post(f"{self.base_url}/v1/accounts", headers=self.headers, json=account_data, verify=False, timeout=30)
+            if response.status_code in [200, 201]:
                 return response.json()
             else:
                 print(f"Error creating account: {response.status_code} - {response.text}")
@@ -153,10 +196,16 @@ class AlpacaService:
             print(f"Exception creating account: {e}")
             return None
     
-    def get_positions(self, account_id):
-        """Get positions for a specific account"""
+    def get_positions(self, account_id=None):
+        """Get positions for the account"""
         try:
-            response = requests.get(f"{self.base_url}/v1/trading/accounts/{account_id}/positions", headers=self.headers, verify=False)
+            if self.api_type == "trading":
+                # Trading API: positions at /v2/positions (no account_id needed)
+                response = requests.get(f"{self.base_url}/v2/positions", headers=self.headers, timeout=10)
+            else:
+                # Broker API: positions per account
+                response = requests.get(f"{self.base_url}/v1/trading/accounts/{account_id}/positions", headers=self.headers, verify=False, timeout=10)
+
             if response.status_code == 200:
                 return response.json()
             else:
@@ -166,64 +215,80 @@ class AlpacaService:
             print(f"Exception getting positions: {e}")
             return []
     
-    def submit_order(self, account_id, symbol, qty, side="buy", order_type="market", time_in_force="day"):
+    def submit_order(self, account_id=None, symbol=None, qty=None, side="buy", order_type="market", time_in_force="day", notional=None):
         """
         Submit a stock order
-        
+
         Args:
-            account_id (str): Account ID
+            account_id (str): Account ID (only needed for Broker API)
             symbol (str): Stock symbol (e.g., 'DIS')
             qty (float): Quantity to buy (fractional shares supported)
             side (str): 'buy' or 'sell'
             order_type (str): 'market' or 'limit'
             time_in_force (str): 'day', 'gtc', etc.
+            notional (float): Dollar amount for fractional shares (alternative to qty)
         """
         try:
             order_data = {
                 "symbol": symbol,
-                "qty": str(qty),  # Alpaca expects string for fractional shares
                 "side": side,
                 "type": order_type,
                 "time_in_force": time_in_force
             }
-            
-            print(f"Submitting order for account {account_id}: {order_data}")
-            
-            response = requests.post(
-                f"{self.base_url}/v1/trading/accounts/{account_id}/orders",
-                headers=self.headers,
-                json=order_data,
-                verify=False
-            )
-            
-            if response.status_code == 200:
+
+            # Use notional (dollar amount) or qty (shares)
+            if notional is not None:
+                order_data["notional"] = str(notional)  # Dollar amount for fractional shares
+            elif qty is not None:
+                order_data["qty"] = str(qty)  # Number of shares
+
+            print(f"Submitting {self.api_type} order: {order_data}")
+
+            if self.api_type == "trading":
+                # Trading API: orders at /v2/orders (no account_id needed)
+                response = requests.post(
+                    f"{self.base_url}/v2/orders",
+                    headers=self.headers,
+                    json=order_data,
+                    timeout=30
+                )
+            else:
+                # Broker API: orders per account
+                response = requests.post(
+                    f"{self.base_url}/v1/trading/accounts/{account_id}/orders",
+                    headers=self.headers,
+                    json=order_data,
+                    verify=False,
+                    timeout=30
+                )
+
+            if response.status_code in [200, 201]:
                 order_result = response.json()
                 print(f"Order submitted successfully: {order_result}")
                 return order_result
             else:
                 print(f"Error submitting order: {response.status_code} - {response.text}")
                 return None
-                
+
         except Exception as e:
             print(f"Exception submitting order: {e}")
             return None
     
-    def buy_fractional_shares(self, account_id, symbol, dollar_amount):
+    def buy_fractional_shares(self, account_id=None, symbol=None, dollar_amount=None):
         """
         Buy fractional shares for a specific dollar amount
-        
+
         Args:
-            account_id (str): Account ID
+            account_id (str): Account ID (only needed for Broker API)
             symbol (str): Stock symbol (e.g., 'DIS')
             dollar_amount (float): Dollar amount to invest (e.g., 1.00)
         """
         try:
-            # For fractional shares, we use the dollar amount as quantity
-            # Alpaca supports fractional shares with decimal quantities
+            # Use 'notional' parameter for dollar-based orders (correct way for fractional shares)
             return self.submit_order(
                 account_id=account_id,
                 symbol=symbol,
-                qty=dollar_amount,  # This will be treated as dollar amount for fractional shares
+                notional=dollar_amount,  # Use notional for dollar amount
                 side="buy",
                 order_type="market",
                 time_in_force="day"
@@ -235,13 +300,15 @@ class AlpacaService:
     def test_connection(self):
         """Test the Alpaca connection"""
         try:
-            accounts = self.get_accounts()
-            if accounts is not None:
+            account = self.get_account()
+            if account is not None:
                 print("Alpaca connection successful!")
-                print(f"Found {len(accounts)} accounts")
-                for account in accounts:
-                    print(f"Account ID: {account.get('id')}")
-                    print(f"Status: {account.get('status')}")
+                print(f"API Type: {self.api_type}")
+                print(f"Account ID: {account.get('id')}")
+                print(f"Status: {account.get('status')}")
+                if self.api_type == "trading":
+                    print(f"Buying Power: ${account.get('buying_power', 'N/A')}")
+                    print(f"Cash: ${account.get('cash', 'N/A')}")
                 return True
             else:
                 print("Alpaca connection failed!")
