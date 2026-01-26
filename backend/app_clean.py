@@ -2346,6 +2346,89 @@ def admin_llm_process_pending_transactions():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/admin/llm-center/transaction-stats', methods=['GET'])
+def admin_llm_transaction_stats():
+    """
+    Get ACTUAL transaction processing statistics - NOT mapping statistics.
+    This shows the real state of transaction processing through the LLM system.
+    """
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn)
+
+        # Get transaction counts by status
+        cursor.execute("""
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'pending' AND (ticker IS NULL OR ticker = '')) as pending,
+                COUNT(*) FILTER (WHERE status = 'pending-mapping') as needs_review,
+                COUNT(*) FILTER (WHERE status = 'mapped' AND ticker IS NOT NULL AND ticker != '') as mapped,
+                COUNT(*) FILTER (WHERE status IN ('invested', 'completed')) as invested,
+                COUNT(*) as total
+            FROM transactions
+        """)
+        stats = cursor.fetchone()
+
+        pending = stats['pending'] or 0
+        needs_review = stats['needs_review'] or 0
+        mapped = stats['mapped'] or 0
+        invested = stats['invested'] or 0
+        total = stats['total'] or 0
+
+        # Get recent transactions for display
+        cursor.execute("""
+            SELECT id, merchant, category, ticker, status, amount, round_up, date
+            FROM transactions
+            WHERE status = 'pending' AND (ticker IS NULL OR ticker = '')
+            ORDER BY id DESC
+            LIMIT 20
+        """)
+        pending_transactions = [dict(row) for row in cursor.fetchall()]
+
+        # Get recently mapped transactions
+        cursor.execute("""
+            SELECT id, merchant, category, ticker, status, amount, round_up, date
+            FROM transactions
+            WHERE status = 'mapped' AND ticker IS NOT NULL
+            ORDER BY id DESC
+            LIMIT 10
+        """)
+        recent_mapped = [dict(row) for row in cursor.fetchall()]
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'stats': {
+                    'pending': pending,           # Needs LLM processing
+                    'needs_review': needs_review, # No mapping found
+                    'mapped': mapped,             # Successfully mapped to ticker
+                    'invested': invested,         # Completed investment
+                    'total': total
+                },
+                'queue': {
+                    'size': pending,
+                    'transactions': pending_transactions
+                },
+                'recent_mapped': recent_mapped,
+                'processing': {
+                    'is_active': pending > 0,
+                    'queue_size': pending,
+                    'ready_for_investment': mapped
+                }
+            }
+        })
+
+    except Exception as e:
+        print(f"Error getting transaction stats: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # Analytics endpoints
 @app.route('/api/admin/settings/analytics', methods=['GET'])
 def admin_analytics():

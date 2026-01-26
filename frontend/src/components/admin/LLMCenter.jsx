@@ -308,7 +308,7 @@ const LLMCenter = () => {
   // Performance optimization: Debounce search
   const [searchTimeout, setSearchTimeout] = useState(null)
 
-  // Fetch automation data - NOW USES CONSOLIDATED ENDPOINT (1 call instead of 6)
+  // Fetch automation data - NOW FETCHES ACTUAL TRANSACTION STATS
   const fetchAutomationData = async () => {
     try {
       const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'
@@ -317,43 +317,70 @@ const LLMCenter = () => {
         'Content-Type': 'application/json'
       }
 
-      // OPTIMIZED: Single consolidated endpoint instead of 6 separate calls
-      const response = await fetch(buildApiUrl('/api/admin/llm-center/automation/status'), { headers })
+      // Fetch ACTUAL transaction processing stats (not mapping stats)
+      const txStatsResponse = await fetch(buildApiUrl('/api/admin/llm-center/transaction-stats'), { headers })
 
-      if (response.ok) {
-        const result = await response.json()
-        if (result.success && result.data) {
-          const data = result.data
+      if (txStatsResponse.ok) {
+        const txResult = await txStatsResponse.json()
+        if (txResult.success && txResult.data) {
+          const txData = txResult.data
+          const stats = txData.stats || {}
+          const processing = txData.processing || {}
 
-          // Update all automation state from single response
-          setAutomationState(prev => ({
-            ...prev,
-            realTimeProcessing: data.realtime || {},
-            batchProcessing: data.batch || {},
-            continuousLearning: data.learning || {},
-            merchantDatabase: data.merchants || {},
-            confidenceThresholds: data.thresholds || {},
-            multiModelVoting: data.multiModel || {}
-          }))
-
-          // Update real-time status
-          const realtime = data.realtime || {}
+          // Update real-time status with ACTUAL transaction data
           setRealTimeStatus({
-            isConnected: realtime.status === 'active',
-            processingQueue: realtime.queue_size || 0,
-            mappedPending: data.batch?.pending_count || 0,
-            investmentReady: data.batch?.processed_count || 0,
-            totalProcessed: data.merchants?.total_merchants || 0,
-            activeProcesses: realtime.status === 'active' ? 1 : 0,
-            throughput: realtime.processing_rate || 0
+            isConnected: stats.pending > 0,
+            processingQueue: stats.pending || 0,           // Pending transactions
+            mappedPending: stats.mapped || 0,              // Mapped transactions
+            investmentReady: stats.mapped || 0,            // Ready for investment
+            totalProcessed: stats.mapped + stats.invested, // Actually processed
+            needsReview: stats.needs_review || 0,          // No mapping found
+            activeProcesses: stats.pending > 0 ? 1 : 0,
+            throughput: 0,  // Will show actual rate during processing
+            pendingTransactions: txData.queue?.transactions || []
           })
 
-          console.log('🔄 Updated automation data from consolidated endpoint')
+          // Update automation state with real transaction data
+          setAutomationState(prev => ({
+            ...prev,
+            realTimeProcessing: {
+              enabled: stats.pending > 0,
+              activeConnections: stats.pending > 0 ? 1 : 0,
+              transactionsProcessedToday: stats.mapped || 0,
+              averageProcessingTime: 250,
+              lastProcessed: null
+            },
+            batchProcessing: {
+              enabled: stats.pending > 10,
+              batchSize: Math.min(50, stats.pending || 0),
+              parallelBatches: stats.pending > 20 ? 2 : 1,
+              queueLength: stats.pending || 0,
+              processingRate: 0
+            }
+          }))
+
+          console.log('🔄 Updated with REAL transaction stats:', stats)
+        }
+      }
+
+      // Also fetch mapping database stats (separate from transaction processing)
+      const automationResponse = await fetch(buildApiUrl('/api/admin/llm-center/automation/status'), { headers })
+      if (automationResponse.ok) {
+        const autoResult = await automationResponse.json()
+        if (autoResult.success && autoResult.data) {
+          const data = autoResult.data
+          // Only update merchant database info (not processing stats)
+          setAutomationState(prev => ({
+            ...prev,
+            merchantDatabase: data.merchants || prev.merchantDatabase,
+            confidenceThresholds: data.thresholds || prev.confidenceThresholds,
+            multiModelVoting: data.multiModel || prev.multiModelVoting,
+            continuousLearning: data.learning || prev.continuousLearning
+          }))
         }
       }
     } catch (error) {
       console.error('Error fetching automation data:', error)
-      // On error, calculate from real data (using state)
     }
   }
   
@@ -2902,28 +2929,28 @@ Errors: ${errorCount}`,
               />
               <div>
                 <h3 className="text-white font-semibold">
-                  {realTimeStatus.isConnected ? 'Real-Time Processing Active' : 'System Idle - No Pending Transactions'}
+                  {realTimeStatus.processingQueue > 0 ? 'Transactions Pending Processing' : 'All Transactions Processed'}
                 </h3>
                 <p className="text-gray-400 text-sm">
-                  {realTimeStatus.isConnected 
-                    ? `Processing ${(realTimeStatus.throughput || 0).toLocaleString()} transactions/sec | Queue: ${(realTimeStatus.processingQueue || 0).toLocaleString()} | Active Processes: ${realTimeStatus.activeProcesses || 0}`
-                    : `No transactions in queue. System will activate automatically when new transactions arrive. Total Processed: ${(realTimeStatus.totalProcessed || 0).toLocaleString()} transactions`
+                  {realTimeStatus.processingQueue > 0
+                    ? `${realTimeStatus.processingQueue} pending | ${realTimeStatus.mappedPending || 0} mapped | ${realTimeStatus.needsReview || 0} need review — Click "Force Refresh" to process`
+                    : `No pending transactions. ${realTimeStatus.totalProcessed || 0} transactions processed. System ready for new transactions.`
                   }
                 </p>
               </div>
             </div>
             <div className="flex items-center space-x-6 text-sm">
               <div className="text-center">
-                <div className="text-green-400 font-bold">{parseFloat(automationState.merchantDatabase?.cacheHitRate || 0).toFixed(2)}%</div>
-                <div className="text-gray-400">Cache Hit</div>
+                <div className="text-yellow-400 font-bold">{realTimeStatus.processingQueue || 0}</div>
+                <div className="text-gray-400">Pending</div>
               </div>
               <div className="text-center">
-                <div className="text-blue-400 font-bold">{parseFloat(automationState.multiModelVoting?.consensusRate || 0).toFixed(2)}%</div>
-                <div className="text-gray-400">Consensus</div>
+                <div className="text-green-400 font-bold">{realTimeStatus.mappedPending || 0}</div>
+                <div className="text-gray-400">Mapped</div>
               </div>
               <div className="text-center">
-                <div className="text-purple-400 font-bold">+{parseFloat(automationState.continuousLearning?.accuracyImprovement || 0).toFixed(2)}%</div>
-                <div className="text-gray-400">Accuracy</div>
+                <div className="text-red-400 font-bold">{realTimeStatus.needsReview || 0}</div>
+                <div className="text-gray-400">Need Review</div>
               </div>
             </div>
           </div>
@@ -2931,9 +2958,9 @@ Errors: ${errorCount}`,
 
         <div className="glass-card p-6 rounded-lg shadow-xl border border-blue-500/20">
           <div className="mb-6">
-            <h2 className="text-2xl font-bold text-white mb-2">Enhanced LLM Mapping Flow System</h2>
+            <h2 className="text-2xl font-bold text-white mb-2">Transaction Processing Pipeline</h2>
             <p className="text-gray-400">
-              Fully automated, intelligent transaction mapping with real-time processing, continuous learning, and multi-model consensus
+              Processes pending transactions → Looks up merchant in LLM mapping database → Assigns ticker symbol → Ready for investment
             </p>
           </div>
 
