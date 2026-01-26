@@ -742,6 +742,7 @@ def initialize_database():
             ("ssn_last4", "VARCHAR(4)"),
             ("subscription_plan_id", "INTEGER"),
             ("billing_cycle", "VARCHAR(20)"),
+            ("alpaca_account_id", "VARCHAR(100)"),
         ]
 
         for col_name, col_type in profile_columns:
@@ -10781,8 +10782,10 @@ def admin_process_mapped_investments():
         cursor = get_db_cursor(conn, dict_cursor=True)
 
         # Find all mapped transactions with tickers that haven't been processed
+        # Include user's alpaca_account_id for Broker API
         cursor.execute("""
-            SELECT t.id, t.user_id, t.ticker, t.round_up, t.merchant, t.amount, u.email
+            SELECT t.id, t.user_id, t.ticker, t.round_up, t.merchant, t.amount, u.email, u.alpaca_account_id,
+                   u.first_name, u.last_name, u.phone, u.address, u.city, u.state, u.zip_code, u.dob, u.ssn_last4
             FROM transactions t
             JOIN users u ON t.user_id = u.id
             WHERE LOWER(t.status) = 'mapped'
@@ -10803,19 +10806,14 @@ def admin_process_mapped_investments():
             'details': []
         }
 
-        # Get or create Alpaca account for the user (in sandbox, we use a test account)
-        # In production, each user would have their own Alpaca account
-        alpaca_accounts = alpaca.get_accounts()
-        if not alpaca_accounts:
+        if not mapped_transactions:
             cursor.close()
             conn.close()
             return jsonify({
-                'success': False,
-                'error': 'No Alpaca accounts available. Please configure Alpaca API credentials.'
-            }), 500
-
-        # Use the first available account for demo purposes
-        demo_account_id = alpaca_accounts[0].get('id') if alpaca_accounts else None
+                'success': True,
+                'message': 'No mapped transactions to process',
+                'results': results
+            })
 
         for txn in mapped_transactions:
             txn_id = txn['id']
@@ -10825,13 +10823,58 @@ def admin_process_mapped_investments():
             merchant = txn['merchant']
             amount = float(txn['amount']) if txn['amount'] else 0
             user_email = txn['email']
+            user_alpaca_account_id = txn.get('alpaca_account_id')
+
+            # For Broker API: Use user's specific account or create one
+            if alpaca.api_type == "broker":
+                if not user_alpaca_account_id:
+                    # Try to create an Alpaca account for this user
+                    user_data = {
+                        'email': user_email,
+                        'first_name': txn.get('first_name') or 'Test',
+                        'last_name': txn.get('last_name') or 'User',
+                        'phone': txn.get('phone'),
+                        'address': txn.get('address'),
+                        'city': txn.get('city'),
+                        'state': txn.get('state'),
+                        'zip_code': txn.get('zip_code'),
+                        'dob': str(txn.get('dob')) if txn.get('dob') else '1990-01-01',
+                        'ssn_last4': txn.get('ssn_last4') or '1234'
+                    }
+                    new_account = alpaca.create_customer_account(user_data)
+                    if new_account and new_account.get('id'):
+                        user_alpaca_account_id = new_account['id']
+                        # Save to user record
+                        cursor.execute("UPDATE users SET alpaca_account_id = %s WHERE id = %s",
+                                     (user_alpaca_account_id, user_id))
+                    else:
+                        results['skipped'] += 1
+                        results['details'].append({
+                            'transaction_id': txn_id,
+                            'user_email': user_email,
+                            'status': 'skipped',
+                            'error': 'Failed to create Alpaca account for user'
+                        })
+                        continue
+                account_id_to_use = user_alpaca_account_id
+            else:
+                # For Trading API: Use the single account
+                account = alpaca.get_account()
+                if not account:
+                    cursor.close()
+                    conn.close()
+                    return jsonify({
+                        'success': False,
+                        'error': 'No Alpaca account available. Check API credentials.'
+                    }), 500
+                account_id_to_use = account.get('id')
 
             results['processed'] += 1
 
             try:
-                # Execute the trade via Alpaca
+                # Execute the trade via Alpaca using user's specific account
                 order_result = alpaca.buy_fractional_shares(
-                    account_id=demo_account_id,
+                    account_id=account_id_to_use,
                     symbol=ticker,
                     dollar_amount=round_up_amount
                 )
@@ -10949,9 +10992,10 @@ def admin_process_single_investment():
         conn = get_db_connection()
         cursor = get_db_cursor(conn, dict_cursor=True)
 
-        # Get the specific transaction
+        # Get the specific transaction with user's Alpaca account info
         cursor.execute("""
-            SELECT t.id, t.user_id, t.ticker, t.round_up, t.merchant, t.amount, u.email
+            SELECT t.id, t.user_id, t.ticker, t.round_up, t.merchant, t.amount, u.email, u.alpaca_account_id,
+                   u.first_name, u.last_name, u.phone, u.address, u.city, u.state, u.zip_code, u.dob, u.ssn_last4
             FROM transactions t
             JOIN users u ON t.user_id = u.id
             WHERE t.id = %s
@@ -10967,26 +11011,53 @@ def admin_process_single_investment():
             conn.close()
             return jsonify({'success': False, 'error': 'Transaction not found or not in mapped status'}), 404
 
-        # Get Alpaca account
-        alpaca_accounts = alpaca.get_accounts()
-        if not alpaca_accounts:
-            cursor.close()
-            conn.close()
-            return jsonify({
-                'success': False,
-                'error': 'No Alpaca accounts available. Please configure Alpaca API credentials.'
-            }), 500
-
-        demo_account_id = alpaca_accounts[0].get('id')
-
         txn_id = txn['id']
         user_id = txn['user_id']
         ticker = txn['ticker']
         round_up_amount = float(txn['round_up']) if txn['round_up'] else 1.0
+        user_alpaca_account_id = txn.get('alpaca_account_id')
+
+        # Determine which account to use based on API type
+        if alpaca.api_type == "broker":
+            if not user_alpaca_account_id:
+                # Create an Alpaca account for this user
+                user_data = {
+                    'email': txn['email'],
+                    'first_name': txn.get('first_name') or 'Test',
+                    'last_name': txn.get('last_name') or 'User',
+                    'phone': txn.get('phone'),
+                    'address': txn.get('address'),
+                    'city': txn.get('city'),
+                    'state': txn.get('state'),
+                    'zip_code': txn.get('zip_code'),
+                    'dob': str(txn.get('dob')) if txn.get('dob') else '1990-01-01',
+                    'ssn_last4': txn.get('ssn_last4') or '1234'
+                }
+                new_account = alpaca.create_customer_account(user_data)
+                if new_account and new_account.get('id'):
+                    user_alpaca_account_id = new_account['id']
+                    cursor.execute("UPDATE users SET alpaca_account_id = %s WHERE id = %s",
+                                 (user_alpaca_account_id, user_id))
+                else:
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'success': False, 'error': 'Failed to create Alpaca account for user'}), 500
+            account_id_to_use = user_alpaca_account_id
+        else:
+            # For Trading API: Use the single account
+            account = alpaca.get_account()
+            if not account:
+                cursor.close()
+                conn.close()
+                return jsonify({
+                    'success': False,
+                    'error': 'No Alpaca account available. Check API credentials.'
+                }), 500
+            account_id_to_use = account.get('id')
 
         # Execute the trade via Alpaca
         order_result = alpaca.buy_fractional_shares(
-            account_id=demo_account_id,
+            account_id=account_id_to_use,
             symbol=ticker,
             dollar_amount=round_up_amount
         )
@@ -11042,6 +11113,177 @@ def admin_process_single_investment():
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': 'Alpaca order failed'}), 500
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/alpaca/create-account/<int:user_id>', methods=['POST'])
+def admin_create_alpaca_account(user_id):
+    """
+    Create an Alpaca brokerage account for a specific user.
+    This is for Broker API mode - creates customer accounts.
+    """
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        from alpaca_service import AlpacaService
+        alpaca = AlpacaService()
+
+        if alpaca.api_type != "broker":
+            return jsonify({
+                'success': False,
+                'error': 'Alpaca account creation requires Broker API. Set ALPACA_USE_BROKER_API=true'
+            }), 400
+
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn, dict_cursor=True)
+
+        # Get user data
+        cursor.execute("""
+            SELECT id, email, first_name, last_name, phone, address, city, state, zip_code, dob, ssn_last4, alpaca_account_id
+            FROM users WHERE id = %s
+        """, (user_id,))
+        user = cursor.fetchone()
+
+        if not user:
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+
+        # Check if user already has an Alpaca account
+        if user.get('alpaca_account_id'):
+            cursor.close()
+            conn.close()
+            return jsonify({
+                'success': True,
+                'message': 'User already has an Alpaca account',
+                'alpaca_account_id': user['alpaca_account_id']
+            })
+
+        # Create Alpaca account with user data
+        user_data = {
+            'email': user['email'],
+            'first_name': user.get('first_name') or 'Test',
+            'last_name': user.get('last_name') or 'User',
+            'phone': user.get('phone'),
+            'address': user.get('address'),
+            'city': user.get('city'),
+            'state': user.get('state'),
+            'zip_code': user.get('zip_code'),
+            'dob': str(user.get('dob')) if user.get('dob') else '1990-01-01',
+            'ssn_last4': user.get('ssn_last4') or '1234'
+        }
+
+        alpaca_account = alpaca.create_customer_account(user_data)
+
+        if alpaca_account and alpaca_account.get('id'):
+            # Save the Alpaca account ID to the user record
+            cursor.execute("""
+                UPDATE users SET alpaca_account_id = %s WHERE id = %s
+            """, (alpaca_account['id'], user_id))
+            conn.commit()
+
+            cursor.close()
+            conn.close()
+
+            return jsonify({
+                'success': True,
+                'message': 'Alpaca account created successfully',
+                'alpaca_account_id': alpaca_account['id'],
+                'account_status': alpaca_account.get('status', 'PENDING')
+            })
+        else:
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'error': 'Failed to create Alpaca account'}), 500
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/alpaca/create-accounts-bulk', methods=['POST'])
+def admin_create_alpaca_accounts_bulk():
+    """
+    Create Alpaca accounts for all users who don't have one yet.
+    """
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        from alpaca_service import AlpacaService
+        alpaca = AlpacaService()
+
+        if alpaca.api_type != "broker":
+            return jsonify({
+                'success': False,
+                'error': 'Alpaca account creation requires Broker API. Set ALPACA_USE_BROKER_API=true'
+            }), 400
+
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn, dict_cursor=True)
+
+        # Get all users without Alpaca accounts
+        cursor.execute("""
+            SELECT id, email, first_name, last_name, phone, address, city, state, zip_code, dob, ssn_last4
+            FROM users
+            WHERE alpaca_account_id IS NULL OR alpaca_account_id = ''
+        """)
+        users = cursor.fetchall()
+
+        results = {'created': 0, 'failed': 0, 'details': []}
+
+        for user in users:
+            user_data = {
+                'email': user['email'],
+                'first_name': user.get('first_name') or 'Test',
+                'last_name': user.get('last_name') or 'User',
+                'phone': user.get('phone'),
+                'address': user.get('address'),
+                'city': user.get('city'),
+                'state': user.get('state'),
+                'zip_code': user.get('zip_code'),
+                'dob': str(user.get('dob')) if user.get('dob') else '1990-01-01',
+                'ssn_last4': user.get('ssn_last4') or '1234'
+            }
+
+            alpaca_account = alpaca.create_customer_account(user_data)
+
+            if alpaca_account and alpaca_account.get('id'):
+                cursor.execute("""
+                    UPDATE users SET alpaca_account_id = %s WHERE id = %s
+                """, (alpaca_account['id'], user['id']))
+                results['created'] += 1
+                results['details'].append({
+                    'user_id': user['id'],
+                    'email': user['email'],
+                    'alpaca_account_id': alpaca_account['id'],
+                    'status': 'created'
+                })
+            else:
+                results['failed'] += 1
+                results['details'].append({
+                    'user_id': user['id'],
+                    'email': user['email'],
+                    'status': 'failed'
+                })
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f"Created {results['created']} accounts, {results['failed']} failed",
+            'results': results
+        })
 
     except Exception as e:
         import traceback

@@ -195,6 +195,136 @@ class AlpacaService:
         except Exception as e:
             print(f"Exception creating account: {e}")
             return None
+
+    def create_customer_account(self, user_data):
+        """
+        Create an Alpaca brokerage account for a customer (Broker API only).
+
+        Args:
+            user_data (dict): User information including:
+                - email (required)
+                - first_name (required)
+                - last_name (required)
+                - phone (optional)
+                - dob (date of birth, format: YYYY-MM-DD)
+                - ssn_last4 (last 4 of SSN - for sandbox we generate full)
+                - address, city, state, zip_code (optional)
+
+        Returns:
+            dict: Alpaca account object with 'id' field, or None on failure
+        """
+        if self.api_type != "broker":
+            print("Customer account creation only supported with Broker API")
+            return None
+
+        try:
+            email = user_data.get('email', '')
+            first_name = user_data.get('first_name', 'Test')
+            last_name = user_data.get('last_name', 'User')
+            phone = user_data.get('phone', '+1-555-555-5555')
+            dob = user_data.get('dob', '1990-01-01')
+            ssn_last4 = user_data.get('ssn_last4', '1234')
+
+            # For sandbox, generate a test SSN (666-xx-xxxx is reserved for testing)
+            # In production, you'd need the real full SSN from the user
+            test_ssn = f"666-{ssn_last4[:2] if len(ssn_last4) >= 2 else '12'}-{ssn_last4 if len(ssn_last4) == 4 else '1234'}"
+
+            # Address info
+            street = user_data.get('address', '123 Main Street')
+            city = user_data.get('city', 'New York')
+            state = user_data.get('state', 'NY')
+            postal_code = user_data.get('zip_code', '10001')
+
+            # Build the account creation payload for Alpaca Broker API
+            account_payload = {
+                "contact": {
+                    "email_address": email,
+                    "phone_number": phone.replace('-', '').replace(' ', '') if phone else "5555555555",
+                    "street_address": [street],
+                    "city": city,
+                    "state": state if len(state) == 2 else "NY",
+                    "postal_code": postal_code,
+                    "country": "USA"
+                },
+                "identity": {
+                    "given_name": first_name,
+                    "family_name": last_name,
+                    "date_of_birth": str(dob) if dob else "1990-01-01",
+                    "tax_id": test_ssn,
+                    "tax_id_type": "USA_SSN",
+                    "country_of_citizenship": "USA",
+                    "country_of_birth": "USA",
+                    "country_of_tax_residence": "USA",
+                    "funding_source": ["employment_income"]
+                },
+                "disclosures": {
+                    "is_control_person": False,
+                    "is_affiliated_exchange_or_finra": False,
+                    "is_politically_exposed": False,
+                    "immediate_family_exposed": False
+                },
+                "agreements": [
+                    {
+                        "agreement": "margin_agreement",
+                        "signed_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "ip_address": "127.0.0.1"
+                    },
+                    {
+                        "agreement": "account_agreement",
+                        "signed_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "ip_address": "127.0.0.1"
+                    },
+                    {
+                        "agreement": "customer_agreement",
+                        "signed_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "ip_address": "127.0.0.1"
+                    }
+                ]
+            }
+
+            print(f"Creating Alpaca account for: {email}")
+            response = requests.post(
+                f"{self.base_url}/v1/accounts",
+                headers=self.headers,
+                json=account_payload,
+                verify=False,
+                timeout=30
+            )
+
+            if response.status_code in [200, 201]:
+                account = response.json()
+                print(f"Alpaca account created successfully: {account.get('id')} - Status: {account.get('status')}")
+                return account
+            else:
+                print(f"Error creating Alpaca account: {response.status_code} - {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"Exception creating customer account: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def get_account_by_id(self, account_id):
+        """Get a specific account by ID (Broker API)"""
+        if self.api_type != "broker":
+            return self.get_account()
+
+        try:
+            response = requests.get(
+                f"{self.base_url}/v1/accounts/{account_id}",
+                headers=self.headers,
+                verify=False,
+                timeout=10
+            )
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"Error getting account {account_id}: {response.status_code} - {response.text}")
+                return None
+        except Exception as e:
+            print(f"Exception getting account: {e}")
+            return None
     
     def get_positions(self, account_id=None):
         """Get positions for the account"""
