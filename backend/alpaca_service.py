@@ -48,12 +48,24 @@ class AlpacaService:
         else:
             print(f"Alpaca initialized: {self.api_type} API, sandbox={use_sandbox}")
 
-        # Headers for API requests
-        self.headers = {
-            "APCA-API-KEY-ID": self.api_key,
-            "APCA-API-SECRET-KEY": self.api_secret,
-            "Content-Type": "application/json"
-        }
+        # Headers for API requests - different auth methods for Trading vs Broker API
+        if self.api_type == "broker":
+            # Broker API uses HTTP Basic Authentication
+            import base64
+            credentials = f"{self.api_key}:{self.api_secret}"
+            encoded_credentials = base64.b64encode(credentials.encode()).decode()
+            self.headers = {
+                "Authorization": f"Basic {encoded_credentials}",
+                "Content-Type": "application/json"
+            }
+            print(f"Broker API: Using Basic Auth")
+        else:
+            # Trading API uses custom headers
+            self.headers = {
+                "APCA-API-KEY-ID": self.api_key,
+                "APCA-API-SECRET-KEY": self.api_secret,
+                "Content-Type": "application/json"
+            }
 
     def get_stock_price(self, symbol):
         """
