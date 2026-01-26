@@ -10781,6 +10781,18 @@ def admin_process_mapped_investments():
         conn = get_db_connection()
         cursor = get_db_cursor(conn, dict_cursor=True)
 
+        # DEBUG: Log what mapped transactions exist before filtering
+        cursor.execute("""
+            SELECT t.id, t.status, t.ticker, t.alpaca_order_id, t.user_id
+            FROM transactions t
+            WHERE LOWER(t.status) = 'mapped'
+        """)
+        debug_mapped = cursor.fetchall()
+        print(f"[PROCESS DEBUG] Found {len(debug_mapped)} mapped transactions in DB:")
+        for dm in debug_mapped:
+            dm_dict = dict(dm)
+            print(f"  ID={dm_dict['id']}, ticker='{dm_dict['ticker']}', alpaca_order_id='{dm_dict['alpaca_order_id']}', user_id={dm_dict['user_id']}")
+
         # Find all mapped transactions with tickers that haven't been processed
         # Include user's alpaca_account_id for Broker API
         cursor.execute("""
@@ -10797,6 +10809,7 @@ def admin_process_mapped_investments():
             LIMIT 100
         """)
         mapped_transactions = cursor.fetchall()
+        print(f"[PROCESS DEBUG] After filtering: {len(mapped_transactions)} transactions ready for processing")
 
         results = {
             'processed': 0,
@@ -11302,38 +11315,68 @@ def admin_investments_debug():
         conn = get_db_connection()
         cursor = get_db_cursor(conn, dict_cursor=True)
 
-        # Get all transactions with their status and ticker info
-        cursor.execute("""
-            SELECT t.id, t.status, t.ticker, t.round_up, t.alpaca_order_id, t.user_id,
-                   (SELECT COUNT(*) FROM users WHERE id = t.user_id) as user_exists
-            FROM transactions t
-            ORDER BY t.id DESC
-            LIMIT 20
-        """)
-        all_transactions = cursor.fetchall()
-
         # Count by status (case sensitive)
         cursor.execute("""
             SELECT status, COUNT(*) as count FROM transactions GROUP BY status
         """)
         status_counts = cursor.fetchall()
 
-        # Check specifically for mapped transactions with valid tickers
+        # Get all mapped transactions with detailed info
         cursor.execute("""
-            SELECT t.id, t.status, t.ticker, t.alpaca_order_id, t.user_id
+            SELECT t.id, t.status, t.ticker, t.round_up, t.alpaca_order_id, t.user_id, t.merchant
             FROM transactions t
             WHERE LOWER(t.status) = 'mapped'
         """)
         mapped_transactions = cursor.fetchall()
 
-        # Check which mapped transactions have matching users
+        # Run the EXACT query from process_mapped_investments to see what it returns
         cursor.execute("""
-            SELECT t.id, t.status, t.ticker, t.user_id, u.id as matched_user_id
+            SELECT t.id, t.user_id, t.ticker, t.round_up, t.merchant, t.amount, u.email, u.alpaca_account_id
             FROM transactions t
-            LEFT JOIN users u ON t.user_id = u.id
+            JOIN users u ON t.user_id = u.id
             WHERE LOWER(t.status) = 'mapped'
+            AND t.ticker IS NOT NULL
+            AND t.ticker != 'UNKNOWN'
+            AND t.ticker != ''
+            AND (t.alpaca_order_id IS NULL OR t.alpaca_order_id = '')
+            ORDER BY t.created_at ASC
+            LIMIT 100
         """)
-        mapped_with_users = cursor.fetchall()
+        processable_transactions = cursor.fetchall()
+
+        # Analyze each mapped transaction to see WHY it might be excluded
+        analysis = []
+        for txn in mapped_transactions:
+            txn_dict = dict(txn)
+            issues = []
+
+            # Check ticker
+            ticker = txn_dict.get('ticker')
+            if ticker is None:
+                issues.append("ticker is NULL")
+            elif ticker == 'UNKNOWN':
+                issues.append("ticker is 'UNKNOWN'")
+            elif ticker == '':
+                issues.append("ticker is empty string")
+
+            # Check alpaca_order_id
+            order_id = txn_dict.get('alpaca_order_id')
+            if order_id and order_id != '':
+                issues.append(f"alpaca_order_id already set: {order_id}")
+
+            # Check if user exists
+            cursor.execute("SELECT id, email, alpaca_account_id FROM users WHERE id = %s", (txn_dict.get('user_id'),))
+            user = cursor.fetchone()
+            if not user:
+                issues.append(f"user_id {txn_dict.get('user_id')} does not exist in users table")
+            else:
+                user_dict = dict(user)
+                txn_dict['user_email'] = user_dict.get('email')
+                txn_dict['user_alpaca_account'] = user_dict.get('alpaca_account_id')
+
+            txn_dict['exclusion_reasons'] = issues if issues else ['NONE - should be processable']
+            txn_dict['would_process'] = len(issues) == 0 or (len(issues) == 1 and 'alpaca_account_id' not in issues[0])
+            analysis.append(txn_dict)
 
         cursor.close()
         conn.close()
@@ -11341,10 +11384,15 @@ def admin_investments_debug():
         return jsonify({
             'success': True,
             'status_counts': [dict(row) for row in status_counts],
-            'all_transactions': [dict(row) for row in all_transactions],
-            'mapped_transactions': [dict(row) for row in mapped_transactions],
-            'mapped_with_user_join': [dict(row) for row in mapped_with_users],
-            'note': 'Check if user_id matches and ticker is not UNKNOWN/empty'
+            'mapped_count': len(mapped_transactions),
+            'processable_count': len(processable_transactions),
+            'processable_transactions': [dict(row) for row in processable_transactions],
+            'detailed_analysis': analysis,
+            'summary': {
+                'total_mapped': len(mapped_transactions),
+                'would_process': sum(1 for a in analysis if a['would_process']),
+                'excluded': sum(1 for a in analysis if not a['would_process'])
+            }
         })
 
     except Exception as e:
