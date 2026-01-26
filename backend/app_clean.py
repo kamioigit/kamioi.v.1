@@ -3913,13 +3913,78 @@ def user_ai_insights():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/stock/prices', methods=['GET', 'POST'])
+def get_stock_prices():
+    """
+    Get real stock prices from Alpaca/Yahoo Finance.
+    GET: ?symbols=AAPL,MSFT,GOOGL
+    POST: {"symbols": ["AAPL", "MSFT", "GOOGL"]}
+    """
+    try:
+        from alpaca_service import AlpacaService
+        alpaca = AlpacaService()
+
+        # Get symbols from query params or POST body
+        if request.method == 'GET':
+            symbols_param = request.args.get('symbols', '')
+            symbols = [s.strip().upper() for s in symbols_param.split(',') if s.strip()]
+        else:
+            data = request.get_json() or {}
+            symbols = [s.upper() for s in data.get('symbols', [])]
+
+        if not symbols:
+            return jsonify({'success': False, 'error': 'No symbols provided'}), 400
+
+        # Get prices for all symbols
+        prices = {}
+        for symbol in symbols[:20]:  # Limit to 20 symbols per request
+            price = alpaca.get_stock_price(symbol)
+            prices[symbol] = {
+                'symbol': symbol,
+                'price': price,
+                'currency': 'USD',
+                'timestamp': datetime.now().isoformat()
+            }
+
+        return jsonify({
+            'success': True,
+            'prices': prices
+        })
+
+    except Exception as e:
+        print(f"Error getting stock prices: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/stock/price/<symbol>', methods=['GET'])
+def get_single_stock_price(symbol):
+    """Get price for a single stock symbol"""
+    try:
+        from alpaca_service import AlpacaService
+        alpaca = AlpacaService()
+
+        price = alpaca.get_stock_price(symbol.upper())
+
+        return jsonify({
+            'success': True,
+            'symbol': symbol.upper(),
+            'price': price,
+            'currency': 'USD',
+            'timestamp': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        print(f"Error getting stock price for {symbol}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/user/stock-status', methods=['GET'])
 def user_stock_status():
     try:
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
-        
+
         # Return sample stock status
         return jsonify({
             'success': True,
@@ -3937,7 +4002,7 @@ def user_stock_status():
                 ]
             }
         })
-        
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -10713,16 +10778,17 @@ def admin_process_mapped_investments():
         alpaca = AlpacaService()
 
         conn = get_db_connection()
-        cursor = get_db_cursor(conn)
+        cursor = get_db_cursor(conn, dict_cursor=True)
 
         # Find all mapped transactions with tickers that haven't been processed
         cursor.execute("""
             SELECT t.id, t.user_id, t.ticker, t.round_up, t.merchant, t.amount, u.email
             FROM transactions t
             JOIN users u ON t.user_id = u.id
-            WHERE t.status = 'mapped'
+            WHERE LOWER(t.status) = 'mapped'
             AND t.ticker IS NOT NULL
             AND t.ticker != 'UNKNOWN'
+            AND t.ticker != ''
             AND (t.alpaca_order_id IS NULL OR t.alpaca_order_id = '')
             ORDER BY t.created_at ASC
             LIMIT 100
@@ -10752,13 +10818,13 @@ def admin_process_mapped_investments():
         demo_account_id = alpaca_accounts[0].get('id') if alpaca_accounts else None
 
         for txn in mapped_transactions:
-            txn_id = txn[0]
-            user_id = txn[1]
-            ticker = txn[2]
-            round_up_amount = float(txn[3]) if txn[3] else 1.0
-            merchant = txn[4]
-            amount = float(txn[5]) if txn[5] else 0
-            user_email = txn[6]
+            txn_id = txn['id']
+            user_id = txn['user_id']
+            ticker = txn['ticker']
+            round_up_amount = float(txn['round_up']) if txn['round_up'] else 1.0
+            merchant = txn['merchant']
+            amount = float(txn['amount']) if txn['amount'] else 0
+            user_email = txn['email']
 
             results['processed'] += 1
 
@@ -10795,8 +10861,8 @@ def admin_process_mapped_investments():
 
                     if existing_holding:
                         # Update existing holding
-                        old_shares = float(existing_holding[1])
-                        old_avg = float(existing_holding[2])
+                        old_shares = float(existing_holding['shares'])
+                        old_avg = float(existing_holding['average_price'])
                         new_shares = old_shares + shares_bought
                         # Weighted average price
                         new_avg = ((old_shares * old_avg) + (shares_bought * avg_price)) / new_shares if new_shares > 0 else avg_price
@@ -10804,7 +10870,7 @@ def admin_process_mapped_investments():
                             UPDATE portfolios
                             SET shares = %s, average_price = %s, updated_at = CURRENT_TIMESTAMP
                             WHERE id = %s
-                        """, (new_shares, new_avg, existing_holding[0]))
+                        """, (new_shares, new_avg, existing_holding['id']))
                     else:
                         # Insert new holding
                         cursor.execute("""

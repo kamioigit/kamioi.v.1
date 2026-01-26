@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
-import { 
-  Download, 
-  Search, 
+import React, { useState, useEffect } from 'react'
+import {
+  Download,
+  Search,
   Edit,
   Eye,
   CheckCircle,
@@ -24,6 +24,12 @@ import { useModal } from '../../context/ModalContext'
 import { useNotifications } from '../../hooks/useNotifications'
 import CompanyLogo from '../common/CompanyLogo'
 import { formatCurrency, formatNumber, formatDate } from '../../utils/formatters'
+
+// Helper function to build API URLs (avoids localhost issues in production)
+const buildApiUrl = (path) => {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+  return `${baseUrl}${path}`
+}
 
 // Company data with verified domains and reliable logo sources
 const getCompanyData = (ticker) => {
@@ -89,66 +95,59 @@ const getCompanyName = (ticker) => {
 
 
 
-// Helper function to calculate shares
-const calculateShares = (amount, ticker) => {
-  // Mock stock prices for calculation
-  const stockPrices = {
-    'AAPL': 150.00,
-    'AMZN': 120.00,
-    'GOOGL': 100.00,
-    'MSFT': 300.00,
-    'TSLA': 200.00,
-    'META': 250.00,
-    'NFLX': 400.00,
-    'NVDA': 500.00,
-    'SBUX': 80.00,
-    'WMT': 150.00,
-    'SPOT': 200.00,
-    'UBER': 50.00,
-    'M': 20.00,
-    'CMG': 2000.00,
-    'DIS': 100.00,
-    'NKE': 120.00,
-    'ADBE': 400.00,
-    'CRM': 200.00,
-    'PYPL': 60.00,
-    'INTC': 30.00,
-    'AMD': 100.00,
-    'ORCL': 100.00,
-    'IBM': 150.00,
-    'CSCO': 50.00,
-    'JPM': 150.00,
-    'BAC': 30.00,
-    'WFC': 40.00,
-    'GS': 300.00,
-    'V': 200.00,
-    'MA': 300.00,
-    'JNJ': 150.00,
-    'PFE': 30.00,
-    'UNH': 500.00,
-    'HD': 300.00,
-    'LOW': 200.00,
-    'KO': 60.00,
-    'PEP': 150.00,
-    'MCD': 250.00,
-    'YUM': 100.00,
-    'TGT': 150.00,
-    'COST': 500.00,
-    'EL': 200.00,
-    'BURL': 30.00,
-    'FL': 40.00,
-    'CHTR': 300.00,
-    'DKS': 100.00
+// Stock price cache - will be populated from API
+let stockPriceCache = {}
+
+// Helper function to calculate shares using cached or fetched prices
+const calculateShares = (amount, ticker, cachedPrice = null) => {
+  if (!ticker || !amount) return '0.000'
+
+  // Use cached price if available
+  let price = cachedPrice || stockPriceCache[ticker?.toUpperCase()]
+
+  // Fallback prices if no API data available yet
+  if (!price) {
+    const fallbackPrices = {
+      'AAPL': 175.00, 'AMZN': 180.00, 'GOOGL': 140.00, 'MSFT': 420.00,
+      'TSLA': 250.00, 'META': 500.00, 'NVDA': 900.00, 'NFLX': 600.00,
+      'SBUX': 95.00, 'WMT': 165.00, 'DIS': 110.00, 'NKE': 100.00,
+      'CVS': 60.00, 'UBER': 75.00, 'CMG': 3000.00, 'TGT': 150.00,
+      'COST': 850.00, 'HD': 380.00, 'LOW': 250.00, 'MCD': 290.00,
+      'KO': 62.00, 'PEP': 175.00, 'JPM': 200.00, 'V': 280.00, 'MA': 450.00
+    }
+    price = fallbackPrices[ticker?.toUpperCase()] || 100.00
   }
-  
-  const price = stockPrices[ticker] || 100.00
+
   const shares = amount / price
-  
+
   if (shares < 0.01) {
     return '<0.01'
   }
-  
+
   return shares.toFixed(3)
+}
+
+// Fetch real stock prices from API
+const fetchStockPrices = async (tickers) => {
+  if (!tickers || tickers.length === 0) return
+
+  try {
+    const uniqueTickers = [...new Set(tickers.filter(t => t && t !== 'UNKNOWN'))]
+    if (uniqueTickers.length === 0) return
+
+    const response = await fetch(buildApiUrl(`/api/stock/prices?symbols=${uniqueTickers.join(',')}`))
+    if (response.ok) {
+      const data = await response.json()
+      if (data.success && data.prices) {
+        Object.entries(data.prices).forEach(([symbol, info]) => {
+          stockPriceCache[symbol] = info.price
+        })
+        console.log('Updated stock prices:', stockPriceCache)
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching stock prices:', error)
+  }
 }
 
 const UserTransactions = () => {
@@ -194,8 +193,7 @@ const UserTransactions = () => {
       // Also fetch from API
       const token = localStorage.getItem('kamioi_user_token') || localStorage.getItem('authToken')
       if (token) {
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-        fetch(`${apiBaseUrl}/api/user/settings/roundup`, {
+        fetch(buildApiUrl('/api/user/settings/roundup'), {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -248,8 +246,7 @@ const UserTransactions = () => {
     const fetchUserMappings = async () => {
       try {
         const authToken = localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token') || localStorage.getItem('authToken') || null
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-        const response = await fetch(`${apiBaseUrl}/api/user/ai/insights`, {
+        const response = await fetch(buildApiUrl('/api/user/ai/insights'), {
           headers: {
             'Authorization': `Bearer ${authToken}`
           }
@@ -307,6 +304,18 @@ const UserTransactions = () => {
       statusSyncService.unsubscribe('user', handleStatusUpdate)
     }
   }, [setTransactions])
+
+  // Fetch real stock prices for all tickers in transactions
+  useEffect(() => {
+    if (safeTransactions && safeTransactions.length > 0) {
+      const tickers = safeTransactions
+        .map(t => t.ticker)
+        .filter(t => t && t !== 'UNKNOWN' && t !== 'Unknown')
+      if (tickers.length > 0) {
+        fetchStockPrices(tickers)
+      }
+    }
+  }, [safeTransactions])
 
   // Debug: Log transactions data
   console.log('UserTransactions - Received transactions:', {
@@ -414,7 +423,7 @@ const UserTransactions = () => {
     console.log('Looking up ticker for:', merchantName)
     
     try {
-      const response = await fetch(`http://127.0.0.1:5111/api/lookup/ticker?company=${encodeURIComponent(merchantName)}`, {
+      const response = await fetch(buildApiUrl(`/api/lookup/ticker?company=${encodeURIComponent(merchantName)}`), {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -473,7 +482,7 @@ const UserTransactions = () => {
       }
       
       // Call backend to retry AI mapping
-      const response = await fetch('http://127.0.0.1:5111/api/transactions/process', {
+      const response = await fetch(buildApiUrl('/api/transactions/process'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -539,7 +548,7 @@ const UserTransactions = () => {
     // Fetch user's mapping data for this transaction
     try {
       console.log('Fetching mapping data for transaction:', transactionId)
-      const response = await fetch(`http://127.0.0.1:5111/api/user/ai/insights`, {
+      const response = await fetch(buildApiUrl('/api/user/ai/insights'), {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('kamioi_user_token')}`
         }
@@ -574,7 +583,7 @@ const UserTransactions = () => {
 
   const handleExport = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:5111/api/individual/export/transactions', {
+      const response = await fetch(buildApiUrl('/api/individual/export/transactions'), {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('kamioi_user_token')}`,
@@ -1175,7 +1184,7 @@ const UserTransactions = () => {
                       console.log('Sample Transaction IDs:', transactions.slice(0, 3).map(t => ({ id: t.id, type: typeof t.id })))
                       
                       // Submit mapping to backend
-                      const response = await fetch('http://127.0.0.1:5111/api/user/submit-mapping', {
+                      const response = await fetch(buildApiUrl('/api/user/submit-mapping'), {
                         method: 'POST',
                         headers: {
                           'Content-Type': 'application/json',
@@ -1215,7 +1224,7 @@ const UserTransactions = () => {
                           
                           // Refresh user mappings to update the UI
                           const authToken = localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token') || localStorage.getItem('authToken') || null
-                          const mappingResponse = await fetch('http://127.0.0.1:5111/api/user/ai/insights', {
+                          const mappingResponse = await fetch(buildApiUrl('/api/user/ai/insights'), {
                             headers: {
                               'Authorization': `Bearer ${authToken}`
                             }
@@ -1423,7 +1432,24 @@ const UserTransactions = () => {
                 <div className="space-y-6">
                   {selectedTransaction ? (
                     <div>
-                      <h3 className="text-lg font-medium text-white mb-4">Investment Details</h3>
+                      {/* Company Logo and Header */}
+                      <div className="flex items-center space-x-4 mb-6 pb-4 border-b border-white/10">
+                        <CompanyLogo
+                          symbol={mappingDetails?.ticker_symbol || selectedTransaction.ticker}
+                          size="w-16 h-16"
+                          clickable={true}
+                        />
+                        <div>
+                          <h3 className="text-xl font-bold text-white">
+                            {mappingDetails?.merchant_name || getCompanyName(selectedTransaction.ticker) || selectedTransaction.merchant}
+                          </h3>
+                          <p className="text-green-400 font-medium">
+                            {mappingDetails?.ticker_symbol || selectedTransaction.ticker || 'Pending'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <h4 className="text-lg font-medium text-white mb-4">Investment Details</h4>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="text-sm text-gray-400">Investment Status</label>
