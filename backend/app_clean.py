@@ -3572,25 +3572,39 @@ def user_transactions():
         
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Query includes shares and price_per_share for completed trades
-        cursor.execute("""
-            SELECT id, amount, status, created_at, description, merchant, category, date,
-                   round_up, fee, total_debit, ticker, shares, price_per_share
-            FROM transactions
-            WHERE user_id = %s
-            ORDER BY created_at DESC
-        """, (user_id,))
+
+        # Use dict cursor for safer column access
+        try:
+            cursor.execute("""
+                SELECT id, amount, status, created_at, description, merchant, category, date,
+                       round_up, fee, total_debit, ticker, shares, price_per_share
+                FROM transactions
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+            """, (user_id,))
+            has_trade_columns = True
+        except Exception as col_error:
+            # Fallback: some columns may not exist in production
+            print(f"Transactions full query failed: {col_error}, trying basic columns")
+            conn.rollback()
+            cursor.execute("""
+                SELECT id, amount, status, created_at, description, merchant, category, date,
+                       round_up, fee, total_debit
+                FROM transactions
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+            """, (user_id,))
+            has_trade_columns = False
+
         transactions = cursor.fetchall()
         conn.close()
 
-        # Columns: 0=id, 1=amount, 2=status, 3=created_at, 4=description, 5=merchant, 6=category,
-        #          7=date, 8=round_up, 9=fee, 10=total_debit, 11=ticker, 12=shares, 13=price_per_share
         transaction_list = []
         for txn in transactions:
             # Safely convert datetime fields to strings
             created_at = str(txn[3]) if txn[3] else None
             date_val = str(txn[7]) if txn[7] else None
-            transaction_list.append({
+            txn_dict = {
                 'id': txn[0],
                 'amount': float(txn[1]) if txn[1] else 0,
                 'status': txn[2],
@@ -3602,10 +3616,16 @@ def user_transactions():
                 'round_up': float(txn[8]) if txn[8] else 0,
                 'fee': float(txn[9]) if txn[9] else 0,
                 'total_debit': float(txn[10]) if txn[10] else 0,
-                'ticker': txn[11] if len(txn) > 11 else None,
-                'shares': float(txn[12]) if len(txn) > 12 and txn[12] else None,
-                'price_per_share': float(txn[13]) if len(txn) > 13 and txn[13] else None
-            })
+            }
+            if has_trade_columns:
+                txn_dict['ticker'] = txn[11] if len(txn) > 11 else None
+                txn_dict['shares'] = float(txn[12]) if len(txn) > 12 and txn[12] else None
+                txn_dict['price_per_share'] = float(txn[13]) if len(txn) > 13 and txn[13] else None
+            else:
+                txn_dict['ticker'] = None
+                txn_dict['shares'] = None
+                txn_dict['price_per_share'] = None
+            transaction_list.append(txn_dict)
         
         return jsonify({
             'success': True,
