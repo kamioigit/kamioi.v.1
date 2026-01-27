@@ -407,6 +407,220 @@ class AlpacaService:
             print(f"Account {account_id} has status {status} - cannot trade")
             return False
 
+    def get_account_buying_power(self, account_id):
+        """Get the buying power (available cash) for an account"""
+        if self.api_type == "trading":
+            account = self.get_account()
+            if account:
+                return float(account.get('buying_power', 0))
+            return 0
+
+        # Broker API - get trading account details
+        try:
+            response = requests.get(
+                f"{self.base_url}/v1/trading/accounts/{account_id}/account",
+                headers=self.headers,
+                verify=False,
+                timeout=10
+            )
+            if response.status_code == 200:
+                account_data = response.json()
+                buying_power = float(account_data.get('buying_power', 0))
+                cash = float(account_data.get('cash', 0))
+                print(f"Account {account_id}: buying_power=${buying_power}, cash=${cash}")
+                return buying_power
+            else:
+                print(f"Error getting buying power: {response.status_code} - {response.text}")
+                return 0
+        except Exception as e:
+            print(f"Exception getting buying power: {e}")
+            return 0
+
+    def fund_sandbox_account(self, account_id, amount=10000):
+        """
+        Fund a sandbox account with simulated money (Broker API sandbox only).
+
+        In Alpaca sandbox, you can create ACH transfers to simulate funding.
+
+        Args:
+            account_id (str): The account ID to fund
+            amount (float): Amount to fund in dollars (default $10,000)
+
+        Returns:
+            dict: Transfer object or None on failure
+        """
+        if self.api_type != "broker":
+            print("Sandbox funding only available with Broker API")
+            return None
+
+        try:
+            # Create an ACH transfer to fund the account
+            # For sandbox, this simulates an instant deposit
+            transfer_data = {
+                "transfer_type": "ach",
+                "relationship_id": None,  # Will use default/auto
+                "amount": str(amount),
+                "direction": "INCOMING"
+            }
+
+            print(f"Funding sandbox account {account_id} with ${amount}...")
+
+            # First, check if there's an existing ACH relationship or create one
+            # For sandbox, we can use the "create instant transfer" endpoint
+            # POST /v1/accounts/{account_id}/transfers
+
+            # Alternative approach: Use Alpaca's sandbox-specific funding endpoint
+            # POST /v1/sandbox/accounts/{account_id}/fund
+
+            response = requests.post(
+                f"{self.base_url}/v1/accounts/{account_id}/transfers",
+                headers=self.headers,
+                json=transfer_data,
+                verify=False,
+                timeout=30
+            )
+
+            if response.status_code in [200, 201]:
+                transfer = response.json()
+                print(f"Sandbox transfer created: {transfer}")
+                return transfer
+            elif response.status_code == 422:
+                # May need ACH relationship - try alternative method
+                print(f"ACH transfer failed, trying alternative funding method...")
+                return self._fund_sandbox_alternative(account_id, amount)
+            else:
+                print(f"Error funding account: {response.status_code} - {response.text}")
+                return self._fund_sandbox_alternative(account_id, amount)
+
+        except Exception as e:
+            print(f"Exception funding account: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def _fund_sandbox_alternative(self, account_id, amount):
+        """Alternative method to fund sandbox account using wire transfer simulation"""
+        try:
+            # Try wire transfer type which doesn't require ACH relationship
+            wire_data = {
+                "transfer_type": "wire",
+                "amount": str(amount),
+                "direction": "INCOMING",
+                "bank_id": "123456789"  # Simulated bank ID for sandbox
+            }
+
+            response = requests.post(
+                f"{self.base_url}/v1/accounts/{account_id}/transfers",
+                headers=self.headers,
+                json=wire_data,
+                verify=False,
+                timeout=30
+            )
+
+            if response.status_code in [200, 201]:
+                transfer = response.json()
+                print(f"Wire transfer created: {transfer}")
+                return transfer
+            else:
+                print(f"Wire transfer also failed: {response.status_code} - {response.text}")
+                # Last resort: try creating an ACH relationship first
+                return self._create_ach_and_fund(account_id, amount)
+
+        except Exception as e:
+            print(f"Exception in alternative funding: {e}")
+            return None
+
+    def _create_ach_and_fund(self, account_id, amount):
+        """Create ACH relationship and then fund (sandbox)"""
+        try:
+            # Create an ACH relationship for the account
+            ach_data = {
+                "account_owner_name": "Test User",
+                "bank_account_type": "CHECKING",
+                "bank_account_number": "123456789012",
+                "bank_routing_number": "121000358",  # Test routing number
+                "nickname": "Test Bank"
+            }
+
+            print(f"Creating ACH relationship for account {account_id}...")
+
+            response = requests.post(
+                f"{self.base_url}/v1/accounts/{account_id}/ach_relationships",
+                headers=self.headers,
+                json=ach_data,
+                verify=False,
+                timeout=30
+            )
+
+            if response.status_code in [200, 201]:
+                ach_rel = response.json()
+                relationship_id = ach_rel.get('id')
+                print(f"ACH relationship created: {relationship_id}")
+
+                # Now create the transfer
+                transfer_data = {
+                    "transfer_type": "ach",
+                    "relationship_id": relationship_id,
+                    "amount": str(amount),
+                    "direction": "INCOMING"
+                }
+
+                transfer_response = requests.post(
+                    f"{self.base_url}/v1/accounts/{account_id}/transfers",
+                    headers=self.headers,
+                    json=transfer_data,
+                    verify=False,
+                    timeout=30
+                )
+
+                if transfer_response.status_code in [200, 201]:
+                    transfer = transfer_response.json()
+                    print(f"ACH transfer created after relationship: {transfer}")
+                    return transfer
+                else:
+                    print(f"Transfer after ACH failed: {transfer_response.status_code} - {transfer_response.text}")
+                    return None
+            else:
+                print(f"ACH relationship creation failed: {response.status_code} - {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"Exception creating ACH and funding: {e}")
+            return None
+
+    def ensure_account_funded(self, account_id, min_amount=100):
+        """
+        Ensure an account has at least min_amount in buying power.
+        If not, attempt to fund it (sandbox only).
+
+        Args:
+            account_id (str): The account to check/fund
+            min_amount (float): Minimum required buying power
+
+        Returns:
+            bool: True if account has sufficient funds, False otherwise
+        """
+        buying_power = self.get_account_buying_power(account_id)
+
+        if buying_power >= min_amount:
+            print(f"Account {account_id} has sufficient buying power: ${buying_power}")
+            return True
+
+        print(f"Account {account_id} has insufficient funds (${buying_power}), attempting to fund...")
+
+        # Try to fund the account with $10,000 (sandbox)
+        result = self.fund_sandbox_account(account_id, 10000)
+
+        if result:
+            # Give it a moment then check again
+            import time
+            time.sleep(1)
+            new_buying_power = self.get_account_buying_power(account_id)
+            print(f"After funding attempt, buying power: ${new_buying_power}")
+            return new_buying_power >= min_amount
+
+        return False
+
     def get_positions(self, account_id=None):
         """Get positions for the account"""
         try:

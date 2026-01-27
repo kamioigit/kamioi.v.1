@@ -10893,6 +10893,17 @@ def admin_process_mapped_investments():
                     }), 500
                 account_id_to_use = account.get('id')
 
+            # Ensure account has sufficient funds (auto-fund sandbox accounts if needed)
+            if not alpaca.ensure_account_funded(account_id_to_use, min_amount=round_up_amount + 10):
+                results['skipped'] += 1
+                results['details'].append({
+                    'transaction_id': txn_id,
+                    'user_email': user_email,
+                    'status': 'skipped',
+                    'error': 'Insufficient funds - sandbox auto-funding failed'
+                })
+                continue
+
             results['processed'] += 1
 
             try:
