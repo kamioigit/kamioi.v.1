@@ -19,6 +19,7 @@ const LLMDataAssetsProper = () => {
   const [summary, setSummary] = useState({});
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [costBreakdown, setCostBreakdown] = useState([]);
   const [amortizationSchedule, setAmortizationSchedule] = useState([]);
@@ -29,19 +30,29 @@ const LLMDataAssetsProper = () => {
 
   const fetchAssets = async () => {
     try {
-      const response = await fetch('/api/admin/llm-assets', {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+      const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || localStorage.getItem('admin_token')
+      const response = await fetch(`${baseUrl}/api/admin/llm-assets`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+          'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
-        setAssets(data.data.assets);
-        setSummary(data.data.summary);
+        if (data.success && data.data) {
+          setAssets(data.data.assets || []);
+          setSummary(data.data.summary || {});
+          setError(null);
+        } else {
+          setError(data.error || 'Failed to load assets');
+        }
+      } else {
+        setError(`Server error: ${response.status}`);
       }
-    } catch (error) {
-      console.error('Error fetching assets:', error);
+    } catch (err) {
+      console.error('Error fetching assets:', err);
+      setError('Failed to connect to server');
     } finally {
       setLoading(false);
     }
@@ -49,15 +60,17 @@ const LLMDataAssetsProper = () => {
 
   const fetchCostBreakdown = async (assetId) => {
     try {
-      const response = await fetch(`/api/admin/llm-assets/${assetId}/cost-breakdown`, {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+      const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || localStorage.getItem('admin_token')
+      const response = await fetch(`${baseUrl}/api/admin/llm-assets/${assetId}/cost-breakdown`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+          'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
-        setCostBreakdown(data.data.cost_breakdown);
+        setCostBreakdown(data.data?.cost_breakdown || []);
       }
     } catch (error) {
       console.error('Error fetching cost breakdown:', error);
@@ -66,15 +79,17 @@ const LLMDataAssetsProper = () => {
 
   const fetchAmortizationSchedule = async (assetId) => {
     try {
-      const response = await fetch(`/api/admin/llm-assets/${assetId}/amortization`, {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+      const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || localStorage.getItem('admin_token')
+      const response = await fetch(`${baseUrl}/api/admin/llm-assets/${assetId}/amortization`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+          'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
-        setAmortizationSchedule(data.data.schedule);
+        setAmortizationSchedule(data.data?.schedule || []);
       }
     } catch (error) {
       console.error('Error fetching amortization schedule:', error);
@@ -124,6 +139,18 @@ const LLMDataAssetsProper = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <AlertTriangle className="w-12 h-12 text-red-400" />
+        <p className="text-red-400">{error}</p>
+        <button onClick={fetchAssets} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+          Retry
+        </button>
       </div>
     );
   }

@@ -47,7 +47,7 @@ except ImportError as e:
 
 # Initialize Flask app
 print("=" * 60)
-print("KAMIOI BACKEND VERSION: 2026-01-27-v12")
+print("KAMIOI BACKEND VERSION: 2026-01-27-v13")
 print("=" * 60)
 app = Flask(__name__)
 CORS(
@@ -6691,6 +6691,90 @@ def admin_reject_mapping(mapping_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/admin/llm-center/mapping/<int:mapping_id>/delete', methods=['DELETE'])
+def admin_delete_mapping_endpoint(mapping_id):
+    """Delete a mapping from llm_mappings"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        token = auth_header.split(' ')[1]
+        if not token.startswith('admin_token_'):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Check if mapping exists
+        cursor.execute('SELECT id FROM llm_mappings WHERE id = %s', (mapping_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({'success': False, 'error': 'Mapping not found'}), 404
+
+        cursor.execute('DELETE FROM llm_mappings WHERE id = %s', (mapping_id,))
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'Mapping {mapping_id} deleted successfully'
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/llm-center/mapping/<int:mapping_id>/update', methods=['PUT'])
+def admin_update_mapping_endpoint(mapping_id):
+    """Update a mapping in llm_mappings"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        token = auth_header.split(' ')[1]
+        if not token.startswith('admin_token_'):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Check if mapping exists
+        cursor.execute('SELECT id FROM llm_mappings WHERE id = %s', (mapping_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({'success': False, 'error': 'Mapping not found'}), 404
+
+        # Build update query dynamically based on provided fields
+        allowed_fields = ['merchant_name', 'ticker_symbol', 'category', 'confidence', 'company_name', 'notes', 'status']
+        updates = []
+        params = []
+        for field in allowed_fields:
+            if field in data:
+                updates.append(f'{field} = %s')
+                params.append(data[field])
+
+        if not updates:
+            conn.close()
+            return jsonify({'success': False, 'error': 'No valid fields to update'}), 400
+
+        params.append(mapping_id)
+        cursor.execute(f'UPDATE llm_mappings SET {", ".join(updates)} WHERE id = %s', params)
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'Mapping {mapping_id} updated successfully'
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/admin/notify-mapping-outcome', methods=['POST'])
 def notify_mapping_outcome():
     """Send notification to user about mapping outcome"""
@@ -9591,39 +9675,49 @@ def admin_get_llm_mappings():
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 50))
         search = request.args.get('search', '')
-        
+        status_filter = request.args.get('status', '')  # pending, approved, rejected
+
         conn = get_db_connection()
         cursor = get_db_cursor(conn)
-        
-        cols = 'id, merchant_name, category, notes, ticker_symbol, confidence, status, created_at, admin_id, admin_approved, company_name'
-        # Build query with optional search (PostgreSQL %s placeholders)
+
+        cols = 'id, merchant_name, category, notes, ticker_symbol, confidence, status, created_at, admin_id, admin_approved, company_name, user_id'
+
+        # Build WHERE clause
+        where_clauses = []
+        params = []
+
+        # Status filter by admin_approved value
+        if status_filter == 'pending':
+            where_clauses.append('(admin_approved = 0 OR admin_approved IS NULL)')
+        elif status_filter == 'approved':
+            where_clauses.append('admin_approved = 1')
+        elif status_filter == 'rejected':
+            where_clauses.append('admin_approved = -1')
+
+        # Search filter (case-insensitive with ILIKE)
         if search:
-            cursor.execute(f'''
-                SELECT {cols} FROM llm_mappings 
-                WHERE merchant_name LIKE %s OR category LIKE %s OR ticker_symbol LIKE %s
-                ORDER BY created_at DESC
-                LIMIT %s OFFSET %s
-            ''', (f'%{search}%', f'%{search}%', f'%{search}%', limit, (page - 1) * limit))
-        else:
-            cursor.execute(f'''
-                SELECT {cols} FROM llm_mappings 
-                ORDER BY created_at DESC
-                LIMIT %s OFFSET %s
-            ''', (limit, (page - 1) * limit))
-        
+            where_clauses.append('(merchant_name ILIKE %s OR category ILIKE %s OR ticker_symbol ILIKE %s OR company_name ILIKE %s)')
+            search_param = f'%{search}%'
+            params.extend([search_param, search_param, search_param, search_param])
+
+        where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
+
+        # Get data with pagination
+        params.extend([limit, (page - 1) * limit])
+        cursor.execute(f'''
+            SELECT {cols} FROM llm_mappings{where_sql}
+            ORDER BY id DESC
+            LIMIT %s OFFSET %s
+        ''', params)
+
         col_names = [c[0] for c in cursor.description]
         rows = cursor.fetchall()
         mappings_list = [dict(zip(col_names, r)) for r in rows]
-        
-        # Get total count
-        if search:
-            cursor.execute('''
-                SELECT COUNT(*) FROM llm_mappings 
-                WHERE merchant_name LIKE %s OR category LIKE %s OR ticker_symbol LIKE %s
-            ''', (f'%{search}%', f'%{search}%', f'%{search}%'))
-        else:
-            cursor.execute('SELECT COUNT(*) FROM llm_mappings')
-        
+
+        # Get total count with same filters
+        count_params = params[:-2]  # Remove limit and offset
+        cursor.execute(f'SELECT COUNT(*) FROM llm_mappings{where_sql}', count_params)
+
         total_count = cursor.fetchone()[0]
         conn.close()
         
@@ -10898,20 +10992,22 @@ def admin_llm_assets():
         cost_basis = total_mappings * 0.025  # Estimated cost per mapping
         carrying_value = economic_value - cost_basis
 
-        # Format response to match frontend expectations
+        # Format response to match frontend LLMDataAssetsProper expectations
         return jsonify({
             'success': True,
             'data': {
                 'assets': [
                     {
-                        'id': 1,
-                        'name': 'Merchant-Ticker Mapping Dataset',
-                        'description': 'Core LLM mapping database for merchant to stock ticker associations',
-                        'type': 'data_asset',
+                        'asset_id': 1,
+                        'asset_name': 'Merchant-Ticker Mapping Dataset',
+                        'asset_type': 'data_asset',
+                        'status': 'production',
                         'records': total_mappings,
-                        'cost_basis': round(cost_basis, 2),
+                        'cost_basis': {'total': round(cost_basis, 2), 'breakdown': {'data_acquisition': round(cost_basis * 0.6, 2), 'processing': round(cost_basis * 0.4, 2)}},
                         'economic_value': round(economic_value, 2),
                         'carrying_value': round(carrying_value, 2),
+                        'amortized_value': round(carrying_value, 2),
+                        'impairment_loss': 0,
                         'last_updated': datetime.now().isoformat(),
                         'gl_account': '15200',
                         'categories': categories,
@@ -10939,6 +11035,78 @@ def admin_llm_assets():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@app.route('/api/admin/llm-assets/<int:asset_id>/cost-breakdown', methods=['GET'])
+def admin_llm_asset_cost_breakdown(asset_id):
+    """Get cost breakdown for a specific LLM asset"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn)
+        cursor.execute("SELECT reltuples::bigint FROM pg_class WHERE relname = 'llm_mappings'")
+        total_result = cursor.fetchone()
+        total_mappings = total_result[0] if total_result else 0
+        cursor.close()
+        conn.close()
+
+        cost_basis = total_mappings * 0.025
+        return jsonify({
+            'success': True,
+            'data': {
+                'cost_breakdown': [
+                    {'cost_type': 'Data Acquisition', 'gl_account': '15200-01', 'description': 'Transaction data collection and processing', 'amount': round(cost_basis * 0.4, 2)},
+                    {'cost_type': 'AI Training', 'gl_account': '15200-02', 'description': 'Model training and fine-tuning costs', 'amount': round(cost_basis * 0.3, 2)},
+                    {'cost_type': 'Infrastructure', 'gl_account': '15200-03', 'description': 'Server and compute resources', 'amount': round(cost_basis * 0.2, 2)},
+                    {'cost_type': 'Quality Assurance', 'gl_account': '15200-04', 'description': 'Mapping validation and review', 'amount': round(cost_basis * 0.1, 2)}
+                ]
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/llm-assets/<int:asset_id>/amortization', methods=['GET'])
+def admin_llm_asset_amortization(asset_id):
+    """Get amortization schedule for a specific LLM asset"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn)
+        cursor.execute("SELECT reltuples::bigint FROM pg_class WHERE relname = 'llm_mappings'")
+        total_result = cursor.fetchone()
+        total_mappings = total_result[0] if total_result else 0
+        cursor.close()
+        conn.close()
+
+        cost_basis = total_mappings * 0.025
+        useful_life_months = 36  # 3 years
+        monthly_amortization = cost_basis / useful_life_months if useful_life_months > 0 else 0
+
+        schedule = []
+        remaining = cost_basis
+        for i in range(min(12, useful_life_months)):  # Show first 12 months
+            remaining -= monthly_amortization
+            schedule.append({
+                'period': f'Month {i + 1}',
+                'period_start': f'2026-{(i % 12) + 1:02d}-01',
+                'period_end': f'2026-{(i % 12) + 1:02d}-28',
+                'amortization_expense': round(monthly_amortization, 2),
+                'remaining_value': round(max(0, remaining), 2)
+            })
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'schedule': schedule
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # Manual submit endpoint
 @app.route('/api/admin/manual-submit', methods=['POST'])
@@ -12271,6 +12439,22 @@ def admin_llm_analytics():
         result = cursor.fetchone()
         avg_confidence = float(result[0]) if result and result[0] else 0
 
+        # Get category distribution
+        cat_distribution = {}
+        try:
+            cursor.execute('''
+                SELECT category, COUNT(*) as cnt FROM llm_mappings
+                WHERE category IS NOT NULL AND category != ''
+                GROUP BY category ORDER BY cnt DESC LIMIT 10
+            ''')
+            cat_rows = cursor.fetchall()
+            total_cat = sum(r[1] for r in cat_rows) if cat_rows else 0
+            if total_cat > 0:
+                for row in cat_rows:
+                    cat_distribution[row[0]] = round((row[1] / total_cat) * 100, 1)
+        except Exception:
+            cat_distribution = {}
+
         conn.close()
 
         auto_approval_rate = (approved_mappings / max(total_mappings, 1)) * 100
@@ -12289,13 +12473,13 @@ def admin_llm_analytics():
                 'aiModelStatus': "active",
                 'lastUpdated': datetime.now().isoformat(),
                 'performanceMetrics': {
-                    'processing_speed': f"{total_mappings} mappings/day",
-                    'avg_confidence': round(float(avg_confidence), 3),
+                    'processing_speed': f"{total_mappings:,} total records",
+                    'avg_confidence': round(float(avg_confidence) * 100, 1),
                     'error_rate': '0.1%',
                     'uptime': '99.9%',
                     'memory_usage': '45%'
                 },
-                'categoryDistribution': {}  # Skip heavy query for speed
+                'categoryDistribution': cat_distribution
             }
         })
         
@@ -12426,6 +12610,22 @@ def admin_llm_dashboard():
         result = cursor.fetchone()
         avg_confidence = float(result[0]) if result and result[0] else 0
 
+        # Get category distribution for Analytics tab
+        category_distribution = {}
+        try:
+            cursor.execute('''
+                SELECT category, COUNT(*) as cnt FROM llm_mappings
+                WHERE category IS NOT NULL AND category != ''
+                GROUP BY category ORDER BY cnt DESC LIMIT 10
+            ''')
+            cat_rows = cursor.fetchall()
+            total_categorized = sum(r[1] for r in cat_rows) if cat_rows else 0
+            if total_categorized > 0:
+                for row in cat_rows:
+                    category_distribution[row[0]] = round((row[1] / total_categorized) * 100, 1)
+        except Exception:
+            category_distribution = {}
+
         # FAST: Get only 7 mappings for each tab (with index)
         pending_mappings = []
         approved_mappings = []
@@ -12521,16 +12721,16 @@ def admin_llm_dashboard():
                     'systemStatus': "online",
                     'databaseStatus': "connected",
                     'aiModelStatus': "active",
-                    'lastUpdated': datetime.now().isoformat()
+                    'lastUpdated': datetime.now().isoformat(),
+                    'performanceMetrics': {
+                        'processing_speed': f'{total_mappings:,} total records',
+                        'avg_confidence': round(avg_conf * 100, 1),
+                        'error_rate': '0.02%',
+                        'uptime': '99.9%',
+                        'memory_usage': '1.2GB'
+                    },
+                    'categoryDistribution': category_distribution
                 },
-                'performance_metrics': {
-                    'processing_speed': f'{total_mappings:,} records/sec',
-                    'avg_confidence': round(avg_conf, 3),
-                    'error_rate': '0.02%',
-                    'uptime': '99.9%',
-                    'memory_usage': '1.2GB'
-                },
-                'category_distribution': {},  # Skip heavy query
                 'mappings': {
                     'pending': pending_mappings,
                     'approved': approved_mappings,
@@ -12575,16 +12775,16 @@ def admin_llm_dashboard():
                     'systemStatus': 'offline',
                     'databaseStatus': 'disconnected',
                     'aiModelStatus': 'inactive',
-                    'lastUpdated': datetime.now().isoformat()
+                    'lastUpdated': datetime.now().isoformat(),
+                    'performanceMetrics': {
+                        'processing_speed': '0 total records',
+                        'avg_confidence': 0,
+                        'error_rate': '0%',
+                        'uptime': '0%',
+                        'memory_usage': '0%'
+                    },
+                    'categoryDistribution': {}
                 },
-                'performance_metrics': {
-                    'processing_speed': '0 records/sec',
-                    'avg_confidence': 0,
-                    'error_rate': '0%',
-                    'uptime': '0%',
-                    'memory_usage': '0%'
-                },
-                'category_distribution': {},
                 'mappings': {
                     'pending': [],
                     'approved': [],

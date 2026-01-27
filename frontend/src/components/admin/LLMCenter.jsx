@@ -680,6 +680,17 @@ const LLMCenter = () => {
         setPendingMappings(data.mappings.pending || [])
         setApprovedMappings(data.mappings.approved || [])
         setRejectedMappings(data.mappings.rejected || [])
+
+        // Set initial pagination counts from dashboard counts
+        if (data.mappings.counts) {
+          const counts = data.mappings.counts
+          setPagination(prev => ({
+            ...prev,
+            pending: { ...prev.pending, page: 1, total: counts.pending || 0, totalPages: Math.ceil((counts.pending || 0) / prev.limit), hasNext: (counts.pending || 0) > prev.limit, hasPrev: false },
+            approved: { ...prev.approved, page: 1, total: counts.approved || 0, totalPages: Math.ceil((counts.approved || 0) / prev.limit), hasNext: (counts.approved || 0) > prev.limit, hasPrev: false },
+            rejected: { ...prev.rejected, page: 1, total: counts.rejected || 0, totalPages: Math.ceil((counts.rejected || 0) / prev.limit), hasNext: (counts.rejected || 0) > prev.limit, hasPrev: false }
+          }))
+        }
       }
       if (data.analytics) {
         setAnalytics(data.analytics)
@@ -714,6 +725,17 @@ const LLMCenter = () => {
         setPendingMappings(llmData.mappings.pending || [])
         setApprovedMappings(llmData.mappings.approved || [])
         setRejectedMappings(llmData.mappings.rejected || [])
+
+        // Sync pagination counts
+        if (llmData.mappings.counts) {
+          const counts = llmData.mappings.counts
+          setPagination(prev => ({
+            ...prev,
+            pending: { ...prev.pending, page: 1, total: counts.pending || 0, totalPages: Math.ceil((counts.pending || 0) / prev.limit), hasNext: (counts.pending || 0) > prev.limit, hasPrev: false },
+            approved: { ...prev.approved, page: 1, total: counts.approved || 0, totalPages: Math.ceil((counts.approved || 0) / prev.limit), hasNext: (counts.approved || 0) > prev.limit, hasPrev: false },
+            rejected: { ...prev.rejected, page: 1, total: counts.rejected || 0, totalPages: Math.ceil((counts.rejected || 0) / prev.limit), hasNext: (counts.rejected || 0) > prev.limit, hasPrev: false }
+          }))
+        }
       }
       if (llmData.analytics) {
         setAnalytics(llmData.analytics)
@@ -778,18 +800,18 @@ const LLMCenter = () => {
       
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: '20',
+        limit: pagination.limit.toString(),
         status: tab,
         search: search
       })
-      
+
       const response = await fetch(buildApiUrl(`/api/admin/llm-center/mappings?${params}`), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         if (data.success) {
@@ -801,15 +823,17 @@ const LLMCenter = () => {
           } else if (tab === 'rejected') {
             setRejectedMappings(data.data.mappings)
           }
-          
-          // Update pagination
+
+          // Update pagination from server response
+          const pgData = data.data.pagination
           setPagination(prev => ({
             ...prev,
             [tab]: {
-              page: data.data.pagination.page,
-              total: data.data.pagination.total,
-              hasNext: data.data.pagination.has_next,
-              hasPrev: data.data.pagination.has_prev
+              page: pgData.current_page,
+              total: pgData.total_count,
+              totalPages: pgData.total_pages,
+              hasNext: pgData.has_next,
+              hasPrev: pgData.has_prev
             }
           }))
         }
@@ -1215,8 +1239,8 @@ const LLMCenter = () => {
           console.log('Found mappings:', mappings.length)
           setSearchResults(mappings)
           
-          // Update pagination for search results
-          setPagination({
+          // Update search pagination without destroying tab pagination
+          setSearchPagination({
             currentPage: data.data?.pagination?.current_page || pageNum,
             totalPages: data.data?.pagination?.total_pages || 1,
             totalCount: data.data?.pagination?.total_count || data.total_mappings || 0,
@@ -1962,7 +1986,7 @@ Errors: ${errorCount}`,
         <h2 className="text-xl font-semibold text-white mb-4">Search Results</h2>
         {searchResults && searchResults.length > 0 ? (
           <div className="space-y-4">
-            {searchResults.slice((pagination.currentPage - 1) * pagination.limit, pagination.currentPage * pagination.limit).map((mapping) => (
+            {searchResults.map((mapping) => (
               <div key={mapping.id} className="bg-white/5 p-4 rounded-lg border border-white/10">
                 <div className="flex justify-between items-start">
                   <div className="flex items-start space-x-3">
@@ -2033,29 +2057,29 @@ Errors: ${errorCount}`,
           </div>
         )}
         
-        {/* Pagination Controls */}
-        {searchResults && searchResults.length > 0 && Math.ceil(searchResults.length / pagination.limit) > 1 && (
+        {/* Search Pagination Controls - Server-side */}
+        {searchPagination.totalPages > 1 && (
           <div className="flex justify-center items-center space-x-4 mt-6">
             <button
-              onClick={() => setPagination(prev => ({ ...prev, currentPage: Math.max(1, prev.currentPage - 1) }))}
-              disabled={pagination.currentPage === 1}
+              onClick={() => performSearch(searchQuery, searchPagination.currentPage - 1)}
+              disabled={!searchPagination.hasPrev}
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all flex items-center space-x-2"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Previous</span>
             </button>
-            
+
             <div className="flex items-center space-x-2">
               <span className="text-gray-400">Page</span>
-              <span className="text-white font-medium">{pagination.currentPage}</span>
+              <span className="text-white font-medium">{searchPagination.currentPage}</span>
               <span className="text-gray-400">of</span>
-              <span className="text-white font-medium">{Math.ceil(searchResults.length / pagination.limit)}</span>
-              <span className="text-gray-400">({searchResults.length} total)</span>
+              <span className="text-white font-medium">{searchPagination.totalPages}</span>
+              <span className="text-gray-400">({searchPagination.totalCount} total)</span>
             </div>
-            
+
             <button
-              onClick={() => setPagination(prev => ({ ...prev, currentPage: Math.min(Math.ceil(searchResults.length / pagination.limit), prev.currentPage + 1) }))}
-              disabled={pagination.currentPage >= Math.ceil(searchResults.length / pagination.limit)}
+              onClick={() => performSearch(searchQuery, searchPagination.currentPage + 1)}
+              disabled={!searchPagination.hasNext}
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all flex items-center space-x-2"
             >
               <span>Next</span>
@@ -2201,7 +2225,7 @@ Errors: ${errorCount}`,
           </div>
         </div>
         <div className="space-y-4">
-          {pendingMappings && Array.isArray(pendingMappings) && pendingMappings.slice(((pagination.pending?.page || 1) - 1) * pagination.limit, (pagination.pending?.page || 1) * pagination.limit).map((mapping) => (
+          {pendingMappings && Array.isArray(pendingMappings) && pendingMappings.map((mapping) => (
             <div key={mapping.id} className="bg-white/5 p-4 rounded-lg border border-white/10">
               <div className="flex justify-between items-start">
                 <div className="flex items-start space-x-3">
@@ -2299,41 +2323,29 @@ Errors: ${errorCount}`,
           )}
         </div>
         
-        {/* Pagination Controls */}
-        {pendingMappings && pendingMappings.length > 0 && Math.ceil(pendingMappings.length / pagination.limit) > 1 && (
+        {/* Pagination Controls - Server-side */}
+        {(pagination.pending?.total || 0) > pagination.limit && (
           <div className="flex justify-center items-center space-x-4 mt-6">
             <button
-              onClick={() => setPagination(prev => ({ 
-                ...prev, 
-                pending: { 
-                  ...prev.pending, 
-                  page: Math.max(1, prev.pending.page - 1) 
-                } 
-              }))}
-              disabled={(pagination.pending?.page || 1) === 1}
+              onClick={() => loadTabData('pending', (pagination.pending?.page || 1) - 1)}
+              disabled={!(pagination.pending?.hasPrev)}
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all flex items-center space-x-2"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Previous</span>
             </button>
-            
+
             <div className="flex items-center space-x-2">
               <span className="text-gray-400">Page</span>
               <span className="text-white font-medium">{pagination.pending?.page || 1}</span>
               <span className="text-gray-400">of</span>
-              <span className="text-white font-medium">{Math.ceil(pendingMappings.length / pagination.limit)}</span>
-              <span className="text-gray-400">({pendingMappings.length} total)</span>
+              <span className="text-white font-medium">{pagination.pending?.totalPages || 1}</span>
+              <span className="text-gray-400">({pagination.pending?.total || 0} total)</span>
             </div>
-            
+
             <button
-              onClick={() => setPagination(prev => ({ 
-                ...prev, 
-                pending: { 
-                  ...prev.pending, 
-                  page: Math.min(Math.ceil(pendingMappings.length / pagination.limit), prev.pending.page + 1) 
-                } 
-              }))}
-              disabled={(pagination.pending?.page || 1) >= Math.ceil(pendingMappings.length / pagination.limit)}
+              onClick={() => loadTabData('pending', (pagination.pending?.page || 1) + 1)}
+              disabled={!(pagination.pending?.hasNext)}
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all flex items-center space-x-2"
             >
               <span>Next</span>
@@ -2363,7 +2375,7 @@ Errors: ${errorCount}`,
           </div>
         </div>
         <div className="space-y-4">
-          {approvedMappings && approvedMappings.slice(((pagination.approved?.page || 1) - 1) * pagination.limit, (pagination.approved?.page || 1) * pagination.limit).map((mapping) => (
+          {approvedMappings && approvedMappings.map((mapping) => (
             <div key={mapping.id} className="bg-white/5 p-4 rounded-lg border border-white/10">
               <div className="flex justify-between items-start">
                 <div className="flex items-start space-x-3">
@@ -2388,7 +2400,11 @@ Errors: ${errorCount}`,
                       </span>
                     </div>
                     <p className="text-gray-400 text-sm">{mapping.category}</p>
-                    <p className="text-gray-400 text-xs">Confidence: {mapping.ai_confidence ? (mapping.ai_confidence * 100).toFixed(1) : mapping.confidence}%</p>
+                    <p className="text-gray-400 text-xs">Confidence: {(() => {
+                      const confidence = mapping.ai_confidence || mapping.confidence || 0
+                      const percentage = confidence > 1 ? confidence : confidence * 100
+                      return `${percentage.toFixed(1)}%`
+                    })()}</p>
                     <p className="text-gray-400 text-xs">User Approved by: {mapping.admin_id ? mapping.admin_id.replace('@kamioi.com', '') : (mapping.user_email ? mapping.user_email.replace('@kamioi.com', '') : 'Admin')}</p>
                     <p className="text-gray-400 text-xs">User Approved at: {formatToEasternTime(mapping.created_at)}</p>
                     <p className="text-gray-400 text-xs">Approval Status: {mapping.approval_status_label || mapping.display_status || (mapping.admin_approved === 1 ? ' Admin Approved' : mapping.admin_approved === -1 ? ' Admin Rejected' : ' Pending Review')}</p>
@@ -2434,41 +2450,29 @@ Errors: ${errorCount}`,
           ))}
         </div>
         
-        {/* Pagination Controls */}
-        {approvedMappings && approvedMappings.length > 0 && Math.ceil(approvedMappings.length / pagination.limit) > 1 && (
+        {/* Pagination Controls - Server-side */}
+        {(pagination.approved?.total || 0) > pagination.limit && (
           <div className="flex justify-center items-center space-x-4 mt-6">
             <button
-              onClick={() => setPagination(prev => ({ 
-                ...prev, 
-                approved: { 
-                  ...prev.approved, 
-                  page: Math.max(1, prev.approved.page - 1) 
-                } 
-              }))}
-              disabled={(pagination.approved?.page || 1) === 1}
+              onClick={() => loadTabData('approved', (pagination.approved?.page || 1) - 1)}
+              disabled={!(pagination.approved?.hasPrev)}
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all flex items-center space-x-2"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Previous</span>
             </button>
-            
+
             <div className="flex items-center space-x-2">
               <span className="text-gray-400">Page</span>
               <span className="text-white font-medium">{pagination.approved?.page || 1}</span>
               <span className="text-gray-400">of</span>
-              <span className="text-white font-medium">{Math.ceil(approvedMappings.length / pagination.limit)}</span>
-              <span className="text-gray-400">({approvedMappings.length} total)</span>
+              <span className="text-white font-medium">{pagination.approved?.totalPages || 1}</span>
+              <span className="text-gray-400">({pagination.approved?.total || 0} total)</span>
             </div>
-            
+
             <button
-              onClick={() => setPagination(prev => ({ 
-                ...prev, 
-                approved: { 
-                  ...prev.approved, 
-                  page: Math.min(Math.ceil(approvedMappings.length / pagination.limit), prev.approved.page + 1) 
-                } 
-              }))}
-              disabled={(pagination.approved?.page || 1) >= Math.ceil(approvedMappings.length / pagination.limit)}
+              onClick={() => loadTabData('approved', (pagination.approved?.page || 1) + 1)}
+              disabled={!(pagination.approved?.hasNext)}
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all flex items-center space-x-2"
             >
               <span>Next</span>
@@ -2497,7 +2501,7 @@ Errors: ${errorCount}`,
           </div>
         </div>
         <div className="space-y-4">
-          {rejectedMappings && rejectedMappings.slice(((pagination.rejected?.page || 1) - 1) * pagination.limit, (pagination.rejected?.page || 1) * pagination.limit).map((mapping) => (
+          {rejectedMappings && rejectedMappings.map((mapping) => (
             <div key={mapping.id} className="bg-white/5 p-4 rounded-lg border border-white/10">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
@@ -2514,7 +2518,11 @@ Errors: ${errorCount}`,
                     Ticker: {mapping.ticker} | Category: {mapping.category}
                   </p>
                   <div className="flex items-center space-x-4 text-sm text-gray-400">
-                    <span>Confidence: {mapping.ai_confidence ? (mapping.ai_confidence * 100).toFixed(1) : mapping.confidence}%</span>
+                    <span>Confidence: {(() => {
+                      const confidence = mapping.ai_confidence || mapping.confidence || 0
+                      const percentage = confidence > 1 ? confidence : confidence * 100
+                      return `${percentage.toFixed(1)}%`
+                    })()}</span>
                     <span>Submitted: {formatToEasternDate(mapping.created_at)}</span>
                     <span>By: {mapping.user_email || mapping.user_id || 'Unknown'}</span>
                     <span>Status: {mapping.approval_status_label || mapping.display_status || (mapping.admin_approved === 1 ? ' Admin Approved' : mapping.admin_approved === -1 ? ' Admin Rejected' : ' Pending Review')}</span>
@@ -2544,41 +2552,29 @@ Errors: ${errorCount}`,
           ))}
         </div>
         
-        {/* Pagination Controls */}
-        {rejectedMappings && rejectedMappings.length > 0 && Math.ceil(rejectedMappings.length / pagination.limit) > 1 && (
+        {/* Pagination Controls - Server-side */}
+        {(pagination.rejected?.total || 0) > pagination.limit && (
           <div className="flex justify-center items-center space-x-4 mt-6">
             <button
-              onClick={() => setPagination(prev => ({ 
-                ...prev, 
-                rejected: { 
-                  ...prev.rejected, 
-                  page: Math.max(1, prev.rejected.page - 1) 
-                } 
-              }))}
-              disabled={(pagination.rejected?.page || 1) === 1}
+              onClick={() => loadTabData('rejected', (pagination.rejected?.page || 1) - 1)}
+              disabled={!(pagination.rejected?.hasPrev)}
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all flex items-center space-x-2"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Previous</span>
             </button>
-            
+
             <div className="flex items-center space-x-2">
               <span className="text-gray-400">Page</span>
               <span className="text-white font-medium">{pagination.rejected?.page || 1}</span>
               <span className="text-gray-400">of</span>
-              <span className="text-white font-medium">{Math.ceil(rejectedMappings.length / pagination.limit)}</span>
-              <span className="text-gray-400">({rejectedMappings.length} total)</span>
+              <span className="text-white font-medium">{pagination.rejected?.totalPages || 1}</span>
+              <span className="text-gray-400">({pagination.rejected?.total || 0} total)</span>
             </div>
-            
+
             <button
-              onClick={() => setPagination(prev => ({ 
-                ...prev, 
-                rejected: { 
-                  ...prev.rejected, 
-                  page: Math.min(Math.ceil(rejectedMappings.length / pagination.limit), prev.rejected.page + 1) 
-                } 
-              }))}
-              disabled={(pagination.rejected?.page || 1) >= Math.ceil(rejectedMappings.length / pagination.limit)}
+              onClick={() => loadTabData('rejected', (pagination.rejected?.page || 1) + 1)}
+              disabled={!(pagination.rejected?.hasNext)}
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all flex items-center space-x-2"
             >
               <span>Next</span>
@@ -3641,14 +3637,9 @@ Errors: ${errorCount}`,
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Calculate paginated mappings - 5 per page */}
+            {/* Receipt mappings - API handles pagination, no client-side slicing needed */}
             {(() => {
-              const itemsPerPage = 5
-              const startIndex = (receiptMappingsCurrentPage - 1) * itemsPerPage
-              const endIndex = startIndex + itemsPerPage
-              const paginatedMappings = receiptMappings.slice(startIndex, endIndex)
-              
-              return paginatedMappings.map((mapping) => {
+              return receiptMappings.map((mapping) => {
               const mappingData = mapping.mapping_data || {}
               const retailer = mappingData.retailer || {}
               const items = mappingData.items || []
