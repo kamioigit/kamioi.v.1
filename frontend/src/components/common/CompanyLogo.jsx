@@ -218,7 +218,7 @@ const CompanyLogo = ({ symbol, name, size = 'w-8 h-8', clickable = false }) => {
 
   return (
     <div
-      className={`${size} rounded-lg overflow-hidden bg-white flex items-center justify-center ${clickable ? 'cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all' : ''}`}
+      className={`${size} rounded-lg overflow-hidden flex items-center justify-center ${clickable ? 'cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all' : ''}`}
       onClick={handleClick}
       title={name || symbol}
     >
@@ -226,7 +226,7 @@ const CompanyLogo = ({ symbol, name, size = 'w-8 h-8', clickable = false }) => {
         key={currentUrl} // Force re-render on URL change
         src={currentUrl}
         alt={`${name || symbol} logo`}
-        className="w-full h-full object-contain p-0.5"
+        className="w-full h-full object-contain"
         onError={handleImageError}
         loading="lazy"
         referrerPolicy="no-referrer"

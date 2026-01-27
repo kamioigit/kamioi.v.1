@@ -918,14 +918,16 @@ const UserTransactions = () => {
                   <td className="py-3 px-4 text-center">
                     {(transaction.status === 'mapped' || transaction.status === 'completed') && transaction.ticker ? (
                       <div className="flex flex-col items-center justify-center space-y-1">
-                        <CompanyLogo 
-                          symbol={transaction.ticker} 
+                        <CompanyLogo
+                          symbol={transaction.ticker}
                           name={getCompanyName(transaction.ticker)}
-                          size="w-6 h-6" 
-                          clickable={true} 
+                          size="w-6 h-6"
+                          clickable={true}
                         />
                         <div className="text-green-400 font-medium text-xs">
-                          {calculateShares(getDisplayRoundUp(transaction), transaction.ticker)}
+                          {transaction.shares && parseFloat(transaction.shares) > 0
+                            ? parseFloat(transaction.shares).toFixed(4)
+                            : calculateShares(getDisplayRoundUp(transaction), transaction.ticker)}
                         </div>
                       </div>
                     ) : (
@@ -1367,10 +1369,10 @@ const UserTransactions = () => {
                         hasMappingDetails: !!mappingDetails
                       })}
                       
-                      {!mappingDetails && (
+                      {!mappingDetails && !selectedTransaction?.ticker && selectedTransaction?.status !== 'mapped' && selectedTransaction?.status !== 'completed' && (
                         <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
                           <p className="text-yellow-400 text-sm">
-                            Loading mapping data... If this persists, no user mapping was found for this transaction.
+                            No AI mapping found. This transaction is pending mapping.
                           </p>
                         </div>
                       )}
@@ -1468,20 +1470,28 @@ const UserTransactions = () => {
                           <p className="text-white font-medium">{formatCurrency(getDisplayRoundUp(selectedTransaction), '$', 2)}</p>
                         </div>
                         <div>
-                          <label className="text-sm text-gray-400">Shares Purchased</label>
-                          <p className="text-white font-medium">{calculateShares(getDisplayRoundUp(selectedTransaction), selectedTransaction.ticker)} shares</p>
+                          <label className="text-sm text-gray-400">Price Per Share</label>
+                          <p className="text-white font-medium">
+                            {selectedTransaction.price_per_share || selectedTransaction.stock_price
+                              ? formatCurrency(selectedTransaction.price_per_share || selectedTransaction.stock_price, '$', 2)
+                              : 'Market price'}
+                          </p>
                         </div>
                         <div>
-                          <label className="text-sm text-gray-400">Current Value</label>
-                          <p className="text-white font-medium">{formatCurrency(getDisplayRoundUp(selectedTransaction), '$', 2)} (Initial investment)</p>
+                          <label className="text-sm text-gray-400">Shares Purchased</label>
+                          <p className="text-white font-medium">
+                            {selectedTransaction.shares && selectedTransaction.shares > 0
+                              ? `${parseFloat(selectedTransaction.shares).toFixed(6)} shares`
+                              : calculateShares(getDisplayRoundUp(selectedTransaction), selectedTransaction.ticker) + ' shares'}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="text-sm text-gray-400">Investment Amount</label>
+                          <p className="text-white font-medium">{formatCurrency(getDisplayRoundUp(selectedTransaction), '$', 2)}</p>
                         </div>
                         <div>
                           <label className="text-sm text-gray-400">Investment Date</label>
                           <p className="text-white font-medium">{formatDate(selectedTransaction.date)}</p>
-                        </div>
-                        <div>
-                          <label className="text-sm text-gray-400">Portfolio Impact</label>
-                          <p className="text-white font-medium">Added to individual portfolio</p>
                         </div>
                       </div>
                     </div>
