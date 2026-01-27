@@ -47,7 +47,7 @@ except ImportError as e:
 
 # Initialize Flask app
 print("=" * 60)
-print("KAMIOI BACKEND VERSION: 2026-01-27-v6")
+print("KAMIOI BACKEND VERSION: 2026-01-27-v7")
 print("=" * 60)
 app = Flask(__name__)
 CORS(
@@ -863,6 +863,37 @@ def initialize_database():
 
         try:
             cursor.execute("ALTER TABLE llm_mappings ADD COLUMN IF NOT EXISTS ticker VARCHAR(20)")
+        except Exception:
+            pass
+
+        # AI processing result columns for llm_mappings
+        try:
+            cursor.execute("ALTER TABLE llm_mappings ADD COLUMN IF NOT EXISTS ai_attempted INTEGER DEFAULT 0")
+        except Exception:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE llm_mappings ADD COLUMN IF NOT EXISTS ai_status VARCHAR(50)")
+        except Exception:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE llm_mappings ADD COLUMN IF NOT EXISTS ai_confidence REAL")
+        except Exception:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE llm_mappings ADD COLUMN IF NOT EXISTS ai_reasoning TEXT")
+        except Exception:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE llm_mappings ADD COLUMN IF NOT EXISTS ai_model_version VARCHAR(50)")
+        except Exception:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE llm_mappings ADD COLUMN IF NOT EXISTS ai_processing_duration REAL")
         except Exception:
             pass
 
@@ -10480,22 +10511,41 @@ def admin_get_single_mapping(mapping_id):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
         conn = get_db_connection()
-        cursor = get_db_cursor(conn)
+        cursor = conn.cursor()
 
         cursor.execute('''
-            SELECT id, merchant_name, category, notes, ticker_symbol, confidence,
-                   status, created_at, admin_id, admin_approved, company_name,
-                   transaction_id, user_id, dashboard_type
-            FROM llm_mappings
-            WHERE id = %s
+            SELECT m.id, m.merchant_name, m.category, m.notes, m.ticker_symbol, m.confidence,
+                   m.status, m.created_at, m.admin_id, m.admin_approved, m.company_name,
+                   m.transaction_id, m.user_id, m.dashboard_type,
+                   m.ai_attempted, m.ai_status, m.ai_confidence, m.ai_reasoning,
+                   m.ai_model_version, m.ai_processing_duration, m.ai_processed
+            FROM llm_mappings m
+            WHERE m.id = %s
         ''', (mapping_id,))
 
         row = cursor.fetchone()
-        cursor.close()
-        conn.close()
 
         if not row:
+            conn.close()
             return jsonify({'success': False, 'error': 'Mapping not found'}), 404
+
+        # Fetch user email if user_id exists
+        user_email = None
+        user_account_number = None
+        user_id_val = row[12]
+        if user_id_val:
+            try:
+                cursor.execute('''
+                    SELECT email, id FROM users WHERE id = %s
+                ''', (user_id_val,))
+                user_row = cursor.fetchone()
+                if user_row:
+                    user_email = user_row[0]
+                    user_account_number = str(user_row[1])
+            except Exception:
+                pass
+
+        conn.close()
 
         mapping = {
             'id': row[0],
@@ -10503,6 +10553,7 @@ def admin_get_single_mapping(mapping_id):
             'category': row[2],
             'notes': row[3],
             'ticker_symbol': row[4],
+            'ticker': row[4],
             'confidence': float(row[5]) if row[5] else 0,
             'status': row[6],
             'created_at': row[7].isoformat() if row[7] else None,
@@ -10510,8 +10561,17 @@ def admin_get_single_mapping(mapping_id):
             'admin_approved': row[9],
             'company_name': row[10],
             'transaction_id': row[11],
-            'user_id': row[12],
-            'dashboard_type': row[13]
+            'user_id': user_id_val,
+            'dashboard_type': row[13],
+            'ai_attempted': row[14],
+            'ai_status': row[15],
+            'ai_confidence': float(row[16]) if row[16] else None,
+            'ai_reasoning': row[17],
+            'ai_model_version': row[18],
+            'ai_processing_duration': float(row[19]) if row[19] else None,
+            'ai_processed': row[20],
+            'user_email': user_email,
+            'user_account_number': user_account_number
         }
 
         return jsonify({
@@ -10521,6 +10581,8 @@ def admin_get_single_mapping(mapping_id):
         })
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -10587,15 +10649,25 @@ def admin_process_mapping_with_ai(mapping_id):
 
         processing_time = time.time() - start_time
 
-        # Update the mapping with AI results - use columns that exist
+        processing_duration_ms = int(processing_time * 1000)
+
+        # Update the mapping with all AI results
         cursor.execute('''
             UPDATE llm_mappings
             SET confidence = %s,
                 status = CASE WHEN %s = 'approved' THEN 'approved' ELSE status END,
                 admin_approved = CASE WHEN %s = 'approved' THEN 1 ELSE admin_approved END,
-                ai_processed = TRUE
+                ai_processed = TRUE,
+                ai_attempted = 1,
+                ai_status = %s,
+                ai_confidence = %s,
+                ai_reasoning = %s,
+                ai_model_version = %s,
+                ai_processing_duration = %s
             WHERE id = %s
-        ''', (confidence, ai_status, ai_status, mapping_id))
+        ''', (confidence, ai_status, ai_status,
+              ai_status, confidence, reasoning, 'v1.0', processing_duration_ms,
+              mapping_id))
 
         conn.commit()
         conn.close()
@@ -10610,7 +10682,9 @@ def admin_process_mapping_with_ai(mapping_id):
                 'ai_auto_approved': ai_status == 'approved',
                 'processing_time': processing_time,
                 'model_version': 'v1.0',
-                'suggested_ticker': ticker_symbol
+                'ai_model_version': 'v1.0',
+                'suggested_ticker': ticker_symbol,
+                'ai_processing_duration': processing_duration_ms
             }
         })
 
