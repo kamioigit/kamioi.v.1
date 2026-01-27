@@ -9936,28 +9936,22 @@ def user_submit_mapping():
         if not data:
             return jsonify({'success': False, 'error': 'No data provided'}), 400
         
-        required_fields = ['merchant_name', 'category', 'ticker_symbol', 'dashboard_type', 'transaction_id', 'mapping_id']
+        required_fields = ['merchant_name', 'category', 'ticker_symbol', 'transaction_id']
         for field in required_fields:
             if field not in data:
                 return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
-        
+
         # Extract user_id from token
         token = auth_header.split(' ')[1]
         user_id = token.replace('user_token_', '')
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Get user email from token for proper attribution
-        user_email = f"user_{user_id}@kamioi.com"  # We'll need to get actual email from users table
-        
-        # Use the user_id from the token (more reliable than frontend data)
-        actual_user_id = user_id
-        
+
         # Convert confidence percentage to decimal and named status
         confidence_percent = data.get('confidence', 50)  # Default to 50% if not provided
         confidence_decimal = confidence_percent / 100.0  # Convert percentage to decimal
-        
+
         # Convert to named status for better user experience
         if confidence_percent >= 90:
             confidence_status = "very_high"
@@ -9969,39 +9963,38 @@ def user_submit_mapping():
             confidence_status = "low"
         else:
             confidence_status = "very_low"
-        
-        # Use mapping ID from frontend
-        mapping_id_str = data['mapping_id']
-        
+
+        dashboard_type = data.get('dashboard_type', 'individual')
+
         # Insert user-submitted mapping as pending
+        # Table columns: merchant_name, ticker, category, confidence, status, user_id, transaction_id, company_name, dashboard_type
         cursor.execute('''
             INSERT INTO llm_mappings (
-                merchant_name, category, notes, ticker_symbol, confidence, status, 
-                admin_id, user_id, transaction_id, company_name, mapping_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                merchant_name, ticker, category, confidence, status,
+                user_id, transaction_id, company_name, dashboard_type
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
         ''', (
             data['merchant_name'],
-            data['category'],
-            data.get('notes', ''),
             data['ticker_symbol'],
-            confidence_decimal,  # Use converted decimal confidence
-            'pending',  # Always pending for user submissions
-            user_email,  # Use actual user email instead of 'user_submission'
-            actual_user_id,  # Use the correct user ID
+            data['category'],
+            confidence_decimal,
+            'pending',
+            user_id,
             data['transaction_id'],
             data.get('company_name', ''),
-            mapping_id_str
+            dashboard_type
         ))
-        
-        mapping_id = cursor.lastrowid
+
+        result = cursor.fetchone()
+        mapping_id = result[0] if result else None
         conn.commit()
         conn.close()
-        
+
         return jsonify({
             'success': True,
             'message': 'Mapping submitted successfully',
             'mapping_id': mapping_id,
-            'mapping_id_str': mapping_id_str,
             'status': 'pending',
             'confidence_status': confidence_status,
             'confidence_percent': confidence_percent,
@@ -10071,17 +10064,11 @@ def admin_approve_mapping_llm():
         
         # Update mapping status to approved
         cursor.execute('''
-            UPDATE llm_mappings 
-            SET status = 'approved', 
-                admin_reviewed = 1,
-                admin_id = ?,
-                learning_weight = ?
-            WHERE id = ? AND source_type = 'user'
-        ''', (
-            data.get('admin_id', 'admin_approved'),
-            data.get('learning_weight', 1.0),
-            data['mapping_id']
-        ))
+            UPDATE llm_mappings
+            SET status = 'approved',
+                admin_approved = 1
+            WHERE id = %s
+        ''', (data['mapping_id'],))
         
         if cursor.rowcount == 0:
             conn.close()
@@ -10117,17 +10104,11 @@ def admin_reject_mapping_llm():
         
         # Update mapping status to rejected
         cursor.execute('''
-            UPDATE llm_mappings 
-            SET status = 'rejected', 
-                admin_reviewed = 1,
-                admin_id = ?,
-                notes = ?
-            WHERE id = ? AND source_type = 'user'
-        ''', (
-            data.get('admin_id', 'admin_rejected'),
-            data.get('rejection_reason', 'Rejected by admin'),
-            data['mapping_id']
-        ))
+            UPDATE llm_mappings
+            SET status = 'rejected',
+                admin_approved = -1
+            WHERE id = %s
+        ''', (data['mapping_id'],))
         
         if cursor.rowcount == 0:
             conn.close()
