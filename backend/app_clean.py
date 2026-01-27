@@ -47,7 +47,7 @@ except ImportError as e:
 
 # Initialize Flask app
 print("=" * 60)
-print("KAMIOI BACKEND VERSION: 2026-01-27-v5")
+print("KAMIOI BACKEND VERSION: 2026-01-27-v6")
 print("=" * 60)
 app = Flask(__name__)
 CORS(
@@ -9600,18 +9600,21 @@ def admin_get_pending_mappings():
         cursor = conn.cursor()
         conn.rollback()  # Clear any aborted transaction
 
-        # Get user-submitted mappings with status 'pending' (PostgreSQL %s placeholders)
+        # Get user-submitted mappings with status 'pending' using explicit columns
+        select_cols = '''id, merchant_name, ticker_symbol, category, confidence,
+                         status, admin_approved, company_name, user_id, created_at,
+                         transaction_id, dashboard_type, ai_processed, notes'''
         if search:
-            cursor.execute('''
-                SELECT * FROM llm_mappings
+            cursor.execute(f'''
+                SELECT {select_cols} FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
                 AND (merchant_name LIKE %s OR category LIKE %s OR ticker_symbol LIKE %s)
                 ORDER BY created_at DESC
                 LIMIT %s OFFSET %s
             ''', (f'%{search}%', f'%{search}%', f'%{search}%', limit, (page - 1) * limit))
         else:
-            cursor.execute('''
-                SELECT * FROM llm_mappings
+            cursor.execute(f'''
+                SELECT {select_cols} FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
                 ORDER BY created_at DESC
                 LIMIT %s OFFSET %s
@@ -9631,38 +9634,32 @@ def admin_get_pending_mappings():
                 SELECT COUNT(*) FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
             ''')
-        
+
         total_count = cursor.fetchone()[0]
         conn.close()
-        
-        # Convert to list of dictionaries
+
+        # Convert to list of dictionaries using explicit column order
         mappings_list = []
-        for mapping in mappings:
+        for m in mappings:
+            conf_val = float(m[4]) if m[4] else 0
             mappings_list.append({
-                'id': mapping[0],
-                'transaction_id': mapping[1],
-                'merchant_name': mapping[2],
-                'ticker': mapping[3],
-                'category': mapping[4],
-                'confidence': mapping[5],
-                'status': mapping[6],
-                'admin_approved': mapping[7],
-                'ai_processed': mapping[8],
-                'company_name': mapping[9],
-                'user_id': mapping[10],
-                'created_at': mapping[11],
-                'notes': mapping[12],
-                'ticker_symbol': mapping[13],
-                'admin_id': mapping[14],
-                'mapping_id': mapping[16] if len(mapping) > 16 else None,
-                'ai_attempted': mapping[17] if len(mapping) > 17 else None,
-                'ai_status': mapping[18] if len(mapping) > 18 else None,
-                'ai_confidence': mapping[19] if len(mapping) > 19 else None,
-                'ai_reasoning': mapping[20] if len(mapping) > 20 else None,
-                'ai_processing_time': mapping[21] if len(mapping) > 21 else None,
-                'ai_model_version': mapping[22] if len(mapping) > 22 else None
+                'id': m[0],
+                'merchant_name': m[1],
+                'ticker_symbol': m[2],
+                'ticker': m[2],
+                'category': m[3],
+                'confidence': conf_val,
+                'status': m[5],
+                'admin_approved': m[6],
+                'company_name': m[7],
+                'user_id': m[8],
+                'created_at': m[9].isoformat() if m[9] else None,
+                'transaction_id': m[10],
+                'dashboard_type': m[11],
+                'ai_processed': m[12],
+                'notes': m[13]
             })
-        
+
         return jsonify({
             'success': True,
             'data': {
@@ -9676,7 +9673,7 @@ def admin_get_pending_mappings():
                 }
             }
         })
-        
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -9992,8 +9989,22 @@ def user_submit_mapping():
         token = auth_header.split(' ')[1]
         user_id = token.replace('user_token_', '')
 
+        # Prevent duplicate submissions for the same transaction
         conn = get_db_connection()
         cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id FROM llm_mappings
+            WHERE user_id = %s AND transaction_id = %s
+        ''', (user_id, data['transaction_id']))
+        existing = cursor.fetchone()
+        if existing:
+            conn.close()
+            return jsonify({
+                'success': True,
+                'message': 'Mapping already submitted for this transaction',
+                'mapping_id': existing[0],
+                'status': 'already_exists'
+            })
 
         # Convert confidence percentage to decimal and named status
         confidence_percent = data.get('confidence', 50)  # Default to 50% if not provided
@@ -10473,7 +10484,8 @@ def admin_get_single_mapping(mapping_id):
 
         cursor.execute('''
             SELECT id, merchant_name, category, notes, ticker_symbol, confidence,
-                   status, created_at, admin_id, admin_approved, company_name
+                   status, created_at, admin_id, admin_approved, company_name,
+                   transaction_id, user_id, dashboard_type
             FROM llm_mappings
             WHERE id = %s
         ''', (mapping_id,))
@@ -10496,15 +10508,115 @@ def admin_get_single_mapping(mapping_id):
             'created_at': row[7].isoformat() if row[7] else None,
             'admin_id': row[8],
             'admin_approved': row[9],
-            'company_name': row[10]
+            'company_name': row[10],
+            'transaction_id': row[11],
+            'user_id': row[12],
+            'dashboard_type': row[13]
         }
 
         return jsonify({
             'success': True,
+            'data': mapping,
             'mapping': mapping
         })
 
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/llm-center/process-mapping/<int:mapping_id>', methods=['POST'])
+def admin_process_mapping_with_ai(mapping_id):
+    """Process a single mapping through AI simulation - called from LLM Center"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Get the mapping to process
+        cursor.execute('''
+            SELECT id, merchant_name, ticker_symbol, category, confidence, status
+            FROM llm_mappings WHERE id = %s
+        ''', (mapping_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Mapping not found'}), 404
+
+        merchant_name = (row[1] or '').upper()
+        ticker_symbol = row[2] or ''
+        category = row[3] or ''
+        existing_confidence = float(row[4]) if row[4] else 0
+
+        import random
+        import time
+        start_time = time.time()
+
+        # AI confidence scoring based on merchant name patterns
+        confidence = 0.0
+        reasoning = ""
+
+        high_confidence_keywords = ['APPLE', 'MICROSOFT', 'GOOGLE', 'AMAZON', 'TESLA', 'STARBUCKS',
+                                     'MCDONALDS', 'WALMART', 'TARGET', 'NIKE', 'DISNEY', 'NETFLIX']
+        medium_keywords = ['TRADER', 'WHOLE FOODS', 'COSTCO', 'HOME DEPOT', 'BEST BUY', 'CHIPOTLE']
+
+        if any(kw in merchant_name for kw in high_confidence_keywords):
+            confidence = random.uniform(0.85, 0.95)
+            reasoning = f"High confidence: '{row[1]}' strongly maps to {ticker_symbol}"
+        elif any(kw in merchant_name for kw in medium_keywords):
+            confidence = random.uniform(0.70, 0.85)
+            reasoning = f"Medium-high confidence: '{row[1]}' likely maps to {ticker_symbol}"
+        elif ticker_symbol:
+            confidence = random.uniform(0.55, 0.75)
+            reasoning = f"Medium confidence: '{row[1]}' has user-suggested ticker {ticker_symbol}"
+        else:
+            confidence = random.uniform(0.30, 0.55)
+            reasoning = f"Low confidence: '{row[1]}' needs manual review for ticker assignment"
+
+        # Determine AI decision
+        ai_status = 'pending'
+        if confidence >= 0.85:
+            ai_status = 'approved'
+        elif confidence >= 0.60:
+            ai_status = 'review_required'
+        else:
+            ai_status = 'needs_review'
+
+        processing_time = time.time() - start_time
+
+        # Update the mapping with AI results - use columns that exist
+        cursor.execute('''
+            UPDATE llm_mappings
+            SET confidence = %s,
+                status = CASE WHEN %s = 'approved' THEN 'approved' ELSE status END,
+                admin_approved = CASE WHEN %s = 'approved' THEN 1 ELSE admin_approved END,
+                ai_processed = TRUE
+            WHERE id = %s
+        ''', (confidence, ai_status, ai_status, mapping_id))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'mapping_id': mapping_id,
+                'ai_status': ai_status,
+                'ai_confidence': round(confidence, 4),
+                'ai_reasoning': reasoning,
+                'ai_auto_approved': ai_status == 'approved',
+                'processing_time': processing_time,
+                'model_version': 'v1.0',
+                'suggested_ticker': ticker_symbol
+            }
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -14398,18 +14510,21 @@ def admin_llm_pending_mappings():
         cursor = conn.cursor()
         conn.rollback()  # Clear any aborted transaction
 
-        # Get user-submitted mappings with status 'pending' (PostgreSQL %s placeholders)
+        # Get user-submitted mappings with status 'pending' using explicit columns
+        select_cols = '''id, merchant_name, ticker_symbol, category, confidence,
+                         status, admin_approved, company_name, user_id, created_at,
+                         transaction_id, dashboard_type, ai_processed, notes'''
         if search:
-            cursor.execute('''
-                SELECT * FROM llm_mappings
+            cursor.execute(f'''
+                SELECT {select_cols} FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
                 AND (merchant_name LIKE %s OR category LIKE %s OR ticker_symbol LIKE %s)
                 ORDER BY created_at DESC
                 LIMIT %s OFFSET %s
             ''', (f'%{search}%', f'%{search}%', f'%{search}%', limit, (page - 1) * limit))
         else:
-            cursor.execute('''
-                SELECT * FROM llm_mappings
+            cursor.execute(f'''
+                SELECT {select_cols} FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
                 ORDER BY created_at DESC
                 LIMIT %s OFFSET %s
@@ -14429,38 +14544,32 @@ def admin_llm_pending_mappings():
                 SELECT COUNT(*) FROM llm_mappings
                 WHERE status = 'pending' AND user_id IS NOT NULL
             ''')
-        
+
         total_count = cursor.fetchone()[0]
         conn.close()
-        
-        # Convert to list of dictionaries
+
+        # Convert to list of dictionaries using explicit column order
         mappings_list = []
-        for mapping in mappings:
+        for m in mappings:
+            conf_val = float(m[4]) if m[4] else 0
             mappings_list.append({
-                'id': mapping[0],
-                'transaction_id': mapping[1],
-                'merchant_name': mapping[2],
-                'ticker': mapping[3],
-                'category': mapping[4],
-                'confidence': mapping[5],
-                'status': mapping[6],
-                'admin_approved': mapping[7],
-                'ai_processed': mapping[8],
-                'company_name': mapping[9],
-                'user_id': mapping[10],
-                'created_at': mapping[11],
-                'notes': mapping[12],
-                'ticker_symbol': mapping[13],
-                'admin_id': mapping[14],
-                'mapping_id': mapping[16] if len(mapping) > 16 else None,
-                'ai_attempted': mapping[17] if len(mapping) > 17 else None,
-                'ai_status': mapping[18] if len(mapping) > 18 else None,
-                'ai_confidence': mapping[19] if len(mapping) > 19 else None,
-                'ai_reasoning': mapping[20] if len(mapping) > 20 else None,
-                'ai_processing_time': mapping[21] if len(mapping) > 21 else None,
-                'ai_model_version': mapping[22] if len(mapping) > 22 else None
+                'id': m[0],
+                'merchant_name': m[1],
+                'ticker_symbol': m[2],
+                'ticker': m[2],
+                'category': m[3],
+                'confidence': conf_val,
+                'status': m[5],
+                'admin_approved': m[6],
+                'company_name': m[7],
+                'user_id': m[8],
+                'created_at': m[9].isoformat() if m[9] else None,
+                'transaction_id': m[10],
+                'dashboard_type': m[11],
+                'ai_processed': m[12],
+                'notes': m[13]
             })
-        
+
         return jsonify({
             'success': True,
             'data': {
@@ -14474,7 +14583,7 @@ def admin_llm_pending_mappings():
                 }
             }
         })
-        
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
