@@ -1145,7 +1145,8 @@ def health():
         return jsonify({
             'status': 'healthy',
             'database': 'connected',
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'version': '2026-01-27-v3'  # Version marker to verify deployment
         })
     except Exception as e:
         return jsonify({
