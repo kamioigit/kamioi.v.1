@@ -3698,36 +3698,76 @@ def user_portfolio():
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
-        
+
         token = auth_header.split(' ')[1]
         user_id = token.replace('user_token_', '')
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Get portfolio summary
-        cursor.execute("SELECT COUNT(*) FROM transactions WHERE user_id = %s AND status = 'mapped'", (user_id,))
+
+        # Get portfolio holdings from portfolios table
+        cursor.execute("""
+            SELECT ticker, shares, average_price, created_at, updated_at
+            FROM portfolios
+            WHERE user_id = %s AND shares > 0
+            ORDER BY updated_at DESC
+        """, (user_id,))
+        holdings = cursor.fetchall()
+
+        # Format holdings as positions array
+        positions = []
+        total_value = 0
+        for h in holdings:
+            ticker = h[0]
+            shares = float(h[1]) if h[1] else 0
+            avg_cost = float(h[2]) if h[2] else 0
+            # Estimate current value (shares * avg_cost for now, real price would come from market data)
+            value = shares * avg_cost
+            total_value += value
+
+            positions.append({
+                'symbol': ticker,
+                'shares': round(shares, 6),
+                'avgCost': round(avg_cost, 2),
+                'currentPrice': round(avg_cost, 2),  # Would fetch real price in production
+                'value': round(value, 2),
+                'change': 0,  # Would calculate from real market data
+                'changePercent': 0
+            })
+
+        # Get transaction stats (include both mapped and completed)
+        cursor.execute("""
+            SELECT COUNT(*) FROM transactions
+            WHERE user_id = %s AND status IN ('mapped', 'completed')
+        """, (user_id,))
         total_investments = cursor.fetchone()[0]
 
-        cursor.execute("SELECT SUM(round_up) FROM transactions WHERE user_id = %s AND status = 'mapped'", (user_id,))
+        cursor.execute("""
+            SELECT SUM(round_up) FROM transactions
+            WHERE user_id = %s AND status IN ('mapped', 'completed')
+        """, (user_id,))
         total_roundups = cursor.fetchone()[0] or 0
 
         cursor.execute("SELECT SUM(fee) FROM transactions WHERE user_id = %s", (user_id,))
         total_fees = cursor.fetchone()[0] or 0
-        
+
         conn.close()
-        
+
         return jsonify({
             'success': True,
             'portfolio': {
                 'total_investments': total_investments,
                 'total_roundups': round(total_roundups, 2),
                 'total_fees': round(total_fees, 2),
-                'current_value': round(total_roundups - total_fees, 2)
+                'current_value': round(total_value, 2) if total_value > 0 else round(total_roundups - total_fees, 2),
+                'cash': round(total_value, 2),
+                'positions': positions
             }
         })
-        
+
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/user/notifications', methods=['GET'])

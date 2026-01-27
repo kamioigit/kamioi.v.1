@@ -952,7 +952,7 @@ const AdminTransactions = ({ user, onTransactionsUpdate }) => {
                             return dateStr.split(' ')[0] || dateStr
                           })()}
                         </td>
-                        <td className={`py-3 px-4 text-sm whitespace-nowrap ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{transaction.userId || transaction.account_number || 'N/A'}</td>
+                        <td className={`py-3 px-4 text-sm whitespace-nowrap ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{transaction.user_id || transaction.userId || transaction.account_number || 'N/A'}</td>
                         <td className={`py-3 px-4 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{transaction.merchant}</td>
                         <td className={`py-3 px-4 ${isLightMode ? 'text-gray-600' : 'text-gray-300'}`}>{transaction.category}</td>
                         <td className={`py-3 px-4 text-right ${isLightMode ? 'text-gray-900' : 'text-white'}`}>${(transaction.amount || 0).toFixed(2)}</td>
@@ -965,8 +965,8 @@ const AdminTransactions = ({ user, onTransactionsUpdate }) => {
                             const ticker = getTransactionTicker(transaction)
                             const displayStatus = getStatusText(transaction).toLowerCase()
                             
-                            // Show investment if transaction is "Mapped" (either from DB status or merchant lookup)
-                            if (ticker && displayStatus === 'mapped') {
+                            // Show investment if transaction has a ticker (mapped or completed)
+                            if (ticker && (displayStatus === 'mapped' || displayStatus === 'completed')) {
                               return (
                                 <div className="flex flex-col items-center justify-center space-y-1">
                                   <CompanyLogo 

@@ -105,25 +105,25 @@ const InvestmentSummary = ({ user, transactions = [] }) => {
     // Debug: Log all transaction statuses and tickers
     console.log('InvestmentSummary - Transaction statuses:', transactions.map(tx => ({ status: tx.status, ticker: tx.ticker, merchant: tx.merchant })))
     
-    // Filter for mapped transactions (investments) - these are the ones with tickers
+    // Filter for investment transactions - those with tickers that are mapped OR completed
     const investments = transactions.filter(tx => {
-      const isMapped = tx.status === 'mapped'
+      const isInvestment = tx.status === 'mapped' || tx.status === 'completed'
       const hasTicker = tx.ticker && tx.ticker !== 'UNKNOWN' && tx.ticker !== null
       const hasRoundUp = (tx.roundUp > 0) || (tx.round_up > 0)
-      
+
       console.log(`🔍 InvestmentSummary - Filtering transaction:`, {
         merchant: tx.merchant,
         status: tx.status,
         ticker: tx.ticker,
         roundUp: tx.roundUp,
         round_up: tx.round_up,
-        isMapped,
+        isInvestment,
         hasTicker,
         hasRoundUp,
-        passes: isMapped && hasTicker && hasRoundUp
+        passes: isInvestment && hasTicker && hasRoundUp
       })
-      
-      return isMapped && hasTicker && hasRoundUp
+
+      return isInvestment && hasTicker && hasRoundUp
     })
 
     console.log('InvestmentSummary - Investment transactions found:', investments.length)

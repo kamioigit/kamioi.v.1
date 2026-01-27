@@ -916,7 +916,7 @@ const UserTransactions = () => {
                   <td className="py-3 px-4 text-right text-white">{formatCurrency(transaction.amount || transaction.purchase, '$', 2)}</td>
                   <td className="py-3 px-4 text-right text-green-400">{formatCurrency(getDisplayRoundUp(transaction), '$', 2)}</td>
                   <td className="py-3 px-4 text-center">
-                    {transaction.status === 'mapped' && transaction.ticker ? (
+                    {(transaction.status === 'mapped' || transaction.status === 'completed') && transaction.ticker ? (
                       <div className="flex flex-col items-center justify-center space-y-1">
                         <CompanyLogo 
                           symbol={transaction.ticker} 
