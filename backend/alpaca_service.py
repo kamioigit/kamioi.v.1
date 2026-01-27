@@ -440,92 +440,203 @@ class AlpacaService:
         """
         Fund a sandbox account with simulated money (Broker API sandbox only).
 
-        Uses Journals to transfer money from the firm's sweep account to customer accounts.
-        This is INSTANT - no waiting for ACH settlement.
+        For Alpaca sandbox:
+        1. Get or create ACH relationship
+        2. Create ACH transfer
+        3. Use sandbox endpoint to instantly complete the transfer
 
         Args:
             account_id (str): The account ID to fund
             amount (float): Amount to fund in dollars (default $10,000)
 
         Returns:
-            dict: Journal object or None on failure
+            dict: Transfer object or None on failure
         """
         if self.api_type != "broker":
             print("Sandbox funding only available with Broker API")
             return None
 
         try:
-            print(f"Funding sandbox account {account_id} with ${amount} via journal...")
+            print(f"Funding sandbox account {account_id} with ${amount}...")
 
-            # Use Journals to transfer from firm sweep to customer account
-            # This is the correct way to fund sandbox accounts - it's instant!
-            journal_data = {
-                "from_account": "firm",  # Special value for firm's sweep account
-                "to_account": account_id,
-                "entry_type": "JNLC",  # Journal Cash
+            # Step 1: Get existing ACH relationships
+            ach_relationship_id = self._get_or_create_ach_relationship(account_id)
+            if not ach_relationship_id:
+                print("Failed to get/create ACH relationship")
+                return None
+
+            # Step 2: Create ACH transfer
+            transfer_data = {
+                "transfer_type": "ach",
+                "relationship_id": ach_relationship_id,
                 "amount": str(amount),
-                "description": "Sandbox test funding"
+                "direction": "INCOMING"
             }
 
             response = requests.post(
-                f"{self.base_url}/v1/journals",
+                f"{self.base_url}/v1/accounts/{account_id}/transfers",
                 headers=self.headers,
-                json=journal_data,
+                json=transfer_data,
                 verify=False,
                 timeout=30
             )
 
             if response.status_code in [200, 201]:
-                journal = response.json()
-                print(f"Journal created successfully: {journal}")
-                return journal
+                transfer = response.json()
+                transfer_id = transfer.get('id')
+                print(f"ACH transfer created: {transfer_id}, status: {transfer.get('status')}")
+
+                # Step 3: For sandbox, complete the transfer instantly
+                completed = self._complete_sandbox_transfer(transfer_id)
+                if completed:
+                    print(f"Sandbox transfer completed successfully!")
+                    return completed
+                else:
+                    print(f"Transfer created but not completed - may need to wait")
+                    return transfer
             else:
-                print(f"Journal failed: {response.status_code} - {response.text}")
-                # Try alternative: batch journal
-                return self._fund_via_batch_journal(account_id, amount)
+                print(f"ACH transfer failed: {response.status_code} - {response.text}")
+                return None
 
         except Exception as e:
-            print(f"Exception funding account via journal: {e}")
+            print(f"Exception funding account: {e}")
             import traceback
             traceback.print_exc()
             return None
 
-    def _fund_via_batch_journal(self, account_id, amount):
-        """Alternative: Use batch journal endpoint"""
+    def _get_or_create_ach_relationship(self, account_id):
+        """Get existing ACH relationship or create one"""
         try:
-            print(f"Trying batch journal for account {account_id}...")
+            # First, try to get existing relationships
+            response = requests.get(
+                f"{self.base_url}/v1/accounts/{account_id}/ach_relationships",
+                headers=self.headers,
+                verify=False,
+                timeout=15
+            )
 
-            # Batch journal format
-            batch_data = {
-                "entry_type": "JNLC",
-                "from_account": "firm",
-                "entries": [
-                    {
-                        "to_account": account_id,
-                        "amount": str(amount),
-                        "description": "Sandbox funding"
-                    }
-                ]
+            if response.status_code == 200:
+                relationships = response.json()
+                # Find an active relationship
+                for rel in relationships:
+                    if rel.get('status') == 'APPROVED':
+                        print(f"Found existing ACH relationship: {rel.get('id')}")
+                        return rel.get('id')
+
+            # No active relationship, create one
+            print(f"Creating new ACH relationship for account {account_id}...")
+            ach_data = {
+                "account_owner_name": "Test User",
+                "bank_account_type": "CHECKING",
+                "bank_account_number": "123456789012",
+                "bank_routing_number": "121000358",
+                "nickname": "Test Bank"
             }
 
             response = requests.post(
-                f"{self.base_url}/v1/journals/batch",
+                f"{self.base_url}/v1/accounts/{account_id}/ach_relationships",
                 headers=self.headers,
-                json=batch_data,
+                json=ach_data,
                 verify=False,
                 timeout=30
             )
 
             if response.status_code in [200, 201]:
-                result = response.json()
-                print(f"Batch journal created: {result}")
-                return result
+                rel = response.json()
+                rel_id = rel.get('id')
+                print(f"ACH relationship created: {rel_id}")
+
+                # For sandbox, approve the relationship
+                self._approve_sandbox_ach_relationship(account_id, rel_id)
+                return rel_id
+            elif response.status_code == 409:
+                # Relationship exists but maybe not approved - try to get it again
+                print("ACH relationship already exists, fetching...")
+                response = requests.get(
+                    f"{self.base_url}/v1/accounts/{account_id}/ach_relationships",
+                    headers=self.headers,
+                    verify=False,
+                    timeout=15
+                )
+                if response.status_code == 200:
+                    relationships = response.json()
+                    if relationships:
+                        return relationships[0].get('id')
             else:
-                print(f"Batch journal failed: {response.status_code} - {response.text}")
+                print(f"Failed to create ACH relationship: {response.status_code} - {response.text}")
+
+            return None
+
+        except Exception as e:
+            print(f"Exception with ACH relationship: {e}")
+            return None
+
+    def _approve_sandbox_ach_relationship(self, account_id, relationship_id):
+        """Approve ACH relationship in sandbox"""
+        try:
+            # Sandbox endpoint to approve ACH relationship
+            response = requests.post(
+                f"{self.base_url}/v1/sandbox/ach_relationships/{relationship_id}/approve",
+                headers=self.headers,
+                verify=False,
+                timeout=15
+            )
+            if response.status_code in [200, 201, 204]:
+                print(f"ACH relationship approved in sandbox")
+                return True
+            else:
+                print(f"ACH relationship approval: {response.status_code} - {response.text}")
+                return False
+        except Exception as e:
+            print(f"Exception approving ACH: {e}")
+            return False
+
+    def _complete_sandbox_transfer(self, transfer_id):
+        """Complete a transfer instantly in sandbox environment"""
+        try:
+            # Sandbox endpoint to complete/approve transfer
+            response = requests.post(
+                f"{self.base_url}/v1/sandbox/transfers/{transfer_id}/complete",
+                headers=self.headers,
+                verify=False,
+                timeout=15
+            )
+
+            if response.status_code in [200, 201, 204]:
+                print(f"Sandbox transfer {transfer_id} completed!")
+                if response.text:
+                    return response.json()
+                return {"id": transfer_id, "status": "COMPLETE"}
+            else:
+                print(f"Sandbox transfer complete failed: {response.status_code} - {response.text}")
+                # Try alternative endpoint
+                return self._complete_sandbox_transfer_alt(transfer_id)
+
+        except Exception as e:
+            print(f"Exception completing transfer: {e}")
+            return None
+
+    def _complete_sandbox_transfer_alt(self, transfer_id):
+        """Alternative sandbox transfer completion endpoint"""
+        try:
+            # Try POST without /complete
+            response = requests.patch(
+                f"{self.base_url}/v1/sandbox/transfers/{transfer_id}",
+                headers=self.headers,
+                json={"status": "COMPLETE"},
+                verify=False,
+                timeout=15
+            )
+
+            if response.status_code in [200, 201, 204]:
+                print(f"Transfer {transfer_id} completed via alt endpoint")
+                return {"id": transfer_id, "status": "COMPLETE"}
+            else:
+                print(f"Alt transfer complete: {response.status_code} - {response.text}")
                 return None
 
         except Exception as e:
-            print(f"Exception in batch journal: {e}")
+            print(f"Exception in alt complete: {e}")
             return None
 
     def ensure_account_funded(self, account_id, min_amount=100):
