@@ -3586,18 +3586,21 @@ def user_transactions():
         #          7=date, 8=round_up, 9=fee, 10=total_debit, 11=ticker, 12=shares, 13=price_per_share
         transaction_list = []
         for txn in transactions:
+            # Safely convert datetime fields to strings
+            created_at = str(txn[3]) if txn[3] else None
+            date_val = str(txn[7]) if txn[7] else None
             transaction_list.append({
                 'id': txn[0],
-                'amount': txn[1],
+                'amount': float(txn[1]) if txn[1] else 0,
                 'status': txn[2],
-                'created_at': txn[3],
+                'created_at': created_at,
                 'description': txn[4],
                 'merchant': txn[5],
                 'category': txn[6],
-                'date': txn[7],
-                'round_up': txn[8],
-                'fee': txn[9],
-                'total_debit': txn[10],
+                'date': date_val,
+                'round_up': float(txn[8]) if txn[8] else 0,
+                'fee': float(txn[9]) if txn[9] else 0,
+                'total_debit': float(txn[10]) if txn[10] else 0,
                 'ticker': txn[11] if len(txn) > 11 else None,
                 'shares': float(txn[12]) if len(txn) > 12 and txn[12] else None,
                 'price_per_share': float(txn[13]) if len(txn) > 13 and txn[13] else None
@@ -3607,8 +3610,11 @@ def user_transactions():
             'success': True,
             'transactions': transaction_list
         })
-        
+
     except Exception as e:
+        import traceback
+        print(f"User transactions error: {str(e)}")
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/transactions', methods=['POST'])
