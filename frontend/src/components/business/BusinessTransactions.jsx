@@ -1527,10 +1527,10 @@ const BusinessTransactions = ({ user }) => {
                               // Determine if transaction needs mapping (same logic as UserTransactions)
                               // Only show edit/retry if:
                               // 1. No user mapping exists
-                              // 2. Transaction is actually pending or needs-recognition (not mapped/completed)
+                              // 2. Transaction is actually pending, needs-recognition, or pending-mapping (not mapped/completed)
                               // 3. Transaction doesn't have a ticker (not already mapped)
-                              const needsMapping = !hasUserMapping && 
-                                                   (rawStatus === 'pending' || rawStatus === 'needs-recognition') &&
+                              const needsMapping = !hasUserMapping &&
+                                                   ['pending', 'needs-recognition', 'pending-mapping'].includes(rawStatus) &&
                                                    !transactionHasTicker(transaction) &&
                                                    displayStatus !== 'mapped' &&
                                                    displayStatus !== 'completed'
@@ -1558,7 +1558,7 @@ const BusinessTransactions = ({ user }) => {
                                     </button>
                                   )}
                                   {/* Show pending approval status if user has submitted mapping (same logic as UserTransactions) */}
-                                  {hasUserMapping && (rawStatus === 'pending' || rawStatus === 'needs-recognition') && (
+                                  {hasUserMapping && ['pending', 'needs-recognition', 'pending-mapping', 'pending-approval'].includes(rawStatus) && (
                                     <div className="text-orange-400 p-1" title="Mapping Submitted - Pending Approval">
                                       <Clock className="w-4 h-4" />
                                     </div>

@@ -957,8 +957,8 @@ const UserTransactions = () => {
                         return (
                           <>
                             {/* Show edit button ONLY if no user mapping exists and transaction needs mapping */}
-                            {!hasUserMapping && (transaction.status === 'pending' || transaction.status === 'needs-recognition') && (
-                              <button 
+                            {!hasUserMapping && ['pending', 'needs-recognition', 'pending-mapping'].includes(transaction.status) && (
+                              <button
                                 onClick={() => handleEditTransaction(transaction.id)}
                                 className="text-blue-400 hover:text-blue-300 p-1 rounded hover:bg-blue-500/10 transition-colors"
                                 title="Edit AI Mapping"
@@ -967,8 +967,8 @@ const UserTransactions = () => {
                               </button>
                             )}
                             {/* Show retry button ONLY if no user mapping exists and transaction needs mapping */}
-                            {!hasUserMapping && (transaction.status === 'pending' || transaction.status === 'needs-recognition') && (
-                              <button 
+                            {!hasUserMapping && ['pending', 'needs-recognition', 'pending-mapping'].includes(transaction.status) && (
+                              <button
                                 onClick={(e) => handleRetryMapping(transaction.id, e)}
                                 className="text-yellow-400 hover:text-yellow-300 p-1 rounded hover:bg-yellow-500/10 transition-colors"
                                 title="Retry AI Mapping"
@@ -977,7 +977,7 @@ const UserTransactions = () => {
                               </button>
                             )}
                             {/* Show pending approval status if user has submitted mapping */}
-                            {hasUserMapping && (transaction.status === 'pending' || transaction.status === 'needs-recognition') && (
+                            {hasUserMapping && ['pending', 'needs-recognition', 'pending-mapping', 'pending-approval'].includes(transaction.status) && (
                               <div className="text-orange-400 p-1" title="Mapping Submitted - Pending Approval">
                                 <Clock className="w-4 h-4" />
                               </div>

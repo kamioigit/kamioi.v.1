@@ -4960,7 +4960,7 @@ def user_ai_insights_slash():
         try:
             cursor.execute('''
                 SELECT id, merchant_name, ticker_symbol, category, status,
-                       admin_approved, confidence, notes, created_at, processed_at
+                       admin_approved, confidence, notes, created_at, processed_at, transaction_id
                 FROM llm_mappings
                 WHERE user_id = %s
                 ORDER BY created_at DESC
@@ -5001,7 +5001,8 @@ def user_ai_insights_slash():
                 'confidence_status': confidence_status,
                 'notes': mapping[7],
                 'submitted_at': str(mapping[8]) if mapping[8] else None,
-                'processed_at': str(mapping[9]) if mapping[9] else None
+                'processed_at': str(mapping[9]) if mapping[9] else None,
+                'transaction_id': mapping[10]  # Add transaction_id to link mapping to transaction
             })
         
         # Calculate stats
