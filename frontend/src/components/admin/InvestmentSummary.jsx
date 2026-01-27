@@ -413,8 +413,8 @@ const InvestmentSummary = ({ user, transactions = [] }) => {
       <div className={`${getCardClass()} p-6 rounded-lg`}>
         <div className="flex flex-wrap gap-4 items-center">
           <div className="flex items-center space-x-2">
-            <Filter className="w-4 h-4 text-gray-500" />
-            <span className="font-medium">Filters:</span>
+            <Filter className={`w-4 h-4 ${isLightMode ? 'text-gray-500' : 'text-gray-300'}`} />
+            <span className={`font-medium ${getTextClass()}`}>Filters:</span>
           </div>
           
           <select

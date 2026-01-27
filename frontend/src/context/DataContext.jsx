@@ -195,27 +195,78 @@ export const DataProvider = ({ children }) => {
 
       // Use portfolio data from API if available, otherwise calculate from transactions
       if (portfolioData.status === 'fulfilled') {
-        const portfolio = portfolioData.value?.portfolio || {}
+        console.log('DataContext - Portfolio API response:', portfolioData.value)
+        // Axios wraps response, so we need portfolioData.value.data.portfolio
+        const portfolio = portfolioData.value?.data?.portfolio || portfolioData.value?.portfolio || {}
         const holdings = portfolio.positions || []
-        const portfolioValue = portfolio.cash || 0
-        setHoldings(holdings)
-        setPortfolioValue(portfolioValue)
+        const portfolioValueFromAPI = portfolio.totalValue || portfolio.cash || 0
+
+        console.log('DataContext - Portfolio extracted:', { portfolio, holdings, portfolioValueFromAPI })
+
+        // Format holdings for the frontend if they exist
+        if (holdings.length > 0) {
+          const formattedHoldings = holdings.map(h => ({
+            symbol: h.symbol,
+            name: h.name || h.symbol,
+            shares: h.shares || 0,
+            avgCost: h.avgCost || h.average_price || 0,
+            currentPrice: h.currentPrice || h.avgCost || 0,
+            value: (h.shares || 0) * (h.currentPrice || h.avgCost || 0),
+            change: h.change || 0,
+            allocation: h.allocation || 100 / holdings.length
+          }))
+          setHoldings(formattedHoldings)
+          const totalValue = formattedHoldings.reduce((sum, h) => sum + h.value, 0)
+          setPortfolioValue(totalValue || portfolioValueFromAPI)
+          console.log('DataContext - Holdings set:', formattedHoldings.length, 'total value:', totalValue)
+        } else {
+          setHoldings([])
+          setPortfolioValue(portfolioValueFromAPI)
+        }
       } else {
-        // Fallback: Calculate portfolio data from mapped transactions
-        const mappedTransactions = transactions.filter(t => t.status === 'mapped' && t.ticker && t.shares)
-        const holdings = mappedTransactions.map(t => ({
-          symbol: t.ticker,
-          shares: t.shares || 0,
-          avgCost: t.price_per_share || 0,
-          currentPrice: t.stock_price || 0,
-          value: (t.shares || 0) * (t.stock_price || 0),
-          change: 0, // No change for now
-          allocation: 100 // 100% for single holding
+        console.log('DataContext - Portfolio API failed, calculating from transactions')
+        // Fallback: Calculate portfolio data from completed/mapped transactions
+        const investmentTransactions = transactions.filter(t =>
+          (t.status === 'mapped' || t.status === 'completed') && t.ticker && t.shares
+        )
+
+        // Group by ticker to aggregate shares
+        const holdingsMap = {}
+        investmentTransactions.forEach(t => {
+          const ticker = t.ticker
+          if (!holdingsMap[ticker]) {
+            holdingsMap[ticker] = {
+              symbol: ticker,
+              name: t.name || ticker,
+              shares: 0,
+              totalCost: 0,
+              currentPrice: t.stock_price || t.price_per_share || 0
+            }
+          }
+          holdingsMap[ticker].shares += t.shares || 0
+          holdingsMap[ticker].totalCost += (t.shares || 0) * (t.price_per_share || 0)
+        })
+
+        const holdings = Object.values(holdingsMap).map(h => ({
+          symbol: h.symbol,
+          name: h.name,
+          shares: h.shares,
+          avgCost: h.shares > 0 ? h.totalCost / h.shares : 0,
+          currentPrice: h.currentPrice,
+          value: h.shares * h.currentPrice,
+          change: 0,
+          allocation: 100
         }))
 
-        const portfolioValue = holdings.reduce((sum, h) => sum + h.value, 0)
+        // Calculate total allocation
+        const totalValue = holdings.reduce((sum, h) => sum + h.value, 0)
+        holdings.forEach(h => {
+          h.allocation = totalValue > 0 ? (h.value / totalValue) * 100 : 100 / holdings.length
+        })
+
+        console.log('DataContext - Fallback holdings calculated:', holdings.length, 'total value:', totalValue)
         setHoldings(holdings)
-        setPortfolioValue(portfolioValue)
+        setPortfolioValue(totalValue)
       }
 
       if (goalsData.status === 'fulfilled') {
