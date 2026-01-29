@@ -47,7 +47,7 @@ except ImportError as e:
 
 # Initialize Flask app
 print("=" * 60)
-print("KAMIOI BACKEND VERSION: 2026-01-28-v14")
+print("KAMIOI BACKEND VERSION: 2026-01-28-v15")
 print("=" * 60)
 app = Flask(__name__)
 CORS(
@@ -2485,15 +2485,73 @@ def admin_llm_process_pending_transactions():
 # TRADING LIMITS MANAGEMENT (Alpaca)
 # ============================================
 
+def ensure_trading_limits_table(cursor):
+    """Ensure trading_limits table exists"""
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS trading_limits (
+                id SERIAL PRIMARY KEY,
+                limit_type VARCHAR(20) NOT NULL,
+                max_amount DECIMAL(15, 2) NOT NULL,
+                current_amount DECIMAL(15, 2) DEFAULT 0,
+                max_orders INTEGER DEFAULT NULL,
+                current_orders INTEGER DEFAULT 0,
+                period_start TIMESTAMP NOT NULL,
+                period_end TIMESTAMP NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT unique_limit_type UNIQUE (limit_type)
+            )
+        """)
+        return True
+    except Exception as e:
+        print(f"Warning: Could not create trading_limits table: {e}")
+        return False
+
+
 def get_or_create_trading_limits(cursor):
-    """Get or create trading limits for current periods"""
+    """Get or create trading limits for current periods. Returns default limits if table doesn't exist."""
     from datetime import datetime, timedelta
     now = datetime.now()
 
+    # Default limits to return if table doesn't exist
+    default_limits = {
+        'daily': {
+            'id': 0, 'limit_type': 'daily', 'max_amount': 10000.0,
+            'current_amount': 0, 'max_orders': 100, 'current_orders': 0,
+            'period_start': str(now), 'period_end': str(now + timedelta(days=1)),
+            'is_active': True, 'amount_percent': 0, 'orders_percent': 0,
+            'amount_remaining': 10000.0, 'orders_remaining': 100
+        },
+        'weekly': {
+            'id': 0, 'limit_type': 'weekly', 'max_amount': 50000.0,
+            'current_amount': 0, 'max_orders': 500, 'current_orders': 0,
+            'period_start': str(now), 'period_end': str(now + timedelta(days=7)),
+            'is_active': True, 'amount_percent': 0, 'orders_percent': 0,
+            'amount_remaining': 50000.0, 'orders_remaining': 500
+        },
+        'monthly': {
+            'id': 0, 'limit_type': 'monthly', 'max_amount': 200000.0,
+            'current_amount': 0, 'max_orders': 2000, 'current_orders': 0,
+            'period_start': str(now), 'period_end': str(now + timedelta(days=30)),
+            'is_active': True, 'amount_percent': 0, 'orders_percent': 0,
+            'amount_remaining': 200000.0, 'orders_remaining': 2000
+        }
+    }
+
+    # Try to ensure table exists
+    try:
+        ensure_trading_limits_table(cursor)
+    except Exception as e:
+        print(f"Warning: Could not ensure trading_limits table: {e}")
+        return default_limits
+
     limits = {}
 
-    # Daily limit
-    cursor.execute("""
+    try:
+        # Daily limit
+        cursor.execute("""
         SELECT id, limit_type, max_amount, current_amount, max_orders, current_orders,
                period_start, period_end, is_active
         FROM trading_limits WHERE limit_type = 'daily'
@@ -2639,7 +2697,11 @@ def get_or_create_trading_limits(cursor):
                 'period_end': str(monthly[7]), 'is_active': monthly[8]
             }
 
-    return limits
+        return limits
+
+    except Exception as e:
+        print(f"Warning: Error accessing trading_limits table: {e}")
+        return default_limits
 
 
 def check_trading_limits(cursor, amount_to_process, order_count=1):
@@ -2696,13 +2758,153 @@ def check_trading_limits(cursor, amount_to_process, order_count=1):
 
 def update_trading_limits(cursor, amount_processed, order_count=1):
     """Update trading limits after processing transactions"""
-    cursor.execute("""
-        UPDATE trading_limits
-        SET current_amount = current_amount + %s,
-            current_orders = current_orders + %s,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE is_active = TRUE
-    """, (amount_processed, order_count))
+    try:
+        cursor.execute("""
+            UPDATE trading_limits
+            SET current_amount = current_amount + %s,
+                current_orders = current_orders + %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE is_active = TRUE
+        """, (amount_processed, order_count))
+    except Exception as e:
+        print(f"Warning: Could not update trading limits: {e}")
+
+
+def auto_process_pending_transactions():
+    """
+    Automatically process pending transactions by looking up mappings.
+    Called after transactions are synced or periodically.
+    Returns (processed_count, mapped_count, no_match_count)
+    """
+    try:
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn, dict_cursor=True)
+
+        # Get pending transactions (limit to 100 at a time to avoid overload)
+        cursor.execute("""
+            SELECT id, merchant, category, user_id, round_up, amount
+            FROM transactions
+            WHERE LOWER(status) = 'pending' AND (ticker IS NULL OR ticker = '' OR ticker = 'UNKNOWN')
+            ORDER BY id ASC
+            LIMIT 100
+        """)
+        pending_transactions = cursor.fetchall()
+
+        if not pending_transactions:
+            cursor.close()
+            conn.close()
+            return 0, 0, 0
+
+        processed = 0
+        mapped = 0
+        no_match = 0
+
+        for tx in pending_transactions:
+            tx_id = tx['id']
+            merchant = tx['merchant'] or ''
+
+            # Look up mapping in llm_mappings table (case-insensitive)
+            cursor.execute("""
+                SELECT ticker_symbol, category, confidence
+                FROM llm_mappings
+                WHERE LOWER(merchant_name) = LOWER(%s)
+                AND status = 'approved'
+                AND admin_approved = 1
+                ORDER BY confidence DESC
+                LIMIT 1
+            """, (merchant,))
+            mapping = cursor.fetchone()
+
+            if mapping and mapping['ticker_symbol']:
+                # Found a mapping - update the transaction
+                ticker = mapping['ticker_symbol']
+                category = mapping['category'] or tx['category'] or 'Unknown'
+
+                cursor.execute("""
+                    UPDATE transactions
+                    SET ticker = %s, category = %s, status = 'mapped'
+                    WHERE id = %s
+                """, (ticker, category, tx_id))
+
+                mapped += 1
+            else:
+                # Try fuzzy match
+                cursor.execute("""
+                    SELECT ticker_symbol, category, confidence, merchant_name
+                    FROM llm_mappings
+                    WHERE status = 'approved' AND admin_approved = 1
+                    AND (
+                        LOWER(merchant_name) LIKE LOWER(%s) OR
+                        LOWER(%s) LIKE '%%' || LOWER(merchant_name) || '%%'
+                    )
+                    ORDER BY confidence DESC LIMIT 1
+                """, (f"%{merchant}%", merchant))
+                fuzzy = cursor.fetchone()
+
+                if fuzzy and fuzzy['ticker_symbol']:
+                    ticker = fuzzy['ticker_symbol']
+                    category = fuzzy['category'] or 'Unknown'
+
+                    cursor.execute("""
+                        UPDATE transactions
+                        SET ticker = %s, category = %s, status = 'mapped'
+                        WHERE id = %s
+                    """, (ticker, category, tx_id))
+
+                    mapped += 1
+                else:
+                    # No mapping found - mark for manual review
+                    cursor.execute("""
+                        UPDATE transactions
+                        SET status = 'pending-mapping'
+                        WHERE id = %s
+                    """, (tx_id,))
+
+                    no_match += 1
+
+            processed += 1
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        print(f"Auto-processed {processed} transactions: {mapped} mapped, {no_match} need review")
+        return processed, mapped, no_match
+
+    except Exception as e:
+        print(f"Error in auto_process_pending_transactions: {e}")
+        import traceback
+        traceback.print_exc()
+        return 0, 0, 0
+
+
+@app.route('/api/admin/auto-process', methods=['POST'])
+def admin_trigger_auto_process():
+    """
+    Trigger automatic processing of pending transactions.
+    Can be called by cron job, webhook, or manually as backup.
+    """
+    try:
+        auth_header = request.headers.get('Authorization')
+        # Allow without auth if called with special header (for cron jobs)
+        cron_key = request.headers.get('X-Cron-Key')
+        if cron_key != 'kamioi-auto-process-2026':
+            if not auth_header or not auth_header.startswith('Bearer '):
+                return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        processed, mapped, no_match = auto_process_pending_transactions()
+
+        return jsonify({
+            'success': True,
+            'message': f'Auto-processed {processed} transactions',
+            'processed': processed,
+            'mapped': mapped,
+            'no_match': no_match
+        })
+
+    except Exception as e:
+        print(f"Error in admin_trigger_auto_process: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/admin/trading-limits', methods=['GET'])
@@ -5541,11 +5743,21 @@ def sync_user_transactions():
         conn.commit()
         conn.close()
 
+        # Auto-process the new pending transactions
+        if len(transactions) > 0:
+            processed, mapped, no_match = auto_process_pending_transactions()
+            print(f"Auto-processed after sync: {processed} processed, {mapped} mapped, {no_match} no match")
+
         return jsonify({
             'success': True,
             'message': f'Synced {len(transactions)} new transactions',
             'count': len(transactions),
-            'transactions': transactions
+            'transactions': transactions,
+            'auto_processed': {
+                'processed': processed if len(transactions) > 0 else 0,
+                'mapped': mapped if len(transactions) > 0 else 0,
+                'no_match': no_match if len(transactions) > 0 else 0
+            }
         })
 
     except Exception as e:

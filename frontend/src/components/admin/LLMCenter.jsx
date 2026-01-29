@@ -413,10 +413,48 @@ const LLMCenter = () => {
   
   // Recalculate metrics when mappings or analytics change
   // 🚀 FIX: Listen for receipt mapping created events - use React Query invalidation
+  // Auto-process pending transactions on mount
+  useEffect(() => {
+    const triggerAutoProcess = async () => {
+      try {
+        const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken')
+        if (!token) return
+
+        // Trigger auto-processing silently
+        const response = await fetch(buildApiUrl('/api/admin/auto-process'), {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.processed > 0) {
+            console.log(`🤖 Auto-processed ${data.processed} transactions: ${data.mapped} mapped, ${data.no_match} need review`)
+            // Refresh the data if any transactions were processed
+            queryClient.invalidateQueries({ queryKey: ['llm-center-data'] })
+          }
+        }
+      } catch (error) {
+        console.log('Auto-process check failed (non-critical):', error.message)
+      }
+    }
+
+    // Run auto-process on mount
+    triggerAutoProcess()
+
+    // Also set up interval to run every 30 seconds
+    const intervalId = setInterval(triggerAutoProcess, 30000)
+
+    return () => clearInterval(intervalId)
+  }, [queryClient, buildApiUrl])
+
   useEffect(() => {
     const handleReceiptMappingCreated = (event) => {
       console.log('📋 [LLMCenter] 🎯 Receipt mapping created event RECEIVED!', event?.detail)
-      
+
       // Always refresh if on receipt-mappings tab
       if (activeTab === 'receipt-mappings') {
         console.log('📋 [LLMCenter] 🔄 Invalidating receipt-mappings cache...')
@@ -424,7 +462,7 @@ const LLMCenter = () => {
         setReceiptMappingsCurrentPage(1) // Reset to first page
       }
     }
-    
+
     console.log('📋 [LLMCenter] ✅ Setting up receipt-mapping-created event listener')
     window.addEventListener('receipt-mapping-created', handleReceiptMappingCreated)
     return () => {
