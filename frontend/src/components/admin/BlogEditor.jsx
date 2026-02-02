@@ -104,16 +104,16 @@ const BlogEditor = ({ post, onSave, onCancel, isEditing = false }) => {
     }
   }, [post])
 
-  // Auto-run SEO analysis when content changes
+  // Auto-run SEO analysis when content changes (local calculation, runs fast)
   useEffect(() => {
-    if (formData.title && formData.content && formData.title.length > 10 && formData.content.length > 50) {
+    if (formData.title || formData.content) {
       const timeoutId = setTimeout(() => {
         runAISEOAnalysis()
-      }, 2000) // Wait 2 seconds after user stops typing
-      
+      }, 500) // Short delay for smooth UX
+
       return () => clearTimeout(timeoutId)
     }
-  }, [formData.title, formData.content])
+  }, [formData.title, formData.content, formData.seo_keywords, formData.seo_description, formData.featured_image])
 
   const getTextColor = () => isLightMode ? 'text-gray-800' : 'text-white'
   const getSubtextClass = () => isLightMode ? 'text-gray-600' : 'text-gray-400'
@@ -176,35 +176,91 @@ const BlogEditor = ({ post, onSave, onCancel, isEditing = false }) => {
     }))
   }
 
-  const runAISEOAnalysis = async () => {
+  // Local SEO analysis - no backend API needed
+  const runAISEOAnalysis = () => {
     setIsAnalyzing(true)
-    try {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-      const response = await fetch(`${apiBaseUrl}/api/admin/blog/ai-seo-optimize`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3' || 'admin_token_3'}`
-        },
-        body: JSON.stringify({
-          post_id: post?.id,
-          title: formData.title,
-          content: formData.content,
-          seo_keywords: formData.seo_keywords,
-          seo_description: formData.seo_description
-        })
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setSeoScore(data.seo_score)
-        setSeoSuggestions(data.suggestions)
-      }
-    } catch (error) {
-      console.error('SEO analysis failed:', error)
-    } finally {
-      setIsAnalyzing(false)
+
+    // Calculate SEO score locally
+    const title = formData.title || ''
+    const content = formData.content || ''
+    const seoKeywords = formData.seo_keywords || ''
+    const seoDescription = formData.seo_description || ''
+
+    const wordCount = content.split(/\s+/).filter(w => w.length > 0).length
+    const titleLength = title.length
+
+    let score = 0
+    const suggestions = []
+
+    // Title optimization (20 points)
+    if (titleLength >= 30 && titleLength <= 60) {
+      score += 20
+    } else if (titleLength > 0) {
+      score += 5
+      suggestions.push(`Title should be 30-60 characters for optimal SEO (currently ${titleLength})`)
+    } else {
+      suggestions.push('Add a title to your post')
     }
+
+    // Content length (20 points)
+    if (wordCount >= 300) {
+      score += 20
+    } else if (wordCount >= 100) {
+      score += 10
+      suggestions.push(`Content should be at least 300 words for better SEO (currently ${wordCount})`)
+    } else {
+      suggestions.push(`Add more content - aim for at least 300 words (currently ${wordCount})`)
+    }
+
+    // Keyword usage (20 points)
+    if (seoKeywords) {
+      const keywords = seoKeywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k)
+      if (keywords.length > 0) {
+        const contentLower = content.toLowerCase()
+        const keywordFound = keywords.some(k => contentLower.includes(k))
+        if (keywordFound) {
+          score += 20
+        } else {
+          score += 5
+          suggestions.push('Include your focus keywords in the content')
+        }
+      }
+    } else {
+      suggestions.push('Add SEO keywords in the SEO tab')
+    }
+
+    // Meta description (20 points)
+    const metaDescLength = seoDescription.length
+    if (metaDescLength >= 120 && metaDescLength <= 160) {
+      score += 20
+    } else if (metaDescLength > 0) {
+      score += 10
+      suggestions.push(`Meta description should be 120-160 characters (currently ${metaDescLength})`)
+    } else {
+      suggestions.push('Add a meta description in the SEO tab')
+    }
+
+    // Content structure - headings (10 points)
+    if (content.includes('**') || content.includes('## ') || content.includes('### ')) {
+      score += 10
+    } else {
+      suggestions.push('Add headings or bold text to improve content structure')
+    }
+
+    // Has featured image (10 points)
+    if (formData.featured_image) {
+      score += 10
+    } else {
+      suggestions.push('Add a featured image to increase engagement')
+    }
+
+    setSeoScore(score)
+    setSeoSuggestions(suggestions)
+
+    // Brief animation delay for UX
+    setTimeout(() => {
+      setIsAnalyzing(false)
+    }, 300)
   }
 
   const handleImageUpload = async (event) => {
