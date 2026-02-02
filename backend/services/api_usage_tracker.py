@@ -587,12 +587,73 @@ class APIUsageTracker:
             result = cursor.fetchone()
             today_cost = float(result[0] or 0.0)
             
+            # Get stored daily limit if available
+            stored_limit = self._get_stored_daily_limit()
+            actual_limit = stored_limit if stored_limit is not None else daily_limit
+
             return {
                 'today_cost': round(today_cost, 4),
-                'daily_limit': daily_limit,
-                'remaining': round(daily_limit - today_cost, 4),
-                'percentage_used': round(today_cost / daily_limit * 100, 2) if daily_limit > 0 else 0,
-                'limit_exceeded': today_cost >= daily_limit
+                'daily_limit': actual_limit,
+                'remaining': round(actual_limit - today_cost, 4),
+                'percentage_used': round(today_cost / actual_limit * 100, 2) if actual_limit > 0 else 0,
+                'limit_exceeded': today_cost >= actual_limit
             }
+        finally:
+            db_manager.release_connection(conn)
+
+    def _get_stored_daily_limit(self) -> Optional[float]:
+        """Get the stored daily limit from the api_balance table"""
+        conn = db_manager.get_connection()
+        try:
+            cursor = conn.cursor()
+            # Check if daily_limit column exists
+            try:
+                cursor.execute("SELECT daily_limit FROM api_balance ORDER BY updated_at DESC LIMIT 1")
+                row = cursor.fetchone()
+                if row and row[0] is not None:
+                    return float(row[0])
+            except:
+                pass  # Column doesn't exist yet
+            return None
+        finally:
+            db_manager.release_connection(conn)
+
+    def update_daily_limit(self, new_limit: float) -> bool:
+        """
+        Update the daily cost limit setting
+        """
+        self._ensure_tables()
+
+        conn = db_manager.get_connection()
+        try:
+            cursor = conn.cursor()
+
+            # Add daily_limit column if it doesn't exist
+            try:
+                cursor.execute("ALTER TABLE api_balance ADD COLUMN daily_limit REAL DEFAULT 10.0")
+                conn.commit()
+            except:
+                pass  # Column already exists
+
+            # Update the daily limit
+            cursor.execute("""
+                UPDATE api_balance
+                SET daily_limit = ?, updated_at = ?
+                WHERE id = (SELECT id FROM api_balance ORDER BY updated_at DESC LIMIT 1)
+            """, (new_limit, datetime.now().isoformat()))
+
+            if cursor.rowcount == 0:
+                # No existing record, insert one
+                cursor.execute("""
+                    INSERT INTO api_balance (balance, daily_limit, updated_at)
+                    VALUES (20.00, ?, ?)
+                """, (new_limit, datetime.now().isoformat()))
+
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error updating daily limit: {e}")
+            return False
         finally:
             db_manager.release_connection(conn)
