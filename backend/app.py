@@ -16756,10 +16756,10 @@ def admin_ai_seo_optimize():
         post_id = data.get('post_id')
         content = data.get('content', '')
         title = data.get('title', '')
-        
-        if not post_id:
-            return jsonify({'success': False, 'error': 'Post ID is required'}), 400
-        
+
+        # post_id is optional - if not provided, just analyze without saving to DB
+        # This allows SEO analysis for new posts that haven't been saved yet
+
         # AI SEO Analysis (simulated - in production, use real AI service)
         word_count = len(content.split())
         title_length = len(title)
@@ -16812,33 +16812,34 @@ def admin_ai_seo_optimize():
         else:
             suggestions.append("Consider adding internal links to improve SEO")
         
-        # Update post with AI analysis
-        conn = db_manager.get_connection()
-        use_postgresql = getattr(db_manager, '_use_postgresql', False)
-        
-        if use_postgresql:
-            from sqlalchemy import text
-            conn.execute(text("""
-                UPDATE blog_posts 
-                SET ai_seo_score = :seo_score, ai_seo_suggestions = :suggestions, updated_at = :updated_at
-                WHERE id = :post_id
-            """), {
-                'seo_score': seo_score,
-                'suggestions': json.dumps(suggestions),
-                'updated_at': datetime.now().isoformat(),
-                'post_id': post_id
-            })
-            conn.commit()
-            db_manager.release_connection(conn)
-        else:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE blog_posts 
-                SET ai_seo_score = ?, ai_seo_suggestions = ?, updated_at = ?
-                WHERE id = ?
-            """, (seo_score, json.dumps(suggestions), datetime.now().isoformat(), post_id))
-            conn.commit()
-            conn.close()
+        # Update post with AI analysis (only if post_id is provided)
+        if post_id:
+            conn = db_manager.get_connection()
+            use_postgresql = getattr(db_manager, '_use_postgresql', False)
+
+            if use_postgresql:
+                from sqlalchemy import text
+                conn.execute(text("""
+                    UPDATE blog_posts
+                    SET ai_seo_score = :seo_score, ai_seo_suggestions = :suggestions, updated_at = :updated_at
+                    WHERE id = :post_id
+                """), {
+                    'seo_score': seo_score,
+                    'suggestions': json.dumps(suggestions),
+                    'updated_at': datetime.now().isoformat(),
+                    'post_id': post_id
+                })
+                conn.commit()
+                db_manager.release_connection(conn)
+            else:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE blog_posts
+                    SET ai_seo_score = ?, ai_seo_suggestions = ?, updated_at = ?
+                    WHERE id = ?
+                """, (seo_score, json.dumps(suggestions), datetime.now().isoformat(), post_id))
+                conn.commit()
+                conn.close()
         
         return jsonify({
             'success': True,
