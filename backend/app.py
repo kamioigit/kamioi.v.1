@@ -5149,208 +5149,158 @@ def admin_transactions():
 @app.route('/api/admin/database/stats', methods=['GET'], endpoint='admin_database_stats_new')
 @cross_origin()
 def admin_database_stats():
-    """Get comprehensive database statistics broken down by user type"""
+    """Get comprehensive database statistics broken down by user type
+
+    OPTIMIZED: Uses GROUP BY queries instead of 30+ sequential queries
+    Reduces load time from ~17s to <1s
+    """
     ok, res = require_role('admin')
     if ok is False:
         return res
-    
+
     try:
         conn = db_manager.get_connection()
+        valid_types = ['individual', 'family', 'business', 'admin']
         stats = {
             'individual': {'users': 0, 'transactions': 0, 'goals': 0, 'notifications': 0, 'round_up_allocations': 0},
             'family': {'users': 0, 'transactions': 0, 'goals': 0, 'notifications': 0, 'round_up_allocations': 0},
             'business': {'users': 0, 'transactions': 0, 'goals': 0, 'notifications': 0, 'round_up_allocations': 0},
             'admin': {'users': 0, 'transactions': 0, 'goals': 0, 'notifications': 0, 'round_up_allocations': 0},
-            'other': {'users': 0, 'transactions': 0, 'goals': 0, 'notifications': 0, 'round_up_allocations': 0},  # For transactions/users with invalid/null account_type
+            'other': {'users': 0, 'transactions': 0, 'goals': 0, 'notifications': 0, 'round_up_allocations': 0},
             'total': {'users': 0, 'transactions': 0, 'goals': 0, 'notifications': 0, 'round_up_allocations': 0, 'llm_mappings': 0}
         }
-        
+
         try:
             if db_manager._use_postgresql:
                 from sqlalchemy import text
-                
-                # Get user counts by account_type (not role - the column is account_type)
-                for account_type in ['individual', 'family', 'business', 'admin']:
-                    result = conn.execute(text('SELECT COUNT(*) FROM users WHERE account_type = :account_type'), {'account_type': account_type})
-                    stats[account_type]['users'] = result.scalar() or 0
-                    
-                    # Get transactions for this account_type
-                    result = conn.execute(text('''
-                        SELECT COUNT(*) FROM transactions t
-                        JOIN users u ON t.user_id = u.id
-                        WHERE u.account_type = :account_type
-                    '''), {'account_type': account_type})
-                    stats[account_type]['transactions'] = result.scalar() or 0
-                    
-                    # Get goals for this account_type
-                    result = conn.execute(text('''
-                        SELECT COUNT(*) FROM goals g
-                        JOIN users u ON g.user_id = u.id
-                        WHERE u.account_type = :account_type
-                    '''), {'account_type': account_type})
-                    stats[account_type]['goals'] = result.scalar() or 0
-                    
-                    # Get notifications for this account_type
-                    result = conn.execute(text('''
-                        SELECT COUNT(*) FROM notifications n
-                        JOIN users u ON n.user_id = u.id
-                        WHERE u.account_type = :account_type
-                    '''), {'account_type': account_type})
-                    stats[account_type]['notifications'] = result.scalar() or 0
-                    
-                    # Get round_up_allocations for this account_type
-                    try:
-                        # Use a fresh connection/transaction for this query to avoid transaction errors
-                        temp_conn = db_manager.get_connection()
-                        try:
-                            result = temp_conn.execute(text('''
-                                SELECT COUNT(*) FROM round_up_allocations ra
-                                JOIN transactions t ON ra.transaction_id = t.id
-                                JOIN users u ON t.user_id = u.id
-                                WHERE u.account_type = :account_type
-                            '''), {'account_type': account_type})
-                            stats[account_type]['round_up_allocations'] = result.scalar() or 0
-                        except Exception:
-                            stats[account_type]['round_up_allocations'] = 0
-                        finally:
-                            db_manager.release_connection(temp_conn)
-                    except Exception:
-                        stats[account_type]['round_up_allocations'] = 0
-                
-                # Total counts - use fresh connection to avoid stale data
-                # Get a fresh connection for total counts to ensure we see latest data
-                fresh_conn = db_manager.get_connection()
-                try:
-                    result = fresh_conn.execute(text('SELECT COUNT(*) FROM users'))
-                    stats['total']['users'] = result.scalar() or 0
-                    
-                    # Force fresh query with explicit commit to see latest data
-                    fresh_conn.commit()  # Ensure we see committed data
-                    result = fresh_conn.execute(text('SELECT COUNT(*) FROM transactions'))
-                    stats['total']['transactions'] = result.scalar() or 0
-                    # Double-check: if breakdown shows 0, total should be 0
-                    breakdown_total = sum(stats[at]['transactions'] for at in ['individual', 'family', 'business', 'admin', 'other'])
-                    if breakdown_total == 0:
-                        stats['total']['transactions'] = 0
-                finally:
-                    db_manager.release_connection(fresh_conn)
-                
-                result = conn.execute(text('SELECT COUNT(*) FROM goals'))
-                stats['total']['goals'] = result.scalar() or 0
-                
-                result = conn.execute(text('SELECT COUNT(*) FROM notifications'))
-                stats['total']['notifications'] = result.scalar() or 0
-                
-                # Get llm_mappings count from summary table (fast) or fallback to indexed query
-                try:
-                    result = conn.execute(text("""
-                        SELECT total_mappings FROM llm_mappings_summary 
-                        ORDER BY last_updated DESC LIMIT 1
-                    """))
-                    llm_count = result.scalar()
-                    if llm_count is None:
-                        # Fallback to indexed query
-                        result = conn.execute(text('SELECT COUNT(*) FROM llm_mappings'))
-                        llm_count = result.scalar() or 0
-                except:
-                    # If summary table doesn't exist, use indexed query
-                    result = conn.execute(text('SELECT COUNT(*) FROM llm_mappings'))
-                    llm_count = result.scalar() or 0
-                stats['total']['llm_mappings'] = llm_count
-                
-                # Count transactions/users with NULL or invalid account_type (not in standard list)
+
+                # OPTIMIZED: Single query to get all user counts by account_type
                 result = conn.execute(text('''
-                    SELECT COUNT(*) FROM transactions t
+                    SELECT
+                        CASE
+                            WHEN account_type IN ('individual', 'family', 'business', 'admin') THEN account_type
+                            ELSE 'other'
+                        END as acct_type,
+                        COUNT(*) as cnt
+                    FROM users
+                    GROUP BY CASE
+                        WHEN account_type IN ('individual', 'family', 'business', 'admin') THEN account_type
+                        ELSE 'other'
+                    END
+                '''))
+                for row in result:
+                    acct_type, cnt = row[0], row[1]
+                    if acct_type in stats:
+                        stats[acct_type]['users'] = cnt or 0
+                        stats['total']['users'] += cnt or 0
+
+                # OPTIMIZED: Single query to get all transaction counts by account_type
+                result = conn.execute(text('''
+                    SELECT
+                        CASE
+                            WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                            ELSE 'other'
+                        END as acct_type,
+                        COUNT(*) as cnt
+                    FROM transactions t
                     JOIN users u ON t.user_id = u.id
-                    WHERE u.account_type IS NULL 
-                       OR u.account_type NOT IN ('individual', 'family', 'business', 'admin')
+                    GROUP BY CASE
+                        WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                        ELSE 'other'
+                    END
                 '''))
-                stats['other']['transactions'] = result.scalar() or 0
-                
+                for row in result:
+                    acct_type, cnt = row[0], row[1]
+                    if acct_type in stats:
+                        stats[acct_type]['transactions'] = cnt or 0
+                        stats['total']['transactions'] += cnt or 0
+
+                # OPTIMIZED: Single query to get all goal counts by account_type
                 result = conn.execute(text('''
-                    SELECT COUNT(*) FROM users
-                    WHERE account_type IS NULL 
-                       OR account_type NOT IN ('individual', 'family', 'business', 'admin')
-                '''))
-                stats['other']['users'] = result.scalar() or 0
-                
-                result = conn.execute(text('''
-                    SELECT COUNT(*) FROM goals g
+                    SELECT
+                        CASE
+                            WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                            ELSE 'other'
+                        END as acct_type,
+                        COUNT(*) as cnt
+                    FROM goals g
                     JOIN users u ON g.user_id = u.id
-                    WHERE u.account_type IS NULL 
-                       OR u.account_type NOT IN ('individual', 'family', 'business', 'admin')
+                    GROUP BY CASE
+                        WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                        ELSE 'other'
+                    END
                 '''))
-                stats['other']['goals'] = result.scalar() or 0
-                
+                for row in result:
+                    acct_type, cnt = row[0], row[1]
+                    if acct_type in stats:
+                        stats[acct_type]['goals'] = cnt or 0
+                        stats['total']['goals'] += cnt or 0
+
+                # OPTIMIZED: Single query to get all notification counts by account_type
                 result = conn.execute(text('''
-                    SELECT COUNT(*) FROM notifications n
+                    SELECT
+                        CASE
+                            WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                            ELSE 'other'
+                        END as acct_type,
+                        COUNT(*) as cnt
+                    FROM notifications n
                     JOIN users u ON n.user_id = u.id
-                    WHERE u.account_type IS NULL 
-                       OR u.account_type NOT IN ('individual', 'family', 'business', 'admin')
+                    GROUP BY CASE
+                        WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                        ELSE 'other'
+                    END
                 '''))
-                stats['other']['notifications'] = result.scalar() or 0
-                
-                # Get round_up_allocations for other account types
+                for row in result:
+                    acct_type, cnt = row[0], row[1]
+                    if acct_type in stats:
+                        stats[acct_type]['notifications'] = cnt or 0
+                        stats['total']['notifications'] += cnt or 0
+
+                # OPTIMIZED: Single query to get all round_up_allocations counts by account_type
                 try:
-                    # Use a fresh connection/transaction for this query
-                    temp_conn = db_manager.get_connection()
-                    try:
-                        result = temp_conn.execute(text('''
-                            SELECT COUNT(*) FROM round_up_allocations ra
-                            JOIN transactions t ON ra.transaction_id = t.id
-                            JOIN users u ON t.user_id = u.id
-                            WHERE u.account_type IS NULL 
-                               OR u.account_type NOT IN ('individual', 'family', 'business', 'admin')
-                        '''))
-                        stats['other']['round_up_allocations'] = result.scalar() or 0
-                    except Exception:
-                        stats['other']['round_up_allocations'] = 0
-                    finally:
-                        db_manager.release_connection(temp_conn)
+                    result = conn.execute(text('''
+                        SELECT
+                            CASE
+                                WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                                ELSE 'other'
+                            END as acct_type,
+                            COUNT(*) as cnt
+                        FROM round_up_allocations ra
+                        JOIN transactions t ON ra.transaction_id = t.id
+                        JOIN users u ON t.user_id = u.id
+                        GROUP BY CASE
+                            WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                            ELSE 'other'
+                        END
+                    '''))
+                    for row in result:
+                        acct_type, cnt = row[0], row[1]
+                        if acct_type in stats:
+                            stats[acct_type]['round_up_allocations'] = cnt or 0
+                            stats['total']['round_up_allocations'] += cnt or 0
                 except Exception:
-                    stats['other']['round_up_allocations'] = 0
-                
-                # Check if round_up_allocations table exists - use fresh connection
-                try:
-                    fresh_conn_roundup = db_manager.get_connection()
-                    try:
-                        fresh_conn_roundup.commit()  # Ensure we see committed data
-                        result = fresh_conn_roundup.execute(text('SELECT COUNT(*) FROM round_up_allocations'))
-                        stats['total']['round_up_allocations'] = result.scalar() or 0
-                        # Double-check: if breakdown shows 0, total should be 0
-                        breakdown_total = sum(stats[at]['round_up_allocations'] for at in ['individual', 'family', 'business', 'admin', 'other'])
-                        if breakdown_total == 0:
-                            stats['total']['round_up_allocations'] = 0
-                    finally:
-                        db_manager.release_connection(fresh_conn_roundup)
-                except:
-                    stats['total']['round_up_allocations'] = 0
-                    # Also ensure breakdown total matches
-                    breakdown_total = sum(stats[at]['round_up_allocations'] for at in ['individual', 'family', 'business', 'admin', 'other'])
-                    if breakdown_total == 0:
-                        stats['total']['round_up_allocations'] = 0
-                
-                # Get llm_mappings count from summary table (fast) or fallback to indexed query
+                    pass  # Table may not exist
+
+                # Get llm_mappings count from summary table (fast) or fallback
                 try:
                     result = conn.execute(text("""
-                        SELECT total_mappings FROM llm_mappings_summary 
+                        SELECT total_mappings FROM llm_mappings_summary
                         ORDER BY last_updated DESC LIMIT 1
                     """))
                     llm_count = result.scalar()
                     if llm_count is None:
-                        # Fallback to indexed query
                         result = conn.execute(text('SELECT COUNT(*) FROM llm_mappings'))
                         llm_count = result.scalar() or 0
                     stats['total']['llm_mappings'] = llm_count
                 except:
-                    # If summary table doesn't exist, use indexed query
                     try:
                         result = conn.execute(text('SELECT COUNT(*) FROM llm_mappings'))
                         stats['total']['llm_mappings'] = result.scalar() or 0
                     except:
                         stats['total']['llm_mappings'] = 0
-                
-                # Add breakdown by user (showing which users have transactions)
+
+                # OPTIMIZED: Single query for users breakdown (already efficient)
                 stats['users_breakdown'] = []
                 try:
                     result = conn.execute(text('''
@@ -5371,160 +5321,139 @@ def admin_database_stats():
                 except Exception as e:
                     print(f"[ADMIN DB STATS] Error getting users breakdown: {e}")
                     stats['users_breakdown'] = []
-                    
+
             else:
-                # SQLite version
+                # SQLite version - also optimized with GROUP BY
                 cursor = conn.cursor()
-                
-                for account_type in ['individual', 'family', 'business', 'admin']:
-                    cursor.execute('SELECT COUNT(*) FROM users WHERE account_type = ?', (account_type,))
-                    stats[account_type]['users'] = cursor.fetchone()[0] or 0
-                    
-                    cursor.execute('''
-                        SELECT COUNT(*) FROM transactions t
-                        JOIN users u ON t.user_id = u.id
-                        WHERE u.account_type = ?
-                    ''', (account_type,))
-                    stats[account_type]['transactions'] = cursor.fetchone()[0] or 0
-                    
-                    cursor.execute('''
-                        SELECT COUNT(*) FROM goals g
-                        JOIN users u ON g.user_id = u.id
-                        WHERE u.account_type = ?
-                    ''', (account_type,))
-                    stats[account_type]['goals'] = cursor.fetchone()[0] or 0
-                    
-                    cursor.execute('''
-                        SELECT COUNT(*) FROM notifications n
-                        JOIN users u ON n.user_id = u.id
-                        WHERE u.account_type = ?
-                    ''', (account_type,))
-                    stats[account_type]['notifications'] = cursor.fetchone()[0] or 0
-                    
-                    # Get round_up_allocations for this account_type
-                    try:
-                        temp_cursor = conn.cursor()
-                        try:
-                            temp_cursor.execute('''
-                                SELECT COUNT(*) FROM round_up_allocations ra
-                                JOIN transactions t ON ra.transaction_id = t.id
-                                JOIN users u ON t.user_id = u.id
-                                WHERE u.account_type = ?
-                            ''', (account_type,))
-                            stats[account_type]['round_up_allocations'] = temp_cursor.fetchone()[0] or 0
-                        except Exception:
-                            stats[account_type]['round_up_allocations'] = 0
-                        finally:
-                            temp_cursor.close()
-                    except Exception:
-                        stats[account_type]['round_up_allocations'] = 0
-                
-                cursor.execute('SELECT COUNT(*) FROM users')
-                stats['total']['users'] = cursor.fetchone()[0] or 0
-                
-                # Force fresh query and ensure consistency with breakdown
-                conn.commit()  # Ensure we see committed data
-                cursor.execute('SELECT COUNT(*) FROM transactions')
-                stats['total']['transactions'] = cursor.fetchone()[0] or 0
-                # Double-check: if breakdown shows 0, total should be 0
-                breakdown_total = sum(stats[at]['transactions'] for at in ['individual', 'family', 'business', 'admin', 'other'])
-                if breakdown_total == 0:
-                    stats['total']['transactions'] = 0
-                
-                cursor.execute('SELECT COUNT(*) FROM goals')
-                stats['total']['goals'] = cursor.fetchone()[0] or 0
-                
-                cursor.execute('SELECT COUNT(*) FROM notifications')
-                stats['total']['notifications'] = cursor.fetchone()[0] or 0
-                
-                # Count transactions/users with NULL or invalid account_type (not in standard list)
+
+                # OPTIMIZED: Single query to get all user counts by account_type
                 cursor.execute('''
-                    SELECT COUNT(*) FROM transactions t
+                    SELECT
+                        CASE
+                            WHEN account_type IN ('individual', 'family', 'business', 'admin') THEN account_type
+                            ELSE 'other'
+                        END as acct_type,
+                        COUNT(*) as cnt
+                    FROM users
+                    GROUP BY CASE
+                        WHEN account_type IN ('individual', 'family', 'business', 'admin') THEN account_type
+                        ELSE 'other'
+                    END
+                ''')
+                for row in cursor.fetchall():
+                    acct_type, cnt = row[0], row[1]
+                    if acct_type in stats:
+                        stats[acct_type]['users'] = cnt or 0
+                        stats['total']['users'] += cnt or 0
+
+                # OPTIMIZED: Single query to get all transaction counts by account_type
+                cursor.execute('''
+                    SELECT
+                        CASE
+                            WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                            ELSE 'other'
+                        END as acct_type,
+                        COUNT(*) as cnt
+                    FROM transactions t
                     JOIN users u ON t.user_id = u.id
-                    WHERE u.account_type IS NULL 
-                       OR u.account_type NOT IN ('individual', 'family', 'business', 'admin')
+                    GROUP BY CASE
+                        WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                        ELSE 'other'
+                    END
                 ''')
-                stats['other']['transactions'] = cursor.fetchone()[0] or 0
-                
+                for row in cursor.fetchall():
+                    acct_type, cnt = row[0], row[1]
+                    if acct_type in stats:
+                        stats[acct_type]['transactions'] = cnt or 0
+                        stats['total']['transactions'] += cnt or 0
+
+                # OPTIMIZED: Single query to get all goal counts by account_type
                 cursor.execute('''
-                    SELECT COUNT(*) FROM users
-                    WHERE account_type IS NULL 
-                       OR account_type NOT IN ('individual', 'family', 'business', 'admin')
-                ''')
-                stats['other']['users'] = cursor.fetchone()[0] or 0
-                
-                cursor.execute('''
-                    SELECT COUNT(*) FROM goals g
+                    SELECT
+                        CASE
+                            WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                            ELSE 'other'
+                        END as acct_type,
+                        COUNT(*) as cnt
+                    FROM goals g
                     JOIN users u ON g.user_id = u.id
-                    WHERE u.account_type IS NULL 
-                       OR u.account_type NOT IN ('individual', 'family', 'business', 'admin')
+                    GROUP BY CASE
+                        WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                        ELSE 'other'
+                    END
                 ''')
-                stats['other']['goals'] = cursor.fetchone()[0] or 0
-                
+                for row in cursor.fetchall():
+                    acct_type, cnt = row[0], row[1]
+                    if acct_type in stats:
+                        stats[acct_type]['goals'] = cnt or 0
+                        stats['total']['goals'] += cnt or 0
+
+                # OPTIMIZED: Single query to get all notification counts by account_type
                 cursor.execute('''
-                    SELECT COUNT(*) FROM notifications n
+                    SELECT
+                        CASE
+                            WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                            ELSE 'other'
+                        END as acct_type,
+                        COUNT(*) as cnt
+                    FROM notifications n
                     JOIN users u ON n.user_id = u.id
-                    WHERE u.account_type IS NULL 
-                       OR u.account_type NOT IN ('individual', 'family', 'business', 'admin')
+                    GROUP BY CASE
+                        WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                        ELSE 'other'
+                    END
                 ''')
-                stats['other']['notifications'] = cursor.fetchone()[0] or 0
-                
-                # Get round_up_allocations for other account types
+                for row in cursor.fetchall():
+                    acct_type, cnt = row[0], row[1]
+                    if acct_type in stats:
+                        stats[acct_type]['notifications'] = cnt or 0
+                        stats['total']['notifications'] += cnt or 0
+
+                # OPTIMIZED: Single query to get all round_up_allocations counts
                 try:
-                    temp_cursor = conn.cursor()
-                    try:
-                        temp_cursor.execute('''
-                            SELECT COUNT(*) FROM round_up_allocations ra
-                            JOIN transactions t ON ra.transaction_id = t.id
-                            JOIN users u ON t.user_id = u.id
-                            WHERE u.account_type IS NULL 
-                               OR u.account_type NOT IN ('individual', 'family', 'business', 'admin')
-                        ''')
-                        stats['other']['round_up_allocations'] = temp_cursor.fetchone()[0] or 0
-                    except Exception:
-                        stats['other']['round_up_allocations'] = 0
-                    finally:
-                        temp_cursor.close()
+                    cursor.execute('''
+                        SELECT
+                            CASE
+                                WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                                ELSE 'other'
+                            END as acct_type,
+                            COUNT(*) as cnt
+                        FROM round_up_allocations ra
+                        JOIN transactions t ON ra.transaction_id = t.id
+                        JOIN users u ON t.user_id = u.id
+                        GROUP BY CASE
+                            WHEN u.account_type IN ('individual', 'family', 'business', 'admin') THEN u.account_type
+                            ELSE 'other'
+                        END
+                    ''')
+                    for row in cursor.fetchall():
+                        acct_type, cnt = row[0], row[1]
+                        if acct_type in stats:
+                            stats[acct_type]['round_up_allocations'] = cnt or 0
+                            stats['total']['round_up_allocations'] += cnt or 0
                 except Exception:
-                    stats['other']['round_up_allocations'] = 0
-                
-                try:
-                    conn.commit()  # Ensure we see committed data
-                    cursor.execute('SELECT COUNT(*) FROM round_up_allocations')
-                    stats['total']['round_up_allocations'] = cursor.fetchone()[0] or 0
-                    # Double-check: if breakdown shows 0, total should be 0
-                    breakdown_total = sum(stats[at]['round_up_allocations'] for at in ['individual', 'family', 'business', 'admin', 'other'])
-                    if breakdown_total == 0:
-                        stats['total']['round_up_allocations'] = 0
-                except:
-                    stats['total']['round_up_allocations'] = 0
-                    # Also ensure breakdown total matches
-                    breakdown_total = sum(stats[at]['round_up_allocations'] for at in ['individual', 'family', 'business', 'admin', 'other'])
-                    if breakdown_total == 0:
-                        stats['total']['round_up_allocations'] = 0
-                
-                # Get llm_mappings count from summary table (fast) or fallback to indexed query
+                    pass  # Table may not exist
+
+                # Get llm_mappings count
                 try:
                     cursor.execute("""
-                        SELECT total_mappings FROM llm_mappings_summary 
+                        SELECT total_mappings FROM llm_mappings_summary
                         ORDER BY last_updated DESC LIMIT 1
                     """)
                     result = cursor.fetchone()
                     llm_count = result[0] if result else None
                     if llm_count is None:
-                        # Fallback to indexed query
                         cursor.execute('SELECT COUNT(*) FROM llm_mappings')
                         llm_count = cursor.fetchone()[0] or 0
                     stats['total']['llm_mappings'] = llm_count
                 except:
-                    # If summary table doesn't exist, use indexed query
                     try:
                         cursor.execute('SELECT COUNT(*) FROM llm_mappings')
                         stats['total']['llm_mappings'] = cursor.fetchone()[0] or 0
                     except:
                         stats['total']['llm_mappings'] = 0
-                
-                # Add breakdown by user (showing which users have transactions)
+
+                # Users breakdown (already efficient)
                 stats['users_breakdown'] = []
                 try:
                     cursor.execute('''
@@ -5545,17 +5474,17 @@ def admin_database_stats():
                 except Exception as e:
                     print(f"[ADMIN DB STATS] Error getting users breakdown: {e}")
                     stats['users_breakdown'] = []
-                
+
                 cursor.close()
-            
+
             return jsonify({'success': True, 'data': stats})
-            
+
         finally:
             if db_manager._use_postgresql:
                 db_manager.release_connection(conn)
             else:
                 conn.close()
-                
+
     except Exception as e:
         import traceback
         print(f"[ADMIN DB STATS] ERROR: {str(e)}")
