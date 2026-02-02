@@ -1810,90 +1810,24 @@ const FinancialAnalytics = ({ user }) => {
 
   // Render Executive Dashboard
   const renderExecutiveDashboard = () => {
-    // STEP 1: Use the EXACT SAME calculation as General Ledger
-    // General Ledger uses enhanceAccountsWithTransactions() to zero balances and calculate from transactions only
-    const enhanceAccountsWithTransactions = () => {
-      // Create a map of transaction totals by account
-      const transactionTotals = new Map()
-      
-      financialTransactions.forEach((transaction) => {
-        // If transaction has explicit debit/credit (from journal entry lines), use those
-        if (transaction.debit !== undefined || transaction.credit !== undefined) {
-          const debitAmount = transaction.debit || 0
-          const creditAmount = transaction.credit || 0
-          
-          if (debitAmount > 0 && transaction.to_account) {
-            const accountKey = transaction.to_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.debits += debitAmount
-          }
-          
-          if (creditAmount > 0 && transaction.from_account) {
-            const accountKey = transaction.from_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.credits += creditAmount
-          }
-        } else {
-          // Legacy format: Process From Account (Credits) and To Account (Debits)
-          if (transaction.from_account) {
-            const accountKey = transaction.from_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.credits += transaction.amount || 0
-          }
-          
-          if (transaction.to_account) {
-            const accountKey = transaction.to_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.debits += transaction.amount || 0
-          }
-        }
-      })
-      
-      // Use the same accounts source as GL
-      const baseAccounts = allChartOfAccounts.length > 0 ? allChartOfAccounts : chartOfAccounts
-      
-      // ZERO OUT all hardcoded balances - only use transaction data (same as GL)
-      return baseAccounts.map(account => {
-        const totals = transactionTotals.get(account.account_number) || { debits: 0, credits: 0 }
-        
-        // Calculate balance based on normal balance
-        // Assets/Expenses: Debit increases, Credit decreases (debits - credits)
-        // Liabilities/Equity/Revenue: Credit increases, Debit decreases (credits - debits)
-        let transactionBalance
-        const normalBalance = (account.normal_balance || '').toLowerCase()
-        if (normalBalance === 'credit') {
-          // Liabilities, Equity, Revenue: Credits increase balance
-          transactionBalance = totals.credits - totals.debits
-        } else {
-          // Assets, Expenses: Debits increase balance
-          transactionBalance = totals.debits - totals.credits
-        }
-        
-        return {
-          ...account,
-          debits: totals.debits,
-          credits: totals.credits,
-          balance: transactionBalance // Always use transaction balance, zero if no transactions
-        }
-      })
+    // Show loading state while data is being fetched
+    if (transactionsLoading || glLoading) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className={`${getSubtextClass()}`}>Loading financial data...</p>
+          </div>
+        </div>
+      )
     }
-    
-    // STEP 2: Use enhanced accounts with transaction-based balances (same as GL)
-    const accountsToUse = enhanceAccountsWithTransactions()
-    
-    // STEP 3: Calculate real KPIs from GL accounts (transaction-based)
+
+    // Use GL accounts with their balances directly for the Executive Dashboard
+    // The GL accounts from the backend include proper balances for financial reporting
+    const baseAccounts = allChartOfAccounts.length > 0 ? allChartOfAccounts : chartOfAccounts
+    const accountsToUse = baseAccounts
+
+    // Calculate real KPIs from GL accounts
     const revenueAccounts = accountsToUse.filter(acc => {
       const category = acc.category || acc.account_type || acc.type || ''
       return category.toLowerCase() === 'revenue'
@@ -2092,91 +2026,12 @@ const FinancialAnalytics = ({ user }) => {
         </div>
       )
     }
-    
-    // STEP 1: Use the EXACT SAME calculation as General Ledger
-    // General Ledger uses enhanceAccountsWithTransactions() to zero balances and calculate from transactions only
-    const enhanceAccountsWithTransactions = () => {
-      // Create a map of transaction totals by account
-      const transactionTotals = new Map()
-      
-      financialTransactions.forEach((transaction) => {
-        // If transaction has explicit debit/credit (from journal entry lines), use those
-        if (transaction.debit !== undefined || transaction.credit !== undefined) {
-          const debitAmount = transaction.debit || 0
-          const creditAmount = transaction.credit || 0
-          
-          if (debitAmount > 0 && transaction.to_account) {
-            const accountKey = transaction.to_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.debits += debitAmount
-          }
-          
-          if (creditAmount > 0 && transaction.from_account) {
-            const accountKey = transaction.from_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.credits += creditAmount
-          }
-        } else {
-          // Legacy format: Process From Account (Credits) and To Account (Debits)
-          if (transaction.from_account) {
-            const accountKey = transaction.from_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.credits += transaction.amount || 0
-          }
-          
-          if (transaction.to_account) {
-            const accountKey = transaction.to_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.debits += transaction.amount || 0
-          }
-        }
-      })
-      
-      // Use the same accounts source as GL
-      const baseAccounts = allChartOfAccounts.length > 0 ? allChartOfAccounts : chartOfAccounts
-      
-      // ZERO OUT all hardcoded balances - only use transaction data (same as GL)
-      return baseAccounts.map(account => {
-        const totals = transactionTotals.get(account.account_number) || { debits: 0, credits: 0 }
-        
-        // Calculate balance based on normal balance
-        // Assets/Expenses: Debit increases, Credit decreases (debits - credits)
-        // Liabilities/Equity/Revenue: Credit increases, Debit decreases (credits - debits)
-        let transactionBalance
-        const normalBalance = (account.normal_balance || '').toLowerCase()
-        if (normalBalance === 'credit') {
-          // Liabilities, Equity, Revenue: Credits increase balance
-          transactionBalance = totals.credits - totals.debits
-        } else {
-          // Assets, Expenses: Debits increase balance
-          transactionBalance = totals.debits - totals.credits
-        }
-        
-        return {
-          ...account,
-          debits: totals.debits,
-          credits: totals.credits,
-          balance: transactionBalance // Always use transaction balance, zero if no transactions
-        }
-      })
-    }
-    
-    // STEP 2: Use enhanced accounts with transaction-based balances (same as GL)
-    const accountsToUse = enhanceAccountsWithTransactions()
-    
-    // STEP 3: Get accounts by category from GL (matching GL's category logic)
+
+    // Use GL accounts with their balances directly
+    const baseAccounts = allChartOfAccounts.length > 0 ? allChartOfAccounts : chartOfAccounts
+    const accountsToUse = baseAccounts
+
+    // Get accounts by category from GL (matching GL's category logic)
     const getAccountsByCategory = (category) => {
       return accountsToUse.filter(acc => {
         const accountCategory = acc.category || acc.account_type || ''
@@ -2464,89 +2319,10 @@ const FinancialAnalytics = ({ user }) => {
         </div>
       )
     }
-    
-    // STEP 1: Use the EXACT SAME calculation as General Ledger
-    // General Ledger uses enhanceAccountsWithTransactions() to zero balances and calculate from transactions only
-    const enhanceAccountsWithTransactions = () => {
-      // Create a map of transaction totals by account
-      const transactionTotals = new Map()
-      
-      financialTransactions.forEach((transaction) => {
-        // If transaction has explicit debit/credit (from journal entry lines), use those
-        if (transaction.debit !== undefined || transaction.credit !== undefined) {
-          const debitAmount = transaction.debit || 0
-          const creditAmount = transaction.credit || 0
-          
-          if (debitAmount > 0 && transaction.to_account) {
-            const accountKey = transaction.to_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.debits += debitAmount
-          }
-          
-          if (creditAmount > 0 && transaction.from_account) {
-            const accountKey = transaction.from_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.credits += creditAmount
-          }
-        } else {
-          // Legacy format: Process From Account (Credits) and To Account (Debits)
-          if (transaction.from_account) {
-            const accountKey = transaction.from_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.credits += transaction.amount || 0
-          }
-          
-          if (transaction.to_account) {
-            const accountKey = transaction.to_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.debits += transaction.amount || 0
-          }
-        }
-      })
-      
-      // Use the same accounts source as GL
-      const baseAccounts = allChartOfAccounts.length > 0 ? allChartOfAccounts : chartOfAccounts
-      
-      // ZERO OUT all hardcoded balances - only use transaction data (same as GL)
-      return baseAccounts.map(account => {
-        const totals = transactionTotals.get(account.account_number) || { debits: 0, credits: 0 }
-        
-        // Calculate balance based on normal balance
-        // Assets/Expenses: Debit increases, Credit decreases (debits - credits)
-        // Liabilities/Equity/Revenue: Credit increases, Debit decreases (credits - debits)
-        let transactionBalance
-        const normalBalance = (account.normal_balance || '').toLowerCase()
-        if (normalBalance === 'credit') {
-          // Liabilities, Equity, Revenue: Credits increase balance
-          transactionBalance = totals.credits - totals.debits
-        } else {
-          // Assets, Expenses: Debits increase balance
-          transactionBalance = totals.debits - totals.credits
-        }
-        
-        return {
-          ...account,
-          debits: totals.debits,
-          credits: totals.credits,
-          balance: transactionBalance // Always use transaction balance, zero if no transactions
-        }
-      })
-    }
-    
-    // STEP 2: Use enhanced accounts with transaction-based balances (same as GL)
-    const accountsToUse = enhanceAccountsWithTransactions()
+
+    // Use GL accounts with their balances directly
+    const baseAccounts = allChartOfAccounts.length > 0 ? allChartOfAccounts : chartOfAccounts
+    const accountsToUse = baseAccounts
     
     // Get accounts by category
     const getAccountsByCategory = (category) => {
@@ -3034,90 +2810,11 @@ const FinancialAnalytics = ({ user }) => {
         </div>
       )
     }
-    
-    // STEP 1: Use the EXACT SAME calculation as General Ledger
-    // General Ledger uses enhanceAccountsWithTransactions() to zero balances and calculate from transactions only
-    const enhanceAccountsWithTransactions = () => {
-      // Create a map of transaction totals by account
-      const transactionTotals = new Map()
-      
-      financialTransactions.forEach((transaction) => {
-        // If transaction has explicit debit/credit (from journal entry lines), use those
-        if (transaction.debit !== undefined || transaction.credit !== undefined) {
-          const debitAmount = transaction.debit || 0
-          const creditAmount = transaction.credit || 0
-          
-          if (debitAmount > 0 && transaction.to_account) {
-            const accountKey = transaction.to_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.debits += debitAmount
-          }
-          
-          if (creditAmount > 0 && transaction.from_account) {
-            const accountKey = transaction.from_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.credits += creditAmount
-          }
-        } else {
-          // Legacy format: Process From Account (Credits) and To Account (Debits)
-          if (transaction.from_account) {
-            const accountKey = transaction.from_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.credits += transaction.amount || 0
-          }
-          
-          if (transaction.to_account) {
-            const accountKey = transaction.to_account
-            if (!transactionTotals.has(accountKey)) {
-              transactionTotals.set(accountKey, { debits: 0, credits: 0 })
-            }
-            const totals = transactionTotals.get(accountKey)
-            totals.debits += transaction.amount || 0
-          }
-        }
-      })
-      
-      // Use the same accounts source as GL
-      const baseAccounts = allChartOfAccounts.length > 0 ? allChartOfAccounts : chartOfAccounts
-      
-      // ZERO OUT all hardcoded balances - only use transaction data (same as GL)
-      return baseAccounts.map(account => {
-        const totals = transactionTotals.get(account.account_number) || { debits: 0, credits: 0 }
-        
-        // Calculate balance based on normal balance
-        // Assets/Expenses: Debit increases, Credit decreases (debits - credits)
-        // Liabilities/Equity/Revenue: Credit increases, Debit decreases (credits - debits)
-        let transactionBalance
-        const normalBalance = (account.normal_balance || '').toLowerCase()
-        if (normalBalance === 'credit') {
-          // Liabilities, Equity, Revenue: Credits increase balance
-          transactionBalance = totals.credits - totals.debits
-        } else {
-          // Assets, Expenses: Debits increase balance
-          transactionBalance = totals.debits - totals.credits
-        }
-        
-        return {
-          ...account,
-          debits: totals.debits,
-          credits: totals.credits,
-          balance: transactionBalance // Always use transaction balance, zero if no transactions
-        }
-      })
-    }
-    
-    // STEP 2: Use enhanced accounts with transaction-based balances (same as GL)
-    const accountsToUse = enhanceAccountsWithTransactions()
-    
+
+    // Use GL accounts with their balances directly
+    const baseAccounts = allChartOfAccounts.length > 0 ? allChartOfAccounts : chartOfAccounts
+    const accountsToUse = baseAccounts
+
     // Get accounts by name pattern for cash flow calculations
     const getAccountsByNamePattern = (pattern) => {
       return accountsToUse.filter(acc => 
@@ -5230,6 +4927,13 @@ const FinancialAnalytics = ({ user }) => {
       setTransactionsLoading(false)
     }
   }
+
+  // Fetch data on component mount for Executive Dashboard
+  useEffect(() => {
+    // Load chart of accounts and transactions on mount for Executive Dashboard KPIs
+    fetchChartOfAccounts('all')
+    fetchFinancialTransactions()
+  }, []) // Empty dependency array = run once on mount
 
   // Fetch transactions when Transaction Management or General Ledger tab is active
   useEffect(() => {

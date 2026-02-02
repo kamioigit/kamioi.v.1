@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { 
-  DollarSign, 
-  TrendingUp, 
-  TrendingDown, 
-  Users, 
-  CreditCard, 
+import {
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
+  Users,
+  CreditCard,
   FileText,
   Download,
   Filter,
@@ -37,8 +37,23 @@ import {
 } from 'lucide-react'
 import RechartsChart from '../common/RechartsChart'
 import { useData } from '../../context/DataContext'
+import { useTheme } from '../../context/ThemeContext'
 
 const Accounting2 = ({ user }) => {
+  const { isLightMode } = useTheme()
+
+  // Theme helper functions
+  const getTextClass = () => isLightMode ? 'text-gray-900' : 'text-white'
+  const getSubtextClass = () => isLightMode ? 'text-gray-600' : 'text-gray-400'
+  const getCardClass = () => isLightMode
+    ? 'bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-gray-200 shadow-sm'
+    : 'bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20'
+  const getInputClass = () => isLightMode
+    ? 'w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500'
+    : 'w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+  const getSelectClass = () => isLightMode
+    ? 'px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500'
+    : 'px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500'
   const [selectedPeriod, setSelectedPeriod] = useState('month')
   const [selectedView, setSelectedView] = useState('overview')
   const [showAddEntry, setShowAddEntry] = useState(false)
@@ -386,41 +401,41 @@ const Accounting2 = ({ user }) => {
       <div className="space-y-6">
         {/* Key Metrics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
+          <div className={isLightMode ? 'bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-6 shadow-sm' : 'bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6'}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-400">Total Revenue</p>
-                <p className="text-2xl font-bold text-white">${financialData.total_revenue?.toLocaleString() || '0'}</p>
+                <p className={`text-sm font-medium ${getSubtextClass()}`}>Total Revenue</p>
+                <p className={`text-2xl font-bold ${getTextClass()}`}>${financialData.total_revenue?.toLocaleString() || '0'}</p>
               </div>
               <DollarSign className="h-8 w-8 text-green-400" />
             </div>
           </div>
 
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
+          <div className={isLightMode ? 'bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-6 shadow-sm' : 'bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6'}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-400">Net Profit</p>
-                <p className="text-2xl font-bold text-white">${financialData.net_profit?.toLocaleString() || '0'}</p>
+                <p className={`text-sm font-medium ${getSubtextClass()}`}>Net Profit</p>
+                <p className={`text-2xl font-bold ${getTextClass()}`}>${financialData.net_profit?.toLocaleString() || '0'}</p>
               </div>
               <TrendingUp className="h-8 w-8 text-blue-400" />
             </div>
           </div>
 
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
+          <div className={isLightMode ? 'bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-6 shadow-sm' : 'bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6'}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-400">Transactions</p>
-                <p className="text-2xl font-bold text-white">{financialData.transactions_count?.toLocaleString() || '0'}</p>
+                <p className={`text-sm font-medium ${getSubtextClass()}`}>Transactions</p>
+                <p className={`text-2xl font-bold ${getTextClass()}`}>{financialData.transactions_count?.toLocaleString() || '0'}</p>
               </div>
               <CreditCard className="h-8 w-8 text-purple-400" />
             </div>
           </div>
 
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
+          <div className={isLightMode ? 'bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-6 shadow-sm' : 'bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6'}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-400">Avg Transaction</p>
-                <p className="text-2xl font-bold text-white">${financialData.average_transaction?.toFixed(2) || '0'}</p>
+                <p className={`text-sm font-medium ${getSubtextClass()}`}>Avg Transaction</p>
+                <p className={`text-2xl font-bold ${getTextClass()}`}>${financialData.average_transaction?.toFixed(2) || '0'}</p>
               </div>
               <Calculator className="h-8 w-8 text-orange-400" />
             </div>
@@ -428,19 +443,19 @@ const Accounting2 = ({ user }) => {
         </div>
 
         {/* GL Account Summary */}
-        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">GL Account Summary</h3>
+        <div className={isLightMode ? 'bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-6 shadow-sm' : 'bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6'}>
+          <h3 className={`text-lg font-semibold ${getTextClass()} mb-4`}>GL Account Summary</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {glAccounts.slice(0, 6).map(account => (
-              <div key={account.id} className="bg-white/5 rounded-lg p-4">
+              <div key={account.id} className={isLightMode ? 'bg-gray-50 rounded-lg p-4' : 'bg-white/5 rounded-lg p-4'}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-300">{account.name}</p>
-                    <p className="text-xs text-white">#{account.account_number}</p>
+                    <p className={`text-sm font-medium ${getSubtextClass()}`}>{account.name}</p>
+                    <p className={`text-xs ${getTextClass()}`}>#{account.account_number}</p>
                   </div>
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    account.normal_balance === 'debit' 
-                      ? 'bg-red-500/20 text-red-400' 
+                    account.normal_balance === 'debit'
+                      ? 'bg-red-500/20 text-red-400'
                       : 'bg-green-500/20 text-green-400'
                   }`}>
                     {account.normal_balance?.toUpperCase()}
@@ -452,8 +467,8 @@ const Accounting2 = ({ user }) => {
         </div>
 
         {/* Auto-Mapping Status */}
-        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Auto-Mapping Status</h3>
+        <div className={isLightMode ? 'bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-6 shadow-sm' : 'bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6'}>
+          <h3 className={`text-lg font-semibold ${getTextClass()} mb-4`}>Auto-Mapping Status</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
               <div className="flex items-center space-x-2">
@@ -502,7 +517,7 @@ const Accounting2 = ({ user }) => {
       <div className="space-y-6">
         {/* Add Journal Entry Button */}
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-white">Journal Entries</h3>
+          <h3 className={`text-lg font-semibold ${getTextClass()}`}>Journal Entries</h3>
           <div className="flex space-x-2">
             <button
               onClick={handleAutoMapTransactions}
@@ -522,32 +537,32 @@ const Accounting2 = ({ user }) => {
         </div>
 
         {/* Journal Entries Table */}
-        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden">
+        <div className={isLightMode ? 'bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl overflow-hidden shadow-sm' : 'bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden'}>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-white/5">
+              <thead className={isLightMode ? 'bg-gray-50' : 'bg-white/5'}>
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Account</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Location</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Department</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Memo</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Debit</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Credit</th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${getSubtextClass()} uppercase tracking-wider`}>Date</th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${getSubtextClass()} uppercase tracking-wider`}>Type</th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${getSubtextClass()} uppercase tracking-wider`}>Account</th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${getSubtextClass()} uppercase tracking-wider`}>Location</th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${getSubtextClass()} uppercase tracking-wider`}>Department</th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${getSubtextClass()} uppercase tracking-wider`}>Memo</th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${getSubtextClass()} uppercase tracking-wider`}>Debit</th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${getSubtextClass()} uppercase tracking-wider`}>Credit</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
+              <tbody className={isLightMode ? 'divide-y divide-gray-200' : 'divide-y divide-white/10'}>
                 {journalEntries.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="px-6 py-8 text-center text-gray-400">
+                    <td colSpan="8" className={`px-6 py-8 text-center ${getSubtextClass()}`}>
                       No journal entries yet. Add entries manually or use Auto-Map Transactions.
                     </td>
                   </tr>
                 ) : (
                   journalEntries.map((entry) => (
                     <tr key={entry.id} className={entry.isAutoMapped ? 'bg-blue-500/5' : ''}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${getTextClass()}`}>
                         {new Date(entry.date).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -560,10 +575,10 @@ const Accounting2 = ({ user }) => {
                           {entry.entryType?.toUpperCase()}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{entry.account}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{entry.location}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{entry.department}</td>
-                      <td className="px-6 py-4 text-sm text-gray-300">{entry.memo}</td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${getTextClass()}`}>{entry.account}</td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${getSubtextClass()}`}>{entry.location}</td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${getSubtextClass()}`}>{entry.department}</td>
+                      <td className={`px-6 py-4 text-sm ${getSubtextClass()}`}>{entry.memo}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-red-400">
                         {entry.debit > 0 ? `$${entry.debit.toFixed(2)}` : '-'}
                       </td>
@@ -588,12 +603,12 @@ const Accounting2 = ({ user }) => {
 
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-        <div className="bg-gray-900 border border-white/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className={isLightMode ? 'bg-white border border-gray-200 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-lg' : 'bg-gray-900 border border-white/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto'}>
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold text-white">Add Journal Entry</h2>
+            <h2 className={`text-xl font-semibold ${getTextClass()}`}>Add Journal Entry</h2>
             <button
               onClick={() => setShowAddEntry(false)}
-              className="text-gray-400 hover:text-white"
+              className={isLightMode ? 'text-gray-500 hover:text-gray-900' : 'text-gray-400 hover:text-white'}
             >
               <X className="h-6 w-6" />
             </button>
@@ -602,7 +617,7 @@ const Accounting2 = ({ user }) => {
           <div className="space-y-6">
             {/* Entry Type Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-3">Entry Type</label>
+              <label className={`block text-sm font-medium ${getSubtextClass()} mb-3`}>Entry Type</label>
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { value: 'deposit', label: 'Deposit', icon: TrendingUp, color: 'green' },
@@ -616,14 +631,14 @@ const Accounting2 = ({ user }) => {
                     className={`p-3 rounded-lg border-2 transition-all ${
                       entryType === type.value
                         ? `border-${type.color}-500 bg-${type.color}-500/10`
-                        : 'border-white/20 hover:border-white/40'
+                        : isLightMode ? 'border-gray-300 hover:border-gray-400' : 'border-white/20 hover:border-white/40'
                     }`}
                   >
                     <type.icon className={`h-5 w-5 mx-auto mb-2 ${
-                      entryType === type.value ? `text-${type.color}-400` : 'text-gray-400'
+                      entryType === type.value ? `text-${type.color}-400` : getSubtextClass()
                     }`} />
                     <span className={`text-sm font-medium ${
-                      entryType === type.value ? `text-${type.color}-400` : 'text-gray-300'
+                      entryType === type.value ? `text-${type.color}-400` : getSubtextClass()
                     }`}>
                       {type.label}
                     </span>
@@ -634,12 +649,12 @@ const Accounting2 = ({ user }) => {
 
             {/* Amount Input */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Amount</label>
+              <label className={`block text-sm font-medium ${getSubtextClass()} mb-2`}>Amount</label>
               <input
                 type="number"
                 value={entryAmount}
                 onChange={(e) => setEntryAmount(e.target.value)}
-                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={getInputClass()}
                 placeholder="Enter amount"
                 step="0.01"
               />
@@ -647,11 +662,11 @@ const Accounting2 = ({ user }) => {
 
             {/* Account Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">GL Account</label>
+              <label className={`block text-sm font-medium ${getSubtextClass()} mb-2`}>GL Account</label>
               <select
                 value={selectedAccount}
                 onChange={(e) => setSelectedAccount(e.target.value)}
-                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={getInputClass()}
               >
                 <option value="">Select Account</option>
                 {glAccounts.map(account => (
@@ -665,11 +680,11 @@ const Accounting2 = ({ user }) => {
             {/* Location and Department */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Location</label>
+                <label className={`block text-sm font-medium ${getSubtextClass()} mb-2`}>Location</label>
                 <select
                   value={selectedLocation}
                   onChange={(e) => setSelectedLocation(e.target.value)}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={getInputClass()}
                 >
                   <option value="">Select Location</option>
                   {locations.map(location => (
@@ -678,11 +693,11 @@ const Accounting2 = ({ user }) => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Department</label>
+                <label className={`block text-sm font-medium ${getSubtextClass()} mb-2`}>Department</label>
                 <select
                   value={selectedDepartment}
                   onChange={(e) => setSelectedDepartment(e.target.value)}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={getInputClass()}
                 >
                   <option value="">Select Department</option>
                   {departments.map(department => (
@@ -694,11 +709,11 @@ const Accounting2 = ({ user }) => {
 
             {/* Memo */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Memo</label>
+              <label className={`block text-sm font-medium ${getSubtextClass()} mb-2`}>Memo</label>
               <textarea
                 value={entryMemo}
                 onChange={(e) => setEntryMemo(e.target.value)}
-                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={getInputClass()}
                 placeholder="Enter memo"
                 rows="3"
               />
@@ -706,15 +721,15 @@ const Accounting2 = ({ user }) => {
 
             {/* Auto-calculated Entry Preview */}
             {entryAmount && selectedAccount && (
-              <div className="bg-white/5 border border-white/20 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-gray-300 mb-2">Auto-calculated Entry</h4>
+              <div className={isLightMode ? 'bg-gray-50 border border-gray-200 rounded-lg p-4' : 'bg-white/5 border border-white/20 rounded-lg p-4'}>
+                <h4 className={`text-sm font-medium ${getSubtextClass()} mb-2`}>Auto-calculated Entry</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center">
-                    <p className="text-xs text-gray-400">Debit</p>
+                    <p className={`text-xs ${getSubtextClass()}`}>Debit</p>
                     <p className="text-lg font-semibold text-red-400">${debit.toFixed(2)}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-xs text-gray-400">Credit</p>
+                    <p className={`text-xs ${getSubtextClass()}`}>Credit</p>
                     <p className="text-lg font-semibold text-green-400">${credit.toFixed(2)}</p>
                   </div>
                 </div>
@@ -725,7 +740,7 @@ const Accounting2 = ({ user }) => {
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowAddEntry(false)}
-                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                className={isLightMode ? 'px-4 py-2 text-gray-500 hover:text-gray-900 transition-colors' : 'px-4 py-2 text-gray-400 hover:text-white transition-colors'}
               >
                 Cancel
               </button>
@@ -745,32 +760,32 @@ const Accounting2 = ({ user }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${isLightMode ? 'bg-gray-50' : 'bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900'}`}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-white">Loading Accounting System...</p>
+          <div className={`animate-spin rounded-full h-12 w-12 border-b-2 ${isLightMode ? 'border-blue-600' : 'border-white'} mx-auto mb-4`}></div>
+          <p className={getTextClass()}>Loading Accounting System...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
+    <div className={`min-h-screen ${isLightMode ? 'bg-gray-50' : 'bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900'}`}>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-white">Accounting 2</h1>
-              <p className="text-gray-300 mt-2">GL Account Structure & Auto-Mapping System</p>
+              <h1 className={`text-3xl font-bold ${getTextClass()}`}>Accounting 2</h1>
+              <p className={`${getSubtextClass()} mt-2`}>GL Account Structure & Auto-Mapping System</p>
             </div>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
-                <Calendar className="h-5 w-5 text-gray-400" />
+                <Calendar className={`h-5 w-5 ${getSubtextClass()}`} />
                 <select
                   value={selectedPeriod}
                   onChange={(e) => setSelectedPeriod(e.target.value)}
-                  className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={getSelectClass()}
                 >
                   <option value="month">This Month</option>
                   <option value="quarter">This Quarter</option>
@@ -784,7 +799,7 @@ const Accounting2 = ({ user }) => {
 
         {/* Navigation Tabs */}
         <div className="mb-8">
-          <div className="flex space-x-1 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-1">
+          <div className={`flex space-x-1 backdrop-blur-sm rounded-lg p-1 ${isLightMode ? 'bg-white/80 border border-gray-200' : 'bg-white/5 border border-white/10'}`}>
             {[
               { id: 'overview', label: 'Overview', icon: BarChart3 },
               { id: 'journal', label: 'Journal Entries', icon: BookOpen },
@@ -797,7 +812,9 @@ const Accounting2 = ({ user }) => {
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
                   selectedView === tab.id
                     ? 'bg-blue-500 text-white'
-                    : 'text-gray-300 hover:text-white hover:bg-white/5'
+                    : isLightMode
+                      ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      : 'text-gray-300 hover:text-white hover:bg-white/5'
                 }`}
               >
                 <tab.icon className="h-4 w-4" />
@@ -813,12 +830,12 @@ const Accounting2 = ({ user }) => {
           {selectedView === 'journal' && renderJournalEntries()}
           {selectedView === 'accounts' && (
             <div className="text-center py-8">
-              <p className="text-gray-400">GL Account Management - Coming Soon</p>
+              <p className={getSubtextClass()}>GL Account Management - Coming Soon</p>
             </div>
           )}
           {selectedView === 'reports' && (
             <div className="text-center py-8">
-              <p className="text-gray-400">Reports - Coming Soon</p>
+              <p className={getSubtextClass()}>Reports - Coming Soon</p>
             </div>
           )}
         </div>

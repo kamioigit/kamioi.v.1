@@ -1,9 +1,26 @@
 import React, { useState } from 'react'
 import { TrendingUp, Users, Download, PieChart, BarChart3, User, DollarSign } from 'lucide-react'
 import RechartsChart from '../common/RechartsChart'
+import { useTheme } from '../../context/ThemeContext'
 
 const Analytics = () => {
+  const { isLightMode } = useTheme()
   const [timeRange, setTimeRange] = useState('30d')
+
+  // Theme helper functions
+  const getTextClass = () => isLightMode ? 'text-gray-900' : 'text-white'
+  const getSubtextClass = () => isLightMode ? 'text-gray-600' : 'text-gray-400'
+  const getSecondaryTextClass = () => isLightMode ? 'text-gray-500' : 'text-gray-300'
+  const getCardClass = () => isLightMode
+    ? 'bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-gray-200 shadow-sm'
+    : 'bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20'
+  const getInnerCardClass = () => isLightMode
+    ? 'bg-gray-50 rounded-lg p-4 border border-gray-200'
+    : 'bg-white/5 rounded-lg p-4 border border-white/10'
+  const getSelectClass = () => isLightMode
+    ? 'bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500'
+    : 'bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+  const getProgressBgClass = () => isLightMode ? 'bg-gray-200' : 'bg-gray-700'
 
   const analyticsData = {
     userGrowth: [],
@@ -31,17 +48,17 @@ const Analytics = () => {
   return (
     <div className="space-y-6">
       {/* Analytics Header */}
-      <div className="glass-card p-6">
+      <div className={getCardClass()}>
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white">Platform Analytics</h2>
-            <p className="text-gray-300">Deep insights into platform performance and user behavior</p>
+            <h2 className={`text-2xl font-bold ${getTextClass()}`}>Platform Analytics</h2>
+            <p className={getSecondaryTextClass()}>Deep insights into platform performance and user behavior</p>
           </div>
           <div className="flex items-center space-x-4">
-            <select 
+            <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
-              className="bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={getSelectClass()}
             >
               <option value="7d">Last 7 Days</option>
               <option value="30d">Last 30 Days</option>
@@ -57,41 +74,41 @@ const Analytics = () => {
 
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div className="glass-card p-4">
+          <div className={getInnerCardClass()}>
             <div className="flex items-center space-x-3 mb-3">
               <Users className="w-8 h-8 text-blue-400" />
               <div>
-                <p className="text-gray-400 text-sm">New Users</p>
-                <p className="text-2xl font-bold text-white">{newUsers}</p>
+                <p className={`${getSubtextClass()} text-sm`}>New Users</p>
+                <p className={`text-2xl font-bold ${getTextClass()}`}>{newUsers}</p>
               </div>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
+            <div className={`w-full ${getProgressBgClass()} rounded-full h-2`}>
               <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(Math.max(growthRate, 0), 100)}%` }}></div>
             </div>
           </div>
 
-          <div className="glass-card p-4">
+          <div className={getInnerCardClass()}>
             <div className="flex items-center space-x-3 mb-3">
               <DollarSign className="w-8 h-8 text-green-400" />
               <div>
-                <p className="text-gray-400 text-sm">Revenue</p>
-                <p className="text-2xl font-bold text-white">${revenueTotal.toLocaleString()}</p>
+                <p className={`${getSubtextClass()} text-sm`}>Revenue</p>
+                <p className={`text-2xl font-bold ${getTextClass()}`}>${revenueTotal.toLocaleString()}</p>
               </div>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
+            <div className={`w-full ${getProgressBgClass()} rounded-full h-2`}>
               <div className="bg-green-500 h-2 rounded-full" style={{ width: `${revenueProgress}%` }}></div>
             </div>
           </div>
 
-          <div className="glass-card p-4">
+          <div className={getInnerCardClass()}>
             <div className="flex items-center space-x-3 mb-3">
               <TrendingUp className="w-8 h-8 text-purple-400" />
               <div>
-                <p className="text-gray-400 text-sm">Growth Rate</p>
-                <p className="text-2xl font-bold text-white">{growthRate.toFixed(1)}%</p>
+                <p className={`${getSubtextClass()} text-sm`}>Growth Rate</p>
+                <p className={`text-2xl font-bold ${getTextClass()}`}>{growthRate.toFixed(1)}%</p>
               </div>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
+            <div className={`w-full ${getProgressBgClass()} rounded-full h-2`}>
               <div className="bg-purple-500 h-2 rounded-full" style={{ width: `${Math.min(Math.max(growthRate, 0), 100)}%` }}></div>
             </div>
           </div>
@@ -99,12 +116,12 @@ const Analytics = () => {
 
         {/* Main Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div className="glass-card p-4">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center space-x-2">
+          <div className={getInnerCardClass()}>
+            <h3 className={`text-lg font-bold ${getTextClass()} mb-4 flex items-center space-x-2`}>
               <BarChart3 className="w-5 h-5 text-blue-400" />
               <span>User Growth & Revenue</span>
             </h3>
-            <RechartsChart 
+            <RechartsChart
               type="line"
               height={300}
               series={[
@@ -124,12 +141,12 @@ const Analytics = () => {
             />
           </div>
 
-          <div className="glass-card p-4">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center space-x-2">
+          <div className={getInnerCardClass()}>
+            <h3 className={`text-lg font-bold ${getTextClass()} mb-4 flex items-center space-x-2`}>
               <PieChart className="w-5 h-5 text-green-400" />
               <span>Investment Sector Distribution</span>
             </h3>
-            <RechartsChart 
+            <RechartsChart
               type="donut"
               height={300}
               series={sectorDistribution.series}
@@ -140,46 +157,46 @@ const Analytics = () => {
 
         {/* Additional Metrics */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="glass-card p-4">
-            <h4 className="font-bold text-white mb-3">Transaction Volume</h4>
-            <RechartsChart 
+          <div className={getInnerCardClass()}>
+            <h4 className={`font-bold ${getTextClass()} mb-3`}>Transaction Volume</h4>
+            <RechartsChart
               type="bar"
               height={200}
               series={[{ name: 'Transactions', data: analyticsData.transactions }]}
             />
           </div>
 
-          <div className="glass-card p-4">
-            <h4 className="font-bold text-white mb-3">User Engagement</h4>
+          <div className={getInnerCardClass()}>
+            <h4 className={`font-bold ${getTextClass()} mb-3`}>User Engagement</h4>
             <div className="space-y-3">
               <div className="flex justify-between">
-                <span className="text-gray-400">Daily Active Users</span>
-                <span className="text-white">1,245</span>
+                <span className={getSubtextClass()}>Daily Active Users</span>
+                <span className={getTextClass()}>1,245</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Avg Session Duration</span>
-                <span className="text-white">8.2min</span>
+                <span className={getSubtextClass()}>Avg Session Duration</span>
+                <span className={getTextClass()}>8.2min</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Retention Rate</span>
+                <span className={getSubtextClass()}>Retention Rate</span>
                 <span className="text-green-400">0%</span>
               </div>
             </div>
           </div>
 
-          <div className="glass-card p-4">
-            <h4 className="font-bold text-white mb-3">Performance Metrics</h4>
+          <div className={getInnerCardClass()}>
+            <h4 className={`font-bold ${getTextClass()} mb-3`}>Performance Metrics</h4>
             <div className="space-y-3">
               <div className="flex justify-between">
-                <span className="text-gray-400">API Response Time</span>
+                <span className={getSubtextClass()}>API Response Time</span>
                 <span className="text-green-400">128ms</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Uptime</span>
+                <span className={getSubtextClass()}>Uptime</span>
                 <span className="text-green-400">99.98%</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Error Rate</span>
+                <span className={getSubtextClass()}>Error Rate</span>
                 <span className="text-yellow-400">0.12%</span>
               </div>
             </div>

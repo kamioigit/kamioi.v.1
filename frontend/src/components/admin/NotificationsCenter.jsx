@@ -25,6 +25,25 @@ const NotificationsCenter = ({ user }) => {
   const [replyText, setReplyText] = useState('')
   const [messageFilter, setMessageFilter] = useState('all')
   const [messageSearchTerm, setMessageSearchTerm] = useState('')
+
+  // Campaign form state
+  const [campaignForm, setCampaignForm] = useState({
+    name: '',
+    channel: 'email',
+    subject: '',
+    content: '',
+    audience: 'all_users',
+    schedule: 'draft'
+  })
+
+  // Template form state
+  const [templateForm, setTemplateForm] = useState({
+    name: '',
+    type: 'email',
+    subject: '',
+    content: '',
+    description: ''
+  })
   
   // 🚀 PERFORMANCE FIX: Use React Query for messaging data
   const { data: messagesData, isLoading: isMessageLoading, refetch: refetchMessages } = useQuery({
@@ -110,6 +129,44 @@ const NotificationsCenter = ({ user }) => {
   const campaigns = messagingData?.campaigns || []
   const templates = messagingData?.templates || []
   const analytics = messagingData?.analytics || null
+
+  // 🚀 PERFORMANCE FIX: Use React Query for delivery logs
+  const { data: deliveryLogsData, isLoading: isLoadingDeliveryLogs, refetch: refetchDeliveryLogs } = useQuery({
+    queryKey: ['admin-delivery-logs'],
+    queryFn: async () => {
+      try {
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+        const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'
+        const response = await fetch(`${apiBaseUrl}/api/admin/messaging/delivery-logs`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success) {
+            return {
+              logs: result.logs || [],
+              stats: result.stats || { totalSent: 0, delivered: 0, bounced: 0, failed: 0 }
+            }
+          }
+        }
+        return { logs: [], stats: { totalSent: 0, delivered: 0, bounced: 0, failed: 0 } }
+      } catch (error) {
+        console.error('Error fetching delivery logs:', error)
+        return { logs: [], stats: { totalSent: 0, delivered: 0, bounced: 0, failed: 0 } }
+      }
+    },
+    staleTime: 60000, // 1 minute cache
+    cacheTime: 300000, // 5 minutes cache
+    refetchOnWindowFocus: false,
+    retry: 2,
+    enabled: activeTab === 'delivery_logs' // Only fetch when tab is active
+  })
+
+  const deliveryLogs = deliveryLogsData?.logs || []
+  const deliveryStats = deliveryLogsData?.stats || { totalSent: 0, delivered: 0, bounced: 0, failed: 0 }
 
   // 🚀 PERFORMANCE FIX: Dispatch page load completion event when data is loaded
   useEffect(() => {
@@ -282,6 +339,69 @@ const NotificationsCenter = ({ user }) => {
     }
   }
 
+  const createTemplate = async (templateData) => {
+    try {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+      const response = await fetch(`${apiBaseUrl}/api/admin/messaging/templates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'}`
+        },
+        body: JSON.stringify(templateData)
+      })
+
+      if (response.ok) {
+        queryClient.invalidateQueries(['admin-messaging-data'])
+        refetchMessagingData()
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Error creating template:', error)
+      return false
+    }
+  }
+
+  const handleCreateCampaign = async () => {
+    if (!campaignForm.name.trim()) {
+      showNotificationModal('Please enter a campaign name', 'error')
+      return
+    }
+
+    const success = await createCampaign({
+      name: campaignForm.name,
+      channel: campaignForm.channel,
+      subject: campaignForm.subject,
+      content: campaignForm.content,
+      audience: campaignForm.audience,
+      status: campaignForm.schedule === 'now' ? 'sent' : campaignForm.schedule
+    })
+
+    setShowCreateCampaign(false)
+    setCampaignForm({ name: '', channel: 'email', subject: '', content: '', audience: 'all_users', schedule: 'draft' })
+    showNotificationModal('Campaign created successfully!', 'success')
+  }
+
+  const handleCreateTemplate = async () => {
+    if (!templateForm.name.trim()) {
+      showNotificationModal('Please enter a template name', 'error')
+      return
+    }
+
+    const success = await createTemplate({
+      name: templateForm.name,
+      type: templateForm.type,
+      subject: templateForm.subject,
+      content: templateForm.content,
+      description: templateForm.description
+    })
+
+    setShowCreateTemplate(false)
+    setTemplateForm({ name: '', type: 'email', subject: '', content: '', description: '' })
+    showNotificationModal('Template created successfully!', 'success')
+  }
+
   const sendCampaign = async (campaignId, recipients) => {
     try {
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
@@ -309,15 +429,15 @@ const NotificationsCenter = ({ user }) => {
 
   return (
     <div className="space-y-6">
-      <div className="glass-card p-6">
+      <div className={getCardClass() + ' rounded-xl p-6'}>
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white">Notifications & Messaging</h2>
-            <p className="text-gray-300">Manage user communications and engagement</p>
+            <h2 className={`text-2xl font-bold ${getTextClass()}`}>Notifications & Messaging</h2>
+            <p className={getSubtextClass()}>Manage user communications and engagement</p>
           </div>
         </div>
 
-        <div className="flex space-x-1 bg-white/5 rounded-lg p-1">
+        <div className={`flex space-x-1 rounded-lg p-1 ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`}>
           {[
             { id: 'notifications', label: 'Notifications', icon: Bell },
             { id: 'messaging', label: 'Messaging Center', icon: MessageSquare },
@@ -334,7 +454,9 @@ const NotificationsCenter = ({ user }) => {
               className={`px-4 py-2 rounded-md transition-all duration-200 ${
                 activeTab === tab.id
                   ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  : isLightMode
+                    ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
             >
               {tab.label}
@@ -347,11 +469,11 @@ const NotificationsCenter = ({ user }) => {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-xl font-semibold text-white">Admin Notifications</h3>
-              <p className="text-gray-400">System alerts and important updates</p>
+              <h3 className={`text-xl font-semibold ${getTextClass()}`}>Admin Notifications</h3>
+              <p className={getSubtextClass()}>System alerts and important updates</p>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-400">
+              <div className={`text-sm ${getSubtextClass()}`}>
                 {unreadCount} unread notifications
               </div>
             </div>
@@ -360,14 +482,14 @@ const NotificationsCenter = ({ user }) => {
           <div className="space-y-4">
               {notifications.length === 0 ? (
                 <div className="text-center py-8">
-                  <Bell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-400">No notifications available</p>
+                  <Bell className={`w-12 h-12 ${getSubtextClass()} mx-auto mb-4`} />
+                  <p className={getSubtextClass()}>No notifications available</p>
                 </div>
               ) : (
                 notifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className={`glass-card p-4 cursor-pointer transition-all duration-200 hover:bg-white/5 ${
+                    className={`${getCardClass()} rounded-xl p-4 cursor-pointer transition-all duration-200 ${isLightMode ? 'hover:bg-gray-50' : 'hover:bg-white/5'} ${
                       !notification.read ? 'border-l-4 border-l-blue-500' : ''
                     }`}
                     onClick={() => {
@@ -381,7 +503,7 @@ const NotificationsCenter = ({ user }) => {
                       <span className="text-2xl">{notification.icon}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <h4 className="text-lg font-medium text-white">
+                          <h4 className={`text-lg font-medium ${getTextClass()}`}>
                             {notification.title || 'System Notification'}
                           </h4>
                           <div className="flex items-center space-x-2">
@@ -397,10 +519,10 @@ const NotificationsCenter = ({ user }) => {
                             )}
                           </div>
                         </div>
-                        <p className="text-gray-300 mt-1">
+                        <p className={`${isLightMode ? 'text-gray-600' : 'text-gray-300'} mt-1`}>
                           {notification.message || 'No message available'}
                         </p>
-                        <p className="text-sm text-gray-500 mt-2">
+                        <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-500'} mt-2`}>
                           {new Date(notification.timestamp).toLocaleString()}
                         </p>
                         {notification.action && (
@@ -662,10 +784,10 @@ const NotificationsCenter = ({ user }) => {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-xl font-bold text-white">Message Composer</h3>
-              <p className="text-gray-300">Create and send notifications to users</p>
+              <h3 className={`text-xl font-bold ${getTextClass()}`}>Message Composer</h3>
+              <p className={getSubtextClass()}>Create and send notifications to users</p>
             </div>
-            <button 
+            <button
               onClick={() => setShowCreateCampaign(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
             >
@@ -674,11 +796,11 @@ const NotificationsCenter = ({ user }) => {
             </button>
           </div>
 
-          <div className="glass-card p-6">
+          <div className={getCardClass() + ' rounded-xl p-6'}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-gray-400 text-sm mb-2">Channel</label>
-                <select className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500/50">
+                <label className={`block ${getSubtextClass()} text-sm mb-2`}>Channel</label>
+                <select className={`w-full rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500/50 ${isLightMode ? 'bg-white border border-gray-300 text-gray-900' : 'bg-white/10 border border-white/20 text-white'}`}>
                   <option value="email">Email</option>
                   <option value="in-app">In-App</option>
                   <option value="push">Push Notification</option>
@@ -686,8 +808,8 @@ const NotificationsCenter = ({ user }) => {
                 </select>
               </div>
               <div>
-                <label className="block text-gray-400 text-sm mb-2">Audience</label>
-                <select className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500/50">
+                <label className={`block ${getSubtextClass()} text-sm mb-2`}>Audience</label>
+                <select className={`w-full rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500/50 ${isLightMode ? 'bg-white border border-gray-300 text-gray-900' : 'bg-white/10 border border-white/20 text-white'}`}>
                   <option value="all_users">All Users</option>
                   <option value="inactive_users">Inactive Users</option>
                   <option value="premium_users">Premium Users</option>
@@ -695,19 +817,19 @@ const NotificationsCenter = ({ user }) => {
                 </select>
               </div>
               <div className="md:col-span-2">
-                <label className="block text-gray-400 text-sm mb-2">Subject</label>
+                <label className={`block ${getSubtextClass()} text-sm mb-2`}>Subject</label>
                 <input
                   type="text"
                   placeholder="Enter message subject..."
-                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                  className={`w-full rounded-lg px-3 py-2 placeholder-gray-400 focus:outline-none focus:border-blue-500/50 ${isLightMode ? 'bg-white border border-gray-300 text-gray-900' : 'bg-white/10 border border-white/20 text-white'}`}
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-gray-400 text-sm mb-2">Message Content</label>
+                <label className={`block ${getSubtextClass()} text-sm mb-2`}>Message Content</label>
                 <textarea
                   rows={6}
                   placeholder="Enter your message content..."
-                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                  className={`w-full rounded-lg px-3 py-2 placeholder-gray-400 focus:outline-none focus:border-blue-500/50 ${isLightMode ? 'bg-white border border-gray-300 text-gray-900' : 'bg-white/10 border border-white/20 text-white'}`}
                 />
               </div>
               <div className="flex items-end">
@@ -725,10 +847,10 @@ const NotificationsCenter = ({ user }) => {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-xl font-bold text-white">Campaigns</h3>
-              <p className="text-gray-300">Manage your notification campaigns</p>
+              <h3 className={`text-xl font-bold ${getTextClass()}`}>Campaigns</h3>
+              <p className={getSubtextClass()}>Manage your notification campaigns</p>
             </div>
-            <button 
+            <button
               onClick={() => setShowCreateCampaign(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
             >
@@ -737,33 +859,33 @@ const NotificationsCenter = ({ user }) => {
             </button>
           </div>
 
-          <div className="glass-card p-6">
+          <div className={getCardClass() + ' rounded-xl p-6'}>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="text-left pb-3 text-gray-400 font-medium">Campaign</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Channel</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Status</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Recipients</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Open Rate</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Click Rate</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Actions</th>
+                  <tr className={`border-b ${isLightMode ? 'border-gray-200' : 'border-white/10'}`}>
+                    <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Campaign</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Channel</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Status</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Recipients</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Open Rate</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Click Rate</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {campaigns.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="py-8 text-center text-gray-400">
+                      <td colSpan="7" className={`py-8 text-center ${getSubtextClass()}`}>
                         No campaigns found. Create your first campaign to get started.
                       </td>
                     </tr>
                   ) : (
                     campaigns.map(campaign => (
-                      <tr key={campaign.id} className="border-b border-white/5 last:border-b-0 hover:bg-white/5 transition-colors">
-                        <td className="py-3 px-4 text-white font-medium">{campaign.name}</td>
+                      <tr key={campaign.id} className={`border-b ${isLightMode ? 'border-gray-100' : 'border-white/5'} last:border-b-0 ${isLightMode ? 'hover:bg-gray-50' : 'hover:bg-white/5'} transition-colors`}>
+                        <td className={`py-3 px-4 ${getTextClass()} font-medium`}>{campaign.name}</td>
                         <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center">
+                          <div className={`flex items-center justify-center ${getSubtextClass()}`}>
                             {getChannelIcon(campaign.channel)}
                           </div>
                         </td>
@@ -772,26 +894,26 @@ const NotificationsCenter = ({ user }) => {
                             <span className="capitalize">{campaign.status}</span>
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-center text-white">{campaign.recipients ? campaign.recipients.toLocaleString() : '0'}</td>
-                        <td className="py-3 px-4 text-center text-white">{campaign.openRate || 0}%</td>
-                        <td className="py-3 px-4 text-center text-white">{campaign.clickRate || 0}%</td>
+                        <td className={`py-3 px-4 text-center ${getTextClass()}`}>{campaign.recipients ? campaign.recipients.toLocaleString() : '0'}</td>
+                        <td className={`py-3 px-4 text-center ${getTextClass()}`}>{campaign.openRate || 0}%</td>
+                        <td className={`py-3 px-4 text-center ${getTextClass()}`}>{campaign.clickRate || 0}%</td>
                         <td className="py-3 px-4 text-center">
                           <div className="flex justify-center space-x-1">
-                            <button 
+                            <button
                               onClick={() => showNotificationModal(`Campaign ${campaign.name} sent successfully!`, 'success')}
                               className="text-blue-400 hover:text-blue-300 p-1"
                               title="Send Campaign"
                             >
                               <Send className="w-4 h-4" />
                             </button>
-                            <button 
+                            <button
                               onClick={() => showNotificationModal(`Viewing analytics for ${campaign.name}`, 'info')}
                               className="text-green-400 hover:text-green-300 p-1"
                               title="View Analytics"
                             >
                               <BarChart3 className="w-4 h-4" />
                             </button>
-                            <button 
+                            <button
                               onClick={() => showNotificationModal(`Editing campaign ${campaign.name}`, 'info')}
                               className="text-yellow-400 hover:text-yellow-300 p-1"
                               title="Edit Campaign"
@@ -814,10 +936,10 @@ const NotificationsCenter = ({ user }) => {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-xl font-bold text-white">Email Templates</h3>
-              <p className="text-gray-300">Manage reusable email and notification templates</p>
+              <h3 className={`text-xl font-bold ${getTextClass()}`}>Email Templates</h3>
+              <p className={getSubtextClass()}>Manage reusable email and notification templates</p>
             </div>
-            <button 
+            <button
               onClick={() => setShowCreateTemplate(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
             >
@@ -829,31 +951,31 @@ const NotificationsCenter = ({ user }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {(templates || []).length === 0 ? (
               <div className="col-span-full text-center py-12">
-                <div className="text-gray-400 text-lg mb-2">No templates found</div>
-                <p className="text-gray-500">Create your first email template to get started.</p>
+                <div className={`${getSubtextClass()} text-lg mb-2`}>No templates found</div>
+                <p className={isLightMode ? 'text-gray-500' : 'text-gray-500'}>Create your first email template to get started.</p>
               </div>
             ) : (
               (templates || []).map(template => (
-                <div key={template.id} className="glass-card p-6">
+                <div key={template.id} className={getCardClass() + ' rounded-xl p-6'}>
                   <div className="flex justify-between items-start mb-4">
-                    <h4 className="text-white font-medium">{template.name}</h4>
+                    <h4 className={`${getTextClass()} font-medium`}>{template.name}</h4>
                     <span className={`px-2 py-1 rounded-full text-xs ${
                       template.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
                     }`}>
                       {template.status}
                     </span>
                   </div>
-                  <p className="text-gray-400 text-sm mb-4">{template.description}</p>
+                  <p className={`${getSubtextClass()} text-sm mb-4`}>{template.description}</p>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-400">Used {template.usageCount} times</span>
+                    <span className={getSubtextClass()}>Used {template.usageCount} times</span>
                     <div className="flex space-x-2">
-                      <button 
+                      <button
                         onClick={() => showNotificationModal(`Editing template ${template.name}`, 'info')}
                         className="text-blue-400 hover:text-blue-300"
                       >
                         Edit
                       </button>
-                      <button 
+                      <button
                         onClick={() => showNotificationModal(`Previewing template ${template.name}`, 'info')}
                         className="text-green-400 hover:text-green-300"
                       >
@@ -872,10 +994,10 @@ const NotificationsCenter = ({ user }) => {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-xl font-bold text-white">Customer Journeys</h3>
-              <p className="text-gray-300">Automated workflows and user engagement sequences</p>
+              <h3 className={`text-xl font-bold ${getTextClass()}`}>Customer Journeys</h3>
+              <p className={getSubtextClass()}>Automated workflows and user engagement sequences</p>
             </div>
-            <button 
+            <button
               onClick={() => setShowCreateJourney(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
             >
@@ -887,42 +1009,42 @@ const NotificationsCenter = ({ user }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {(templates || []).length === 0 ? (
               <div className="col-span-full text-center py-12">
-                <div className="text-gray-400 text-lg mb-2">No customer journeys found</div>
-                <p className="text-gray-500">Create your first customer journey to get started.</p>
+                <div className={`${getSubtextClass()} text-lg mb-2`}>No customer journeys found</div>
+                <p className={isLightMode ? 'text-gray-500' : 'text-gray-500'}>Create your first customer journey to get started.</p>
               </div>
             ) : (
               (templates || []).map(journey => (
-                <div key={journey.id} className="glass-card p-6">
+                <div key={journey.id} className={getCardClass() + ' rounded-xl p-6'}>
                   <div className="flex justify-between items-start mb-4">
-                    <h4 className="text-white font-medium">{journey.name}</h4>
+                    <h4 className={`${getTextClass()} font-medium`}>{journey.name}</h4>
                     <span className={`px-2 py-1 rounded-full text-xs ${
                       journey.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
                     }`}>
                       {journey.status}
                     </span>
                   </div>
-                  <p className="text-gray-400 text-sm mb-4">{journey.description}</p>
+                  <p className={`${getSubtextClass()} text-sm mb-4`}>{journey.description}</p>
                   <div className="space-y-2 mb-4">
                     {journey.steps?.map((step, index) => (
                       <div key={index} className="flex items-center space-x-2">
                         <div className={`w-2 h-2 rounded-full ${
-                          step.status === 'completed' ? 'bg-green-400' : 
+                          step.status === 'completed' ? 'bg-green-400' :
                           step.status === 'in-progress' ? 'bg-yellow-400' : 'bg-gray-400'
                         }`}></div>
-                        <span className="text-gray-300 text-sm">{step.name}</span>
+                        <span className={`${isLightMode ? 'text-gray-600' : 'text-gray-300'} text-sm`}>{step.name}</span>
                       </div>
                     ))}
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-400">{journey.userCount} users enrolled</span>
+                    <span className={getSubtextClass()}>{journey.userCount} users enrolled</span>
                     <div className="flex space-x-2">
-                      <button 
+                      <button
                         onClick={() => showNotificationModal(`Editing journey ${journey.name}`, 'info')}
                         className="text-blue-400 hover:text-blue-300"
                       >
                         Edit
                       </button>
-                      <button 
+                      <button
                         onClick={() => showNotificationModal(`Viewing analytics for ${journey.name}`, 'info')}
                         className="text-green-400 hover:text-green-300"
                       >
@@ -941,18 +1063,21 @@ const NotificationsCenter = ({ user }) => {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-xl font-bold text-white">Delivery Logs</h3>
-              <p className="text-gray-300">Track message delivery status and performance</p>
+              <h3 className={`text-xl font-bold ${getTextClass()}`}>Delivery Logs</h3>
+              <p className={getSubtextClass()}>Track message delivery status and performance</p>
             </div>
             <div className="flex space-x-3">
-              <button 
+              <button
                 onClick={() => showNotificationModal('Exporting delivery logs...', 'info')}
                 className="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg px-4 py-2 text-blue-400 transition-all"
               >
                 Export Logs
               </button>
-              <button 
-                onClick={() => showNotificationModal('Refreshing delivery logs...', 'info')}
+              <button
+                onClick={() => {
+                  refetchDeliveryLogs()
+                  showNotificationModal('Delivery logs refreshed', 'success')
+                }}
                 className="bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg px-4 py-2 text-green-400 transition-all"
               >
                 Refresh
@@ -961,38 +1086,38 @@ const NotificationsCenter = ({ user }) => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="glass-card p-6">
+            <div className={getCardClass() + ' rounded-xl p-6'}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-400 text-sm">Total Sent</p>
-                  <p className="text-2xl font-bold text-white">0</p>
+                  <p className={`${getSubtextClass()} text-sm`}>Total Sent</p>
+                  <p className={`text-2xl font-bold ${getTextClass()}`}>{deliveryStats.totalSent}</p>
                 </div>
                 <Mail className="w-8 h-8 text-blue-400" />
               </div>
             </div>
-            <div className="glass-card p-6">
+            <div className={getCardClass() + ' rounded-xl p-6'}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-400 text-sm">Delivered</p>
-                  <p className="text-2xl font-bold text-green-400">0</p>
+                  <p className={`${getSubtextClass()} text-sm`}>Delivered</p>
+                  <p className="text-2xl font-bold text-green-400">{deliveryStats.delivered}</p>
                 </div>
                 <CheckCircle className="w-8 h-8 text-green-400" />
               </div>
             </div>
-            <div className="glass-card p-6">
+            <div className={getCardClass() + ' rounded-xl p-6'}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-400 text-sm">Failed</p>
-                  <p className="text-2xl font-bold text-red-400">0</p>
+                  <p className={`${getSubtextClass()} text-sm`}>Failed</p>
+                  <p className="text-2xl font-bold text-red-400">{deliveryStats.failed}</p>
                 </div>
                 <X className="w-8 h-8 text-red-400" />
               </div>
             </div>
-            <div className="glass-card p-6">
+            <div className={getCardClass() + ' rounded-xl p-6'}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-400 text-sm">Bounced</p>
-                  <p className="text-2xl font-bold text-yellow-400">0</p>
+                  <p className={`${getSubtextClass()} text-sm`}>Bounced</p>
+                  <p className="text-2xl font-bold text-yellow-400">{deliveryStats.bounced}</p>
                 </div>
                 <AlertTriangle className="w-8 h-8 text-yellow-400" />
               </div>
@@ -1013,11 +1138,49 @@ const NotificationsCenter = ({ user }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td colSpan="6" className="px-4 py-8 text-center text-gray-400">
-                      No delivery logs found. Message delivery logs will appear here when messages are sent.
-                    </td>
-                  </tr>
+                  {isLoadingDeliveryLogs ? (
+                    <tr>
+                      <td colSpan="6" className="px-4 py-8 text-center text-gray-400">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                        <p className="mt-2">Loading delivery logs...</p>
+                      </td>
+                    </tr>
+                  ) : deliveryLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="px-4 py-8 text-center text-gray-400">
+                        No delivery logs found. Message delivery logs will appear here when messages are sent.
+                      </td>
+                    </tr>
+                  ) : (
+                    deliveryLogs.map((log) => (
+                      <tr key={log.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="px-4 py-3 text-white font-mono text-sm">{log.messageId}</td>
+                        <td className="px-4 py-3">
+                          <div>
+                            <p className="text-white">{log.recipient}</p>
+                            <p className="text-gray-400 text-xs">{log.recipientEmail}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-white">{log.subject}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            log.status === 'delivered' ? 'bg-green-500/20 text-green-400' :
+                            log.status === 'bounced' || log.bounced ? 'bg-yellow-500/20 text-yellow-400' :
+                            log.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                            'bg-blue-500/20 text-blue-400'
+                          }`}>
+                            {log.bounced ? 'bounced' : log.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-400 text-sm">
+                          {log.sentAt ? new Date(log.sentAt).toLocaleString() : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-400 text-sm">
+                          {log.deliveredAt ? new Date(log.deliveredAt).toLocaleString() : '-'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1029,10 +1192,10 @@ const NotificationsCenter = ({ user }) => {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-xl font-bold text-white">Compliance Management</h3>
-              <p className="text-gray-300">Manage email compliance, opt-outs, and regulatory requirements</p>
+              <h3 className={`text-xl font-bold ${getTextClass()}`}>Compliance Management</h3>
+              <p className={getSubtextClass()}>Manage email compliance, opt-outs, and regulatory requirements</p>
             </div>
-            <button 
+            <button
               onClick={() => setShowComplianceSettings(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
             >
@@ -1042,76 +1205,76 @@ const NotificationsCenter = ({ user }) => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="glass-card p-6">
+            <div className={getCardClass() + ' rounded-xl p-6'}>
               <div className="flex items-center justify-between mb-4">
-                <h4 className="text-white font-medium">Opt-out Management</h4>
+                <h4 className={`${getTextClass()} font-medium`}>Opt-out Management</h4>
                 <Shield className="w-6 h-6 text-blue-400" />
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Total Opt-outs</span>
-                  <span className="text-white">0</span>
+                  <span className={getSubtextClass()}>Total Opt-outs</span>
+                  <span className={getTextClass()}>0</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">This Month</span>
-                  <span className="text-white">0</span>
+                  <span className={getSubtextClass()}>This Month</span>
+                  <span className={getTextClass()}>0</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Compliance Rate</span>
+                  <span className={getSubtextClass()}>Compliance Rate</span>
                   <span className="text-green-400">0%</span>
                 </div>
               </div>
             </div>
 
-            <div className="glass-card p-6">
+            <div className={getCardClass() + ' rounded-xl p-6'}>
               <div className="flex items-center justify-between mb-4">
-                <h4 className="text-white font-medium">GDPR Compliance</h4>
+                <h4 className={`${getTextClass()} font-medium`}>GDPR Compliance</h4>
                 <Shield className="w-6 h-6 text-green-400" />
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Data Requests</span>
-                  <span className="text-white">0</span>
+                  <span className={getSubtextClass()}>Data Requests</span>
+                  <span className={getTextClass()}>0</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Deletion Requests</span>
-                  <span className="text-white">0</span>
+                  <span className={getSubtextClass()}>Deletion Requests</span>
+                  <span className={getTextClass()}>0</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Response Time</span>
+                  <span className={getSubtextClass()}>Response Time</span>
                   <span className="text-green-400">0 days</span>
                 </div>
               </div>
             </div>
 
-            <div className="glass-card p-6">
+            <div className={getCardClass() + ' rounded-xl p-6'}>
               <div className="flex items-center justify-between mb-4">
-                <h4 className="text-white font-medium">CAN-SPAM Act</h4>
+                <h4 className={`${getTextClass()} font-medium`}>CAN-SPAM Act</h4>
                 <Shield className="w-6 h-6 text-purple-400" />
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Unsubscribe Rate</span>
-                  <span className="text-white">0%</span>
+                  <span className={getSubtextClass()}>Unsubscribe Rate</span>
+                  <span className={getTextClass()}>0%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Complaints</span>
-                  <span className="text-white">0</span>
+                  <span className={getSubtextClass()}>Complaints</span>
+                  <span className={getTextClass()}>0</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Compliance Score</span>
+                  <span className={getSubtextClass()}>Compliance Score</span>
                   <span className="text-green-400">A+</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="glass-card p-6">
-            <h4 className="text-white font-medium mb-4">Recent Compliance Events</h4>
+          <div className={getCardClass() + ' rounded-xl p-6'}>
+            <h4 className={`${getTextClass()} font-medium mb-4`}>Recent Compliance Events</h4>
             <div className="space-y-3">
               <div className="text-center py-8">
-                <div className="text-gray-400 text-lg mb-2">No compliance events found</div>
-                <p className="text-gray-500">Compliance events will appear here when they occur.</p>
+                <div className={`${getSubtextClass()} text-lg mb-2`}>No compliance events found</div>
+                <p className={isLightMode ? 'text-gray-500' : 'text-gray-500'}>Compliance events will appear here when they occur.</p>
               </div>
             </div>
           </div>
@@ -1124,38 +1287,46 @@ const NotificationsCenter = ({ user }) => {
           <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-6 w-full max-w-2xl mx-auto shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-semibold text-white">Create New Campaign</h3>
-              <button 
+              <button
                 onClick={() => setShowCreateCampaign(false)}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 ✕
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Campaign Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
+                    value={campaignForm.name}
+                    onChange={(e) => setCampaignForm(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="e.g., Welcome Campaign"
                     className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Channel</label>
-                  <select className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <select
+                    value={campaignForm.channel}
+                    onChange={(e) => setCampaignForm(prev => ({ ...prev, channel: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
                     <option value="email">Email</option>
                     <option value="in-app">In-App</option>
                     <option value="push">Push Notification</option>
                   </select>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Subject</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
+                  value={campaignForm.subject}
+                  onChange={(e) => setCampaignForm(prev => ({ ...prev, subject: e.target.value }))}
                   placeholder="Campaign subject line"
                   className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -1163,7 +1334,9 @@ const NotificationsCenter = ({ user }) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Message Content</label>
-                <textarea 
+                <textarea
+                  value={campaignForm.content}
+                  onChange={(e) => setCampaignForm(prev => ({ ...prev, content: e.target.value }))}
                   placeholder="Enter your campaign message..."
                   rows="4"
                   className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1173,16 +1346,24 @@ const NotificationsCenter = ({ user }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Target Audience</label>
-                  <select className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="all">All Users</option>
-                    <option value="premium">Premium Users</option>
-                    <option value="new">New Users</option>
-                    <option value="inactive">Inactive Users</option>
+                  <select
+                    value={campaignForm.audience}
+                    onChange={(e) => setCampaignForm(prev => ({ ...prev, audience: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all_users">All Users</option>
+                    <option value="premium_users">Premium Users</option>
+                    <option value="new_users">New Users</option>
+                    <option value="inactive_users">Inactive Users</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Schedule</label>
-                  <select className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <select
+                    value={campaignForm.schedule}
+                    onChange={(e) => setCampaignForm(prev => ({ ...prev, schedule: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
                     <option value="now">Send Now</option>
                     <option value="scheduled">Schedule for Later</option>
                     <option value="draft">Save as Draft</option>
@@ -1190,19 +1371,16 @@ const NotificationsCenter = ({ user }) => {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex space-x-3 mt-6">
-              <button 
+              <button
                 onClick={() => setShowCreateCampaign(false)}
                 className="flex-1 bg-white/10 hover:bg-white/20 border border-white/20 text-white py-2 px-4 rounded-lg transition-all"
               >
                 Cancel
               </button>
-              <button 
-                onClick={() => {
-                  showNotificationModal('Campaign created successfully!', 'success')
-                  setShowCreateCampaign(false)
-                }}
+              <button
+                onClick={handleCreateCampaign}
                 className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg transition-all"
               >
                 Create Campaign
@@ -1218,38 +1396,46 @@ const NotificationsCenter = ({ user }) => {
           <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-6 w-full max-w-2xl mx-auto shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-semibold text-white">Create New Template</h3>
-              <button 
+              <button
                 onClick={() => setShowCreateTemplate(false)}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 ✕
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Template Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
+                    value={templateForm.name}
+                    onChange={(e) => setTemplateForm(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="e.g., Welcome Email"
                     className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Template Type</label>
-                  <select className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <select
+                    value={templateForm.type}
+                    onChange={(e) => setTemplateForm(prev => ({ ...prev, type: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
                     <option value="email">Email</option>
                     <option value="in-app">In-App Notification</option>
                     <option value="push">Push Notification</option>
                   </select>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Subject</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
+                  value={templateForm.subject}
+                  onChange={(e) => setTemplateForm(prev => ({ ...prev, subject: e.target.value }))}
                   placeholder="Template subject line"
                   className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -1257,7 +1443,9 @@ const NotificationsCenter = ({ user }) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Template Content</label>
-                <textarea 
+                <textarea
+                  value={templateForm.content}
+                  onChange={(e) => setTemplateForm(prev => ({ ...prev, content: e.target.value }))}
                   placeholder="Enter your template content..."
                   rows="6"
                   className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1266,26 +1454,25 @@ const NotificationsCenter = ({ user }) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
-                <textarea 
+                <textarea
+                  value={templateForm.description}
+                  onChange={(e) => setTemplateForm(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Describe what this template is used for..."
                   rows="2"
                   className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
-            
+
             <div className="flex space-x-3 mt-6">
-              <button 
+              <button
                 onClick={() => setShowCreateTemplate(false)}
                 className="flex-1 bg-white/10 hover:bg-white/20 border border-white/20 text-white py-2 px-4 rounded-lg transition-all"
               >
                 Cancel
               </button>
-              <button 
-                onClick={() => {
-                  showNotificationModal('Template created successfully!', 'success')
-                  setShowCreateTemplate(false)
-                }}
+              <button
+                onClick={handleCreateTemplate}
                 className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg transition-all"
               >
                 Create Template

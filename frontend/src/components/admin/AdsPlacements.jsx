@@ -1,11 +1,23 @@
 import React, { useState } from 'react'
 import { Image, Eye, BarChart3, Trash2, Plus, User, Video, Edit, Monitor } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications'
+import { useTheme } from '../../context/ThemeContext'
 
 const AdsPlacements = ({ user }) => {
   const { addNotification } = useNotifications()
+  const { isLightMode } = useTheme()
   const [activeTab, setActiveTab] = useState('inventory')
   const [searchTerm, setSearchTerm] = useState('')
+
+  // Theme helper functions
+  const getTextClass = () => isLightMode ? 'text-gray-900' : 'text-white'
+  const getSubtextClass = () => isLightMode ? 'text-gray-600' : 'text-gray-400'
+  const getSecondaryTextClass = () => isLightMode ? 'text-gray-500' : 'text-gray-300'
+  const getCardClass = () => isLightMode
+    ? 'bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-gray-200 shadow-sm'
+    : 'bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20'
+  const getBorderClass = () => isLightMode ? 'border-gray-200' : 'border-white/10'
+  const getHoverBgClass = () => isLightMode ? 'hover:bg-gray-50' : 'hover:bg-white/5'
 
   const placements = [
     {
@@ -118,15 +130,15 @@ const AdsPlacements = ({ user }) => {
 
   return (
     <div className="space-y-6">
-      <div className="glass-card p-6">
+      <div className={getCardClass()}>
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white">Ads & Placements</h2>
-            <p className="text-gray-300">Manage in-app advertising placements and creatives</p>
+            <h2 className={`text-2xl font-bold ${getTextClass()}`}>Ads & Placements</h2>
+            <p className={getSecondaryTextClass()}>Manage in-app advertising placements and creatives</p>
           </div>
         </div>
 
-        <div className="flex space-x-1 bg-white/5 rounded-lg p-1">
+        <div className={`flex space-x-1 rounded-lg p-1 ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`}>
           {[
             { id: 'inventory', label: 'Inventory' },
             { id: 'creatives', label: 'Creatives' },
@@ -140,7 +152,9 @@ const AdsPlacements = ({ user }) => {
               className={`px-4 py-2 rounded-md transition-all duration-200 ${
                 activeTab === tab.id
                   ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  : isLightMode
+                    ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
             >
               {tab.label}
@@ -153,10 +167,10 @@ const AdsPlacements = ({ user }) => {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-xl font-bold text-white">Placement Inventory</h3>
-              <p className="text-gray-300">Manage ad placement locations and specifications</p>
+              <h3 className={`text-xl font-bold ${getTextClass()}`}>Placement Inventory</h3>
+              <p className={getSecondaryTextClass()}>Manage ad placement locations and specifications</p>
             </div>
-            <button 
+            <button
               onClick={handleCreatePlacement}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
             >
@@ -165,43 +179,43 @@ const AdsPlacements = ({ user }) => {
             </button>
           </div>
 
-          <div className="glass-card p-6">
+          <div className={getCardClass()}>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="text-left pb-3 text-gray-400 font-medium">Placement</th>
-                    <th className="text-left pb-3 text-gray-400 font-medium">Location</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Dimensions</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Status</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Impressions</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">CTR</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Conversions</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Actions</th>
+                  <tr className={`border-b ${getBorderClass()}`}>
+                    <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Placement</th>
+                    <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Location</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Dimensions</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Status</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Impressions</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>CTR</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Conversions</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {placements.map(placement => (
-                    <tr key={placement.id} className="border-b border-white/5 last:border-b-0 hover:bg-white/5 transition-colors">
-                      <td className="py-3 px-4 text-white">
+                    <tr key={placement.id} className={`border-b ${isLightMode ? 'border-gray-100' : 'border-white/5'} last:border-b-0 ${getHoverBgClass()} transition-colors`}>
+                      <td className={`py-3 px-4 ${getTextClass()}`}>
                         <div>
                           <div className="font-medium">{placement.key}</div>
-                          <div className="text-gray-400 text-sm">ID: {placement.id}</div>
+                          <div className={`${getSubtextClass()} text-sm`}>ID: {placement.id}</div>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-white">{placement.location}</td>
-                      <td className="py-3 px-4 text-center text-white">{placement.dimensions}</td>
+                      <td className={`py-3 px-4 ${getTextClass()}`}>{placement.location}</td>
+                      <td className={`py-3 px-4 text-center ${getTextClass()}`}>{placement.dimensions}</td>
                       <td className="py-3 px-4 text-center">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(placement.status)}`}>
                           {placement.status}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-center text-white">{placement.impressions.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-center text-white">{placement.ctr}%</td>
-                      <td className="py-3 px-4 text-center text-white">{placement.conversions}</td>
+                      <td className={`py-3 px-4 text-center ${getTextClass()}`}>{placement.impressions.toLocaleString()}</td>
+                      <td className={`py-3 px-4 text-center ${getTextClass()}`}>{placement.ctr}%</td>
+                      <td className={`py-3 px-4 text-center ${getTextClass()}`}>{placement.conversions}</td>
                       <td className="py-3 px-4 text-center">
                         <div className="flex justify-center space-x-1">
-                          <button 
+                          <button
                             onClick={() => addNotification({
                               type: 'info',
                               title: 'View Performance',
@@ -213,7 +227,7 @@ const AdsPlacements = ({ user }) => {
                           >
                             <BarChart3 className="w-4 h-4" />
                           </button>
-                          <button 
+                          <button
                             onClick={() => addNotification({
                               type: 'info',
                               title: 'Edit Placement',
@@ -225,7 +239,7 @@ const AdsPlacements = ({ user }) => {
                           >
                             <Edit className="w-4 h-4" />
                           </button>
-                          <button 
+                          <button
                             onClick={() => addNotification({
                               type: 'info',
                               title: 'Delete Placement',
@@ -252,10 +266,10 @@ const AdsPlacements = ({ user }) => {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-xl font-bold text-white">Creatives</h3>
-              <p className="text-gray-300">Manage ad creatives and assets</p>
+              <h3 className={`text-xl font-bold ${getTextClass()}`}>Creatives</h3>
+              <p className={getSecondaryTextClass()}>Manage ad creatives and assets</p>
             </div>
-            <button 
+            <button
               onClick={handleCreateCreative}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
             >
@@ -264,30 +278,30 @@ const AdsPlacements = ({ user }) => {
             </button>
           </div>
 
-          <div className="glass-card p-6">
+          <div className={getCardClass()}>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="text-left pb-3 text-gray-400 font-medium">Creative</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Type</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Status</th>
-                    <th className="text-left pb-3 text-gray-400 font-medium">Campaign Period</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Impressions</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Clicks</th>
-                    <th className="text-center pb-3 text-gray-400 font-medium">Actions</th>
+                  <tr className={`border-b ${getBorderClass()}`}>
+                    <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Creative</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Type</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Status</th>
+                    <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Campaign Period</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Impressions</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Clicks</th>
+                    <th className={`text-center pb-3 ${getSubtextClass()} font-medium`}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {creatives.map(creative => (
-                    <tr key={creative.id} className="border-b border-white/5 last:border-b-0 hover:bg-white/5 transition-colors">
-                      <td className="py-3 px-4 text-white">
+                    <tr key={creative.id} className={`border-b ${isLightMode ? 'border-gray-100' : 'border-white/5'} last:border-b-0 ${getHoverBgClass()} transition-colors`}>
+                      <td className={`py-3 px-4 ${getTextClass()}`}>
                         <div>
                           <div className="font-medium">{creative.name}</div>
-                          <div className="text-gray-400 text-sm">Landing: {creative.landingUrl}</div>
+                          <div className={`${getSubtextClass()} text-sm`}>Landing: {creative.landingUrl}</div>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-center">
+                      <td className={`py-3 px-4 text-center ${getSubtextClass()}`}>
                         <div className="flex items-center justify-center">
                           {getTypeIcon(creative.type)}
                         </div>
@@ -297,14 +311,14 @@ const AdsPlacements = ({ user }) => {
                           {creative.status}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-white text-sm">
+                      <td className={`py-3 px-4 ${getTextClass()} text-sm`}>
                         {creative.startDate} - {creative.endDate}
                       </td>
-                      <td className="py-3 px-4 text-center text-white">{creative.impressions.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-center text-white">{creative.clicks.toLocaleString()}</td>
+                      <td className={`py-3 px-4 text-center ${getTextClass()}`}>{creative.impressions.toLocaleString()}</td>
+                      <td className={`py-3 px-4 text-center ${getTextClass()}`}>{creative.clicks.toLocaleString()}</td>
                       <td className="py-3 px-4 text-center">
                         <div className="flex justify-center space-x-1">
-                          <button 
+                          <button
                             onClick={() => addNotification({
                               type: 'info',
                               title: 'Preview Creative',
@@ -316,7 +330,7 @@ const AdsPlacements = ({ user }) => {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button 
+                          <button
                             onClick={() => addNotification({
                               type: 'info',
                               title: 'View Performance',
@@ -328,7 +342,7 @@ const AdsPlacements = ({ user }) => {
                           >
                             <BarChart3 className="w-4 h-4" />
                           </button>
-                          <button 
+                          <button
                             onClick={() => addNotification({
                               type: 'info',
                               title: 'Edit Creative',
@@ -352,9 +366,9 @@ const AdsPlacements = ({ user }) => {
       )}
 
       {activeTab === 'targeting' && (
-        <div className="glass-card p-6">
-          <h3 className="text-xl font-bold text-white mb-4">Targeting</h3>
-          <p className="text-gray-300">Ad targeting and audience management functionality would be implemented here</p>
+        <div className={getCardClass()}>
+          <h3 className={`text-xl font-bold ${getTextClass()} mb-4`}>Targeting</h3>
+          <p className={getSecondaryTextClass()}>Ad targeting and audience management functionality would be implemented here</p>
         </div>
       )}
 
@@ -362,10 +376,10 @@ const AdsPlacements = ({ user }) => {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-xl font-bold text-white">A/B Experiments</h3>
-              <p className="text-gray-300">Manage ad placement and creative experiments</p>
+              <h3 className={`text-xl font-bold ${getTextClass()}`}>A/B Experiments</h3>
+              <p className={getSecondaryTextClass()}>Manage ad placement and creative experiments</p>
             </div>
-            <button 
+            <button
               onClick={handleCreateExperiment}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
             >
@@ -374,22 +388,22 @@ const AdsPlacements = ({ user }) => {
             </button>
           </div>
 
-          <div className="glass-card p-6">
+          <div className={getCardClass()}>
             <div className="space-y-4">
               {experiments.map(experiment => (
-                <div key={experiment.id} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                <div key={experiment.id} className={`rounded-lg p-4 border ${isLightMode ? 'bg-gray-50 border-gray-200' : 'bg-white/5 border-white/10'}`}>
                   <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="text-lg font-semibold text-white">{experiment.name}</h4>
-                      <p className="text-gray-400 text-sm">Placement: {experiment.placement}</p>
-                      <p className="text-gray-300 text-sm mt-1">Variants: {experiment.variants.join(', ')}</p>
+                      <h4 className={`text-lg font-semibold ${getTextClass()}`}>{experiment.name}</h4>
+                      <p className={`${getSubtextClass()} text-sm`}>Placement: {experiment.placement}</p>
+                      <p className={`${getSecondaryTextClass()} text-sm mt-1`}>Variants: {experiment.variants.join(', ')}</p>
                     </div>
                     <div className="text-right">
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(experiment.status)}`}>
                         {experiment.status}
                       </span>
-                      <p className="text-white font-medium mt-1">{experiment.startDate} - {experiment.endDate}</p>
-                      <p className="text-gray-400 text-sm">Winner: {experiment.winner || 'TBD'}</p>
+                      <p className={`${getTextClass()} font-medium mt-1`}>{experiment.startDate} - {experiment.endDate}</p>
+                      <p className={`${getSubtextClass()} text-sm`}>Winner: {experiment.winner || 'TBD'}</p>
                     </div>
                   </div>
                 </div>
@@ -400,9 +414,9 @@ const AdsPlacements = ({ user }) => {
       )}
 
       {activeTab === 'performance' && (
-        <div className="glass-card p-6">
-          <h3 className="text-xl font-bold text-white mb-4">Performance Dashboard</h3>
-          <p className="text-gray-300">Ad performance analytics and reporting functionality would be implemented here</p>
+        <div className={getCardClass()}>
+          <h3 className={`text-xl font-bold ${getTextClass()} mb-4`}>Performance Dashboard</h3>
+          <p className={getSecondaryTextClass()}>Ad performance analytics and reporting functionality would be implemented here</p>
         </div>
       )}
     </div>
