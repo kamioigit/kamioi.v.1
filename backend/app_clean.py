@@ -9762,7 +9762,8 @@ def admin_content_blogs():
         cursor.execute("""
             SELECT id, title, slug, content, excerpt, featured_image, status,
                    author_id, author_name, category, tags, seo_title, seo_description,
-                   seo_keywords, read_time, word_count, views, published_at, created_at, updated_at
+                   seo_keywords, read_time, word_count, views, published_at, created_at, updated_at,
+                   ai_seo_score
             FROM blog_posts
             ORDER BY created_at DESC
         """)
@@ -9799,7 +9800,8 @@ def admin_content_blogs():
                 'views': row[16] or 0,
                 'published_at': row[17],
                 'created_at': row[18],
-                'updated_at': row[19]
+                'updated_at': row[19],
+                'ai_seo_score': row[20] or 0
             })
 
         # Frontend expects: blogsData?.data?.posts || blogsData?.posts || blogsData?.blogs || blogsData?.data || []
