@@ -116,6 +116,15 @@ const ErrorTracking = () => {
     return () => clearInterval(interval)
   }, [autoRefresh, autoRefreshInterval, refetch, refetchStats])
 
+  // Dispatch page load completion event for Loading Report
+  useEffect(() => {
+    if (!statsLoading && !errorsLoading && statsData) {
+      window.dispatchEvent(new CustomEvent('admin-page-load-complete', {
+        detail: { pageId: 'error-tracking' }
+      }))
+    }
+  }, [statsLoading, errorsLoading, statsData])
+
   // Test error mutation
   const testErrorMutation = useMutation({
     mutationFn: async ({ severity, message }) => {

@@ -26,29 +26,29 @@ const LoadingReport = () => {
   const getSubtextClass = () => (isLightMode ? 'text-gray-600' : 'text-gray-400')
   const getCardClass = () => `bg-white/10 backdrop-blur-xl rounded-lg shadow-lg p-6 border border-white/20 ${isLightMode ? 'bg-opacity-80' : 'bg-opacity-10'}`
 
-  // Admin pages list - matches AdminDashboard tabs
-  // 🚀 FIX: Move outside component or use useMemo to prevent recreation on every render
+  // Admin pages list - matches AdminSidebar exactly
   const adminPages = useMemo(() => [
     { id: 'overview', name: 'Platform Overview', category: 'Dashboard' },
-    { id: 'financial', name: 'Financial Analytics', category: 'Analytics' },
     { id: 'transactions', name: 'Transactions', category: 'Data' },
+    { id: 'subscriptions', name: 'Subscriptions', category: 'Billing' },
     { id: 'investments', name: 'Investment Summary', category: 'Analytics' },
     { id: 'investment-processing', name: 'Investment Processing', category: 'Operations' },
     { id: 'llm', name: 'LLM Center', category: 'AI/ML' },
-    { id: 'llm-data', name: 'LLM Data Management', category: 'AI/ML' },
     { id: 'ml-dashboard', name: 'ML Dashboard', category: 'AI/ML' },
-    { id: 'users2', name: 'User Management', category: 'Management' },
-    { id: 'employees', name: 'Employee Management', category: 'Management' },
-    { id: 'consolidated-users', name: 'Consolidated Users', category: 'Management' },
-    { id: 'families', name: 'Family Management', category: 'Management' },
-    { id: 'businesses', name: 'Business Management', category: 'Management' },
+    { id: 'llm-data', name: 'LLM Data Management', category: 'AI/ML' },
+    { id: 'database', name: 'Database Management', category: 'Data' },
+    { id: 'consolidated-users', name: 'User Management', category: 'Management' },
+    { id: 'financial', name: 'Financial Analytics', category: 'Analytics' },
     { id: 'notifications', name: 'Notifications & Messaging', category: 'Communication' },
-    { id: 'badges', name: 'Badges', category: 'Features' },
-    { id: 'advertisement', name: 'Advertisement', category: 'Marketing' },
     { id: 'content', name: 'Content Management', category: 'Content' },
-    { id: 'subscriptions', name: 'Subscriptions', category: 'Billing' },
+    { id: 'advertisement', name: 'Advertisement', category: 'Marketing' },
+    { id: 'badges', name: 'Badges', category: 'Features' },
+    { id: 'employees', name: 'Employee Management', category: 'Management' },
     { id: 'settings', name: 'System Settings', category: 'Configuration' },
-    { id: 'sop', name: 'Standard Operating Procedures', category: 'Documentation' }
+    { id: 'sop', name: 'Standard Operating Procedures', category: 'Documentation' },
+    { id: 'loading-report', name: 'Loading Report', category: 'Monitoring' },
+    { id: 'api-tracking', name: 'API Tracking', category: 'Monitoring' },
+    { id: 'error-tracking', name: 'Error Tracking', category: 'Monitoring' }
   ], [])
 
   // Load performance data from localStorage

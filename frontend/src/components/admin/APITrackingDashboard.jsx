@@ -148,6 +148,15 @@ const APITrackingDashboard = () => {
     return () => clearInterval(interval)
   }, [autoRefresh, refreshInterval, refetch, refetchRecords, refetchBalance, refetchLimit])
 
+  // Dispatch page load completion event for Loading Report
+  useEffect(() => {
+    if (!isLoading && usageData) {
+      window.dispatchEvent(new CustomEvent('admin-page-load-complete', {
+        detail: { pageId: 'api-tracking' }
+      }))
+    }
+  }, [isLoading, usageData])
+
   const handleRefreshAll = useCallback(() => {
     refetch()
     refetchRecords()
