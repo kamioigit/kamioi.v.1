@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Building, Activity, DollarSign, TrendingUp, Users, CheckCircle, Trash2, Settings, BarChart3, User } from 'lucide-react'
 import RechartsChart from '../common/RechartsChart'
 import { useTheme } from '../../context/ThemeContext'

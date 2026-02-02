@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { BarChart3, TrendingUp, Users, MousePointer, ExternalLink, ShoppingBag, Target, Award, Clock, CheckCircle, XCircle, User } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useQuery } from '@tanstack/react-query' // 🚀 PERFORMANCE FIX: Import React Query
