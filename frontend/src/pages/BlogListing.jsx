@@ -21,7 +21,7 @@ const BlogListing = () => {
     try {
       setLoading(true)
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-      const response = await fetch(`${apiBaseUrl}/api/blog/posts`)
+      const response = await fetch(`${apiBaseUrl}/api/blog/posts?limit=1000`)
         if (response.ok) {
           const data = await response.json()
           if (data.success && data.data && data.data.posts) {
