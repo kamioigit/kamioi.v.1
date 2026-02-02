@@ -17270,75 +17270,129 @@ def public_get_blog_post(slug):
 # Image Upload Endpoints
 @app.route('/api/admin/upload/image', methods=['POST'])
 def admin_upload_image():
-    """Upload image for blog posts"""
+    """Upload image for blog posts - stores as base64 in database for persistence on Render"""
     try:
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
-        
-        # Check if image data is provided
-        if 'image' not in request.files and 'imageData' not in request.json:
-            return jsonify({'success': False, 'error': 'No image provided'}), 400
-        
-        # Create uploads directory if it doesn't exist
-        upload_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'images')
-        os.makedirs(upload_dir, exist_ok=True)
-        
-        # Handle base64 image data (from frontend)
-        if 'imageData' in request.json:
-            image_data = request.json['imageData']
-            if image_data.startswith('data:image'):
-                # Remove data URL prefix
-                image_data = image_data.split(',')[1]
-            
-            # Decode base64 image
-            image_bytes = base64.b64decode(image_data)
-            
-            # Generate unique filename
-            filename = f"{uuid.uuid4().hex}.jpg"
-            filepath = os.path.join(upload_dir, filename)
-            
-            # Save image
-            with open(filepath, 'wb') as f:
-                f.write(image_bytes)
-            
-            # Return URL
-            image_url = f"/uploads/images/{filename}"
-            return jsonify({
-                'success': True,
-                'image_url': image_url,
-                'filename': filename
-            })
-        
-        # Handle file upload
-        elif 'image' in request.files:
-            file = request.files['image']
-            if file.filename == '':
-                return jsonify({'success': False, 'error': 'No file selected'}), 400
-            
-            # Generate unique filename
-            filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
-            filepath = os.path.join(upload_dir, filename)
-            
-            # Save file
-            file.save(filepath)
-            
-            # Return URL
-            image_url = f"/uploads/images/{filename}"
-            return jsonify({
-                'success': True,
-                'image_url': image_url,
-                'filename': filename
-            })
-        
-        return jsonify({'success': False, 'error': 'Invalid image data'}), 400
-        
+
+        # Check for file upload
+        if 'image' not in request.files:
+            return jsonify({'success': False, 'error': 'No image file provided'}), 400
+
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+        # Validate file type
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+        file_ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+        if file_ext not in allowed_extensions:
+            return jsonify({'success': False, 'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
+
+        # Read file and convert to base64
+        file_data = file.read()
+
+        # Check file size (max 5MB)
+        if len(file_data) > 5 * 1024 * 1024:
+            return jsonify({'success': False, 'error': 'File too large. Maximum size is 5MB'}), 400
+
+        # Convert to base64
+        base64_data = base64.b64encode(file_data).decode('utf-8')
+
+        # Get content type
+        content_type = file.content_type or f'image/{file_ext}'
+
+        # Generate unique ID
+        image_id = uuid.uuid4().hex
+
+        # Store in database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        conn.rollback()
+
+        # Ensure blog_images table exists
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'blog_images'
+            )
+        """)
+        table_exists = cursor.fetchone()[0]
+
+        if not table_exists:
+            cursor.execute("""
+                CREATE TABLE blog_images (
+                    id VARCHAR(64) PRIMARY KEY,
+                    filename VARCHAR(255),
+                    content_type VARCHAR(100),
+                    data TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+
+        # Insert image
+        cursor.execute("""
+            INSERT INTO blog_images (id, filename, content_type, data, created_at)
+            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+        """, (image_id, file.filename, content_type, base64_data))
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        # Return URL that serves from database
+        image_url = f"/api/uploads/images/{image_id}"
+        return jsonify({
+            'success': True,
+            'image_url': image_url,
+            'filename': file.filename,
+            'id': image_id
+        })
+
     except Exception as e:
+        print(f"Image upload error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/uploads/images/<image_id>')
+def serve_uploaded_image(image_id):
+    """Serve uploaded images from database"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        conn.rollback()
+
+        cursor.execute("""
+            SELECT filename, content_type, data FROM blog_images WHERE id = %s
+        """, (image_id,))
+        result = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        if not result:
+            return jsonify({'error': 'Image not found'}), 404
+
+        filename, content_type, base64_data = result
+
+        # Decode base64 data
+        image_data = base64.b64decode(base64_data)
+
+        # Return image with proper content type
+        response = make_response(image_data)
+        response.headers['Content-Type'] = content_type
+        response.headers['Content-Disposition'] = f'inline; filename="{filename}"'
+        response.headers['Cache-Control'] = 'public, max-age=31536000'  # Cache for 1 year
+        return response
+
+    except Exception as e:
+        print(f"Serve image error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/uploads/images/<filename>')
-def serve_image(filename):
-    """Serve uploaded images"""
+def serve_image_legacy(filename):
+    """Legacy route - serve uploaded images from filesystem (for old uploads)"""
     try:
         upload_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'images')
         return send_from_directory(upload_dir, filename)
