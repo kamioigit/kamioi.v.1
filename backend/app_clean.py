@@ -11443,65 +11443,41 @@ def admin_google_analytics():
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
-        # Return mock Google Analytics data
-        # In production, this would integrate with the Google Analytics API
+        # Check if GA is configured in database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        conn.rollback()
+
+        cursor.execute("""
+            SELECT setting_key, setting_value FROM site_settings
+            WHERE setting_key LIKE 'ga_%'
+        """)
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        settings = {}
+        for row in rows:
+            settings[row[0]] = row[1]
+
+        property_id = settings.get('ga_property_id', '')
+        measurement_id = settings.get('ga_measurement_id', '')
+        is_configured = settings.get('ga_configured') == 'true'
+
+        # Return status indicating no real-time API data available
+        # Real Google Analytics Data API integration requires:
+        # 1. Google Cloud project with Analytics Data API enabled
+        # 2. Service account credentials or OAuth2 setup
+        # 3. The service account must be granted access to the GA property
         return jsonify({
             'success': True,
             'data': {
-                # Overview metrics
-                'totalUsers': 12847,
-                'activeUsers': 3421,
-                'newUsers': 1892,
-                'sessions': 18653,
-                'pageViews': 45231,
-                'avgSessionDuration': '3m 42s',
-                'bounceRate': 34.2,
-
-                # Device breakdown
-                'deviceBreakdown': {
-                    'mobile': 65,
-                    'desktop': 28,
-                    'tablet': 7
-                },
-
-                # Business metrics
-                'businessMetrics': {
-                    'totalRevenue': 89234.50,
-                    'revenueGrowth': 12.5,
-                    'averageRevenuePerUser': 6.94,
-                    'roundUpTransactions': 156789,
-                    'totalInvestments': 234567.89,
-                    'newSignups': 1892,
-                    'churnRate': 2.1,
-                    'userRetention': 97.9
-                },
-
-                # Top pages
-                'topPages': [
-                    {'page': '/dashboard', 'views': 8234},
-                    {'page': '/investments', 'views': 6789},
-                    {'page': '/portfolio', 'views': 5432},
-                    {'page': '/settings', 'views': 4321},
-                    {'page': '/transactions', 'views': 3876}
-                ],
-
-                # Geographic data
-                'geographic': {
-                    'countries': [
-                        {'country': 'United States', 'users': 8934, 'percentage': 69.5},
-                        {'country': 'Canada', 'users': 1567, 'percentage': 12.2},
-                        {'country': 'United Kingdom', 'users': 892, 'percentage': 6.9},
-                        {'country': 'Australia', 'users': 634, 'percentage': 4.9},
-                        {'country': 'Germany', 'users': 456, 'percentage': 3.5}
-                    ],
-                    'cities': [
-                        {'city': 'New York', 'users': 2341},
-                        {'city': 'Los Angeles', 'users': 1876},
-                        {'city': 'Chicago', 'users': 1234},
-                        {'city': 'Toronto', 'users': 987},
-                        {'city': 'London', 'users': 765}
-                    ]
-                }
+                'apiConnected': False,
+                'trackingConfigured': is_configured and bool(property_id),
+                'propertyId': property_id,
+                'measurementId': measurement_id,
+                'message': 'Google Analytics tracking is configured. To view analytics data, please visit your Google Analytics dashboard directly.',
+                'analyticsUrl': f'https://analytics.google.com/analytics/web/#/p{property_id}/reports/intelligenthome' if property_id else 'https://analytics.google.com/'
             }
         })
     except Exception as e:

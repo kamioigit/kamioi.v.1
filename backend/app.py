@@ -8949,30 +8949,43 @@ def ml_learn():
 # Google Analytics
 @app.route('/api/admin/google-analytics')
 def admin_google_analytics():
-    """Get Google Analytics data"""
+    """Get Google Analytics status - no mock data"""
     ok, res = require_role('admin')
     if ok is False:
         return res
-    
+
     try:
+        # Check if GA is configured in database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        conn.rollback()
+
+        cursor.execute("""
+            SELECT setting_key, setting_value FROM site_settings
+            WHERE setting_key LIKE 'ga_%'
+        """)
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        settings = {}
+        for row in rows:
+            settings[row[0]] = row[1]
+
+        property_id = settings.get('ga_property_id', '')
+        measurement_id = settings.get('ga_measurement_id', '')
+        is_configured = settings.get('ga_configured') == 'true'
+
+        # Return status - no fake data
         return jsonify({
             'success': True,
             'data': {
-                'total_users': 1250,
-                'page_views': 15420,
-                'sessions': 3890,
-                'bounce_rate': 42.5,
-                'avg_session_duration': '2m 34s',
-                'top_pages': [
-                    {'page': '/admin', 'views': 1250},
-                    {'page': '/admin/financial', 'views': 890},
-                    {'page': '/admin/users', 'views': 650}
-                ],
-                'traffic_sources': [
-                    {'source': 'Direct', 'visits': 45},
-                    {'source': 'Google', 'visits': 35},
-                    {'source': 'Social', 'visits': 20}
-                ]
+                'apiConnected': False,
+                'trackingConfigured': is_configured and bool(property_id),
+                'propertyId': property_id,
+                'measurementId': measurement_id,
+                'message': 'Google Analytics tracking is configured. View analytics data directly in Google Analytics dashboard.',
+                'analyticsUrl': f'https://analytics.google.com/analytics/web/#/p{property_id}/reports/intelligenthome' if property_id else 'https://analytics.google.com/'
             }
         })
     except Exception as e:
