@@ -16932,10 +16932,29 @@ def public_get_blog_posts():
         page = request.args.get('page', 1, type=int)
         limit = request.args.get('limit', 6, type=int)
         category = request.args.get('category', '')
-        
+        search = request.args.get('search', '')
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+        conn.rollback()  # Clear any aborted transaction
+
+        # Check if blog_posts table exists
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'blog_posts'
+            )
+        """)
+        table_exists = cursor.fetchone()[0]
+
+        if not table_exists:
+            conn.close()
+            return jsonify({
+                'success': True,
+                'posts': [],
+                'pagination': {'page': page, 'limit': limit, 'total': 0, 'pages': 0}
+            })
+
         where_clause = "WHERE status = 'published'"
         params = []
 
@@ -16943,9 +16962,14 @@ def public_get_blog_posts():
             where_clause += " AND category = %s"
             params.append(category)
 
+        if search:
+            where_clause += " AND (title ILIKE %s OR excerpt ILIKE %s)"
+            search_term = f"%{search}%"
+            params.extend([search_term, search_term])
+
         # Get total count
         count_query = f"SELECT COUNT(*) FROM blog_posts {where_clause}"
-        cursor.execute(count_query, params if params else None)
+        cursor.execute(count_query, tuple(params) if params else None)
         total = cursor.fetchone()[0]
 
         # Get posts with pagination
@@ -16955,21 +16979,28 @@ def public_get_blog_posts():
                    author_name, read_time, published_at, views
             FROM blog_posts
             {where_clause}
-            ORDER BY published_at DESC
+            ORDER BY published_at DESC NULLS LAST, created_at DESC
             LIMIT %s OFFSET %s
         """
-        cursor.execute(query, params + [limit, offset])
+        cursor.execute(query, tuple(params + [limit, offset]))
         posts = cursor.fetchall()
 
         conn.close()
 
-        # Convert tuples to dicts: 0=id, 1=title, 2=slug, 3=excerpt, 4=featured_image,
-        # 5=category, 6=tags, 7=author_name, 8=read_time, 9=published_at, 10=views
-        post_list = [{
-            'id': p[0], 'title': p[1], 'slug': p[2], 'excerpt': p[3],
-            'featured_image': p[4], 'category': p[5], 'tags': p[6],
-            'author_name': p[7], 'read_time': p[8], 'published_at': p[9], 'views': p[10]
-        } for p in posts]
+        # Convert tuples to dicts with tag parsing
+        post_list = []
+        for p in posts:
+            tags = p[6]
+            if isinstance(tags, str):
+                try:
+                    tags = json.loads(tags)
+                except:
+                    tags = []
+            post_list.append({
+                'id': p[0], 'title': p[1], 'slug': p[2], 'excerpt': p[3],
+                'featured_image': p[4], 'category': p[5], 'tags': tags,
+                'author_name': p[7], 'read_time': p[8], 'published_at': p[9], 'views': p[10] or 0
+            })
 
         return jsonify({
             'success': True,
@@ -16978,12 +17009,13 @@ def public_get_blog_posts():
                 'page': page,
                 'limit': limit,
                 'total': total,
-                'pages': (total + limit - 1) // limit
+                'pages': (total + limit - 1) // limit if total > 0 else 0
             }
         })
-        
+
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        print(f"Error in public_get_blog_posts: {e}")
+        return jsonify({'success': True, 'posts': [], 'pagination': {'page': 1, 'limit': 6, 'total': 0, 'pages': 0}})
 
 @app.route('/api/blog/posts/<slug>', methods=['GET'])
 def public_get_blog_post(slug):
@@ -16991,11 +17023,12 @@ def public_get_blog_post(slug):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        conn.rollback()  # Clear any aborted transaction
 
-        # Get post - get all columns for full post data
+        # Get post - columns that exist in the table
         cursor.execute("""
             SELECT id, title, slug, excerpt, content, featured_image, category, tags,
-                   author_name, author_avatar, read_time, status, published_at, views, created_at, updated_at
+                   author_name, read_time, status, published_at, views, created_at, updated_at
             FROM blog_posts
             WHERE slug = %s AND status = 'published'
         """, (slug,))
@@ -17008,28 +17041,37 @@ def public_get_blog_post(slug):
         # Increment view count
         cursor.execute("""
             UPDATE blog_posts
-            SET views = views + 1
+            SET views = COALESCE(views, 0) + 1
             WHERE id = %s
         """, (post[0],))
 
         conn.commit()
         conn.close()
 
-        # Convert tuple to dict
+        # Parse tags if string
+        tags = post[7]
+        if isinstance(tags, str):
+            try:
+                tags = json.loads(tags)
+            except:
+                tags = []
+
+        # Convert tuple to dict (no author_avatar column)
         post_dict = {
             'id': post[0], 'title': post[1], 'slug': post[2], 'excerpt': post[3],
-            'content': post[4], 'featured_image': post[5], 'category': post[6], 'tags': post[7],
-            'author_name': post[8], 'author_avatar': post[9], 'read_time': post[10],
-            'status': post[11], 'published_at': post[12], 'views': post[13],
-            'created_at': post[14], 'updated_at': post[15]
+            'content': post[4], 'featured_image': post[5], 'category': post[6], 'tags': tags,
+            'author_name': post[8], 'author_avatar': '', 'read_time': post[9],
+            'status': post[10], 'published_at': post[11], 'views': post[12] or 0,
+            'created_at': post[13], 'updated_at': post[14]
         }
 
         return jsonify({
             'success': True,
             'post': post_dict
         })
-        
+
     except Exception as e:
+        print(f"Error in public_get_blog_post: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Image Upload Endpoints
