@@ -81,6 +81,27 @@ const ErrorTracking = () => {
     staleTime: 30000
   })
 
+  // Test error mutation
+  const testErrorMutation = useMutation({
+    mutationFn: async ({ severity, message }) => {
+      const response = await fetch(`${backendBaseUrl}/api/admin/errors/test`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ severity, message })
+      })
+      const data = await response.json()
+      if (!data.success) throw new Error(data.error)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['errors'] })
+      queryClient.invalidateQueries({ queryKey: ['error-stats'] })
+    }
+  })
+
   // Resolve error mutation
   const resolveMutation = useMutation({
     mutationFn: async ({ errorId, notes }) => {
@@ -162,16 +183,26 @@ const ErrorTracking = () => {
           <h1 className="text-2xl font-bold text-white">Error Tracking</h1>
           <p className="text-gray-400">Monitor and manage system errors</p>
         </div>
-        <button
-          onClick={() => {
-            refetch()
-            queryClient.invalidateQueries({ queryKey: ['error-stats'] })
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => testErrorMutation.mutate({ severity: 'info', message: 'Test error from admin panel' })}
+            disabled={testErrorMutation.isPending}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600/50 hover:bg-purple-600 text-white rounded-lg transition-colors disabled:opacity-50"
+          >
+            <Bug className="w-4 h-4" />
+            {testErrorMutation.isPending ? 'Testing...' : 'Test Error'}
+          </button>
+          <button
+            onClick={() => {
+              refetch()
+              queryClient.invalidateQueries({ queryKey: ['error-stats'] })
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}

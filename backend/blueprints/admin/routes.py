@@ -982,6 +982,44 @@ def admin_get_demo_users():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@admin_bp.route('/errors/test', methods=['POST'])
+@cross_origin()
+def admin_test_error():
+    """Create a test error to verify error tracking is working"""
+    ok, res = require_role('admin')
+    if ok is False:
+        return res
+
+    try:
+        from services.error_tracking_service import log_error
+
+        data = request.get_json() or {}
+        severity = data.get('severity', 'info')
+        message = data.get('message', 'Test error from admin panel')
+
+        error_id = log_error(
+            error_type='TestError',
+            error_message=message,
+            endpoint='/api/admin/errors/test',
+            http_method='POST',
+            severity=severity
+        )
+
+        if error_id:
+            return jsonify({
+                'success': True,
+                'message': 'Test error logged successfully',
+                'error_id': error_id
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to log test error - check if system_errors table exists'
+            }), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @admin_bp.route('/db-status', methods=['GET'])
 @cross_origin()
 def admin_db_status():

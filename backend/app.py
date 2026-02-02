@@ -89,6 +89,16 @@ from blueprints.family import family_bp
 from blueprints.business import business_bp
 from blueprints.admin import admin_bp
 
+# Error tracking service for logging errors to database
+try:
+    from services.error_tracking_service import log_error, log_exception
+    ERROR_TRACKING_AVAILABLE = True
+except ImportError:
+    ERROR_TRACKING_AVAILABLE = False
+    print("Warning: Error tracking service not available")
+    def log_error(*args, **kwargs): return None
+    def log_exception(*args, **kwargs): return None
+
 # APScheduler for automatic monthly amortization
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -384,28 +394,41 @@ def after_request_handler(response):
 def handle_http_exception(e):
     """Handle HTTP exceptions and ensure CORS headers are present"""
     from flask import jsonify
-    
+
     # Safely get error details
     error_name = e.name if hasattr(e, 'name') else 'Error'
     error_message = str(e.description) if hasattr(e, 'description') and e.description else str(e)
     error_code = e.code if hasattr(e, 'code') else 500
-    
+
     # Avoid serializing complex objects
     if not isinstance(error_message, str):
         error_message = 'An error occurred'
-    
+
+    # Log server errors (5xx) to error tracking database
+    if error_code >= 500 and ERROR_TRACKING_AVAILABLE:
+        try:
+            log_error(
+                error_type='HTTPException',
+                error_message=f"{error_name}: {error_message}",
+                endpoint=request.path if request else None,
+                http_method=request.method if request else None,
+                severity='error' if error_code < 503 else 'critical'
+            )
+        except Exception:
+            pass  # Don't let error logging break the response
+
     response = jsonify({
-        'success': False, 
+        'success': False,
         'error': error_name,
         'message': error_message
     })
     response.status_code = error_code
-    
+
     # Add CORS headers
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Origin'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-    
+
     return response
 
 # Catch-all exception handler for unhandled exceptions
@@ -414,15 +437,27 @@ def handle_http_exception(e):
 def handle_generic_exception(e):
     """Handle any unhandled exceptions and ensure CORS headers are present"""
     import traceback
-    
+
     # Don't handle HTTPException (already handled above)
     if isinstance(e, HTTPException):
         return handle_http_exception(e)
-    
+
     # Log the error with more detail - FORCE output using sys.stdout directly
     error_msg = str(e) if isinstance(e, (str, Exception)) else 'An unexpected error occurred'
     traceback_str = traceback.format_exc()
-    
+
+    # Log to error tracking database
+    if ERROR_TRACKING_AVAILABLE:
+        try:
+            log_exception(
+                exception=e,
+                endpoint=request.path if request else None,
+                http_method=request.method if request else None,
+                severity='critical'
+            )
+        except Exception:
+            pass  # Don't let error logging break the response
+
     # Use sys.stdout.write directly - this should ALWAYS work
     sys.stdout.write(f"\n{'='*80}\n")
     sys.stdout.write(f"[ERROR] Unhandled exception: {error_msg}\n")
@@ -430,7 +465,7 @@ def handle_generic_exception(e):
     sys.stdout.write(f"[ERROR] Traceback:\n{traceback_str}\n")
     sys.stdout.write(f"{'='*80}\n\n")
     sys.stdout.flush()
-    
+
     try:
         sys.stderr.write(f"\n{'='*80}\n")
         sys.stderr.write(f"[ERROR] Unhandled exception: {error_msg}\n")
