@@ -8741,16 +8741,83 @@ def admin_content_blogs():
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        conn.rollback()  # Clear any aborted transaction
+
+        # Check if blog_posts table exists (PostgreSQL)
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'blog_posts'
+            )
+        """)
+        table_exists = cursor.fetchone()[0]
+
+        if not table_exists:
+            conn.close()
+            return jsonify({
+                'success': True,
+                'posts': [],
+                'blogs': [],
+                'data': {'posts': []}
+            })
+
+        # Get all blog posts
+        cursor.execute("""
+            SELECT id, title, slug, content, excerpt, featured_image, status,
+                   author_id, author_name, category, tags, seo_title, seo_description,
+                   seo_keywords, read_time, word_count, views, published_at, created_at, updated_at
+            FROM blog_posts
+            ORDER BY created_at DESC
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+
+        posts = []
+        for row in rows:
+            # Parse tags JSON if it's a string
+            tags = row[10]
+            if isinstance(tags, str):
+                try:
+                    tags = json.loads(tags)
+                except:
+                    tags = []
+
+            posts.append({
+                'id': row[0],
+                'title': row[1],
+                'slug': row[2],
+                'content': row[3],
+                'excerpt': row[4],
+                'featured_image': row[5],
+                'status': row[6],
+                'author_id': row[7],
+                'author_name': row[8],
+                'category': row[9],
+                'tags': tags,
+                'seo_title': row[11],
+                'seo_description': row[12],
+                'seo_keywords': row[13],
+                'read_time': row[14],
+                'word_count': row[15],
+                'views': row[16] or 0,
+                'published_at': row[17],
+                'created_at': row[18],
+                'updated_at': row[19]
+            })
+
         # Frontend expects: blogsData?.data?.posts || blogsData?.posts || blogsData?.blogs || blogsData?.data || []
         return jsonify({
             'success': True,
-            'posts': [],
-            'blogs': [],
+            'posts': posts,
+            'blogs': posts,
             'data': {
-                'posts': []
+                'posts': posts
             }
         })
     except Exception as e:
+        print(f"Error in admin_content_blogs: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/admin/content/frontend', methods=['GET'])
@@ -16463,97 +16530,126 @@ def admin_get_blog_posts():
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
-        
+
         page = request.args.get('page', 1, type=int)
         limit = request.args.get('limit', 10, type=int)
         status = request.args.get('status', '')
         category = request.args.get('category', '')
         search = request.args.get('search', '')
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Check if blog_posts table exists
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='blog_posts'")
-        if not cursor.fetchone():
-            # Table doesn't exist, return empty data
+        conn.rollback()  # Clear any aborted transaction
+
+        # Check if blog_posts table exists (PostgreSQL)
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'blog_posts'
+            )
+        """)
+        table_exists = cursor.fetchone()[0]
+
+        if not table_exists:
             conn.close()
             return jsonify({
                 'success': True,
-                'data': {
-                    'posts': []
-                },
-                'pagination': {
-                    'page': page,
-                    'limit': limit,
-                    'total': 0,
-                    'pages': 0
-                }
+                'data': {'posts': []},
+                'pagination': {'page': page, 'limit': limit, 'total': 0, 'pages': 0}
             })
-        
-        # Build query with filters
+
+        # Build query with filters (PostgreSQL uses %s placeholders)
         where_conditions = []
         params = []
-        
+        param_count = 0
+
         if status:
-            where_conditions.append("status = ?")
+            param_count += 1
+            where_conditions.append(f"status = %s")
             params.append(status)
-        
+
         if category:
-            where_conditions.append("category = ?")
+            param_count += 1
+            where_conditions.append(f"category = %s")
             params.append(category)
-        
+
         if search:
-            where_conditions.append("(title LIKE ? OR content LIKE ? OR excerpt LIKE ?)")
             search_term = f"%{search}%"
+            where_conditions.append(f"(title ILIKE %s OR content ILIKE %s OR excerpt ILIKE %s)")
             params.extend([search_term, search_term, search_term])
-        
+
         where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        
+
         # Get total count
         count_query = f"SELECT COUNT(*) FROM blog_posts {where_clause}"
-        cursor.execute(count_query, params)
+        cursor.execute(count_query, tuple(params) if params else None)
         total = cursor.fetchone()[0]
-        
+
         # Get posts with pagination
         offset = (page - 1) * limit
         query = f"""
-            SELECT * FROM blog_posts 
+            SELECT id, title, slug, content, excerpt, featured_image, status,
+                   author_id, author_name, category, tags, seo_title, seo_description,
+                   seo_keywords, read_time, word_count, views, published_at, created_at, updated_at
+            FROM blog_posts
             {where_clause}
-            ORDER BY created_at DESC 
-            LIMIT ? OFFSET ?
+            ORDER BY created_at DESC
+            LIMIT %s OFFSET %s
         """
-        cursor.execute(query, params + [limit, offset])
-        posts = cursor.fetchall()
-        
+        cursor.execute(query, tuple(params + [limit, offset]))
+        rows = cursor.fetchall()
         conn.close()
-        
+
+        posts = []
+        for row in rows:
+            tags = row[10]
+            if isinstance(tags, str):
+                try:
+                    tags = json.loads(tags)
+                except:
+                    tags = []
+
+            posts.append({
+                'id': row[0],
+                'title': row[1],
+                'slug': row[2],
+                'content': row[3],
+                'excerpt': row[4],
+                'featured_image': row[5],
+                'status': row[6],
+                'author_id': row[7],
+                'author_name': row[8],
+                'category': row[9],
+                'tags': tags,
+                'seo_title': row[11],
+                'seo_description': row[12],
+                'seo_keywords': row[13],
+                'read_time': row[14],
+                'word_count': row[15],
+                'views': row[16] or 0,
+                'published_at': row[17],
+                'created_at': row[18],
+                'updated_at': row[19]
+            })
+
         return jsonify({
             'success': True,
-            'data': {
-                'posts': [dict(post) for post in posts]
-            },
+            'data': {'posts': posts},
             'pagination': {
                 'page': page,
                 'limit': limit,
                 'total': total,
-                'pages': (total + limit - 1) // limit
+                'pages': (total + limit - 1) // limit if total > 0 else 0
             }
         })
-        
+
     except Exception as e:
+        print(f"Error in admin_get_blog_posts: {e}")
         # Return empty data instead of error to prevent UI crash
         return jsonify({
             'success': True,
-            'data': {
-                'posts': []
-            },
-            'pagination': {
-                'page': 1,
-                'limit': 10,
-                'total': 0,
-                'pages': 0
-            }
+            'data': {'posts': []},
+            'pagination': {'page': 1, 'limit': 10, 'total': 0, 'pages': 0}
         }), 200
 
 @app.route('/api/admin/blog/posts', methods=['POST'])
@@ -16605,7 +16701,7 @@ def admin_create_blog_post():
         if data.get('status') == 'published':
             published_at = datetime.now().isoformat()
         
-        # Insert blog post
+        # Insert blog post (PostgreSQL - use RETURNING to get the ID)
         cursor.execute("""
             INSERT INTO blog_posts (
                 title, slug, content, excerpt, featured_image, status, author_id, author_name,
@@ -16614,6 +16710,7 @@ def admin_create_blog_post():
                 twitter_description, twitter_image, schema_markup, read_time, word_count,
                 published_at, created_at, updated_at
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
         """, (
             data['title'], slug, data['content'], data.get('excerpt', ''),
             data.get('featured_image', ''), data.get('status', 'published'),
@@ -16628,8 +16725,9 @@ def admin_create_blog_post():
             read_time, word_count, published_at,
             datetime.now().isoformat(), datetime.now().isoformat()
         ))
-        
-        post_id = cursor.lastrowid
+
+        result = cursor.fetchone()
+        post_id = result[0] if result else None
         conn.commit()
         conn.close()
         
@@ -16662,33 +16760,33 @@ def admin_update_blog_post(post_id):
         if not cursor.fetchone():
             return jsonify({'success': False, 'error': 'Post not found'}), 404
 
-        # Update post
+        # Update post (PostgreSQL uses %s placeholders)
         update_fields = []
         params = []
-        
+
         for field in ['title', 'content', 'excerpt', 'featured_image', 'status', 'category',
                      'seo_title', 'seo_description', 'seo_keywords', 'meta_robots',
                      'canonical_url', 'og_title', 'og_description', 'og_image',
                      'twitter_title', 'twitter_description', 'twitter_image', 'schema_markup']:
             if field in data:
-                update_fields.append(f"{field} = ?")
+                update_fields.append(f"{field} = %s")
                 if field == 'tags':
                     params.append(json.dumps(data[field]))
                 else:
                     params.append(data[field])
-        
+
         if 'content' in data:
             word_count = len(data['content'].split())
             read_time = max(1, word_count // 200)
-            update_fields.extend(['word_count = ?', 'read_time = ?'])
+            update_fields.extend(['word_count = %s', 'read_time = %s'])
             params.extend([word_count, read_time])
-        
-        update_fields.append('updated_at = ?')
+
+        update_fields.append('updated_at = %s')
         params.append(datetime.now().isoformat())
         params.append(post_id)
-        
-        query = f"UPDATE blog_posts SET {', '.join(update_fields)} WHERE id = ?"
-        cursor.execute(query, params)
+
+        query = f"UPDATE blog_posts SET {', '.join(update_fields)} WHERE id = %s"
+        cursor.execute(query, tuple(params))
         
         conn.commit()
         conn.close()
