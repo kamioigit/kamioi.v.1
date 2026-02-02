@@ -17067,7 +17067,7 @@ def public_get_blog_post(slug):
 
         return jsonify({
             'success': True,
-            'post': post_dict
+            'data': post_dict  # Frontend expects data.data, not data.post
         })
 
     except Exception as e:
