@@ -10244,6 +10244,150 @@ def admin_google_analytics():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# Google Analytics Settings Endpoints
+@app.route('/api/admin/google-analytics/settings', methods=['GET'])
+def admin_get_ga_settings():
+    """Get Google Analytics settings"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        conn.rollback()
+
+        # Check if site_settings table exists
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'site_settings'
+            )
+        """)
+        table_exists = cursor.fetchone()[0]
+
+        if not table_exists:
+            # Create site_settings table
+            cursor.execute("""
+                CREATE TABLE site_settings (
+                    id SERIAL PRIMARY KEY,
+                    setting_key VARCHAR(100) UNIQUE NOT NULL,
+                    setting_value TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+
+        # Get GA settings
+        cursor.execute("""
+            SELECT setting_key, setting_value FROM site_settings
+            WHERE setting_key LIKE 'ga_%'
+        """)
+        rows = cursor.fetchall()
+
+        settings = {
+            'propertyId': '',
+            'measurementId': '',
+            'isConfigured': False,
+            'trackingEnabled': False
+        }
+
+        for row in rows:
+            key = row[0]
+            value = row[1]
+            if key == 'ga_property_id':
+                settings['propertyId'] = value or ''
+            elif key == 'ga_measurement_id':
+                settings['measurementId'] = value or ''
+            elif key == 'ga_configured':
+                settings['isConfigured'] = value == 'true'
+            elif key == 'ga_tracking_enabled':
+                settings['trackingEnabled'] = value == 'true'
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'data': settings
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/google-analytics/settings', methods=['POST'])
+def admin_save_ga_settings():
+    """Save Google Analytics settings"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        data = request.get_json()
+        property_id = data.get('propertyId', '')
+        measurement_id = data.get('measurementId', '')
+        tracking_enabled = data.get('trackingEnabled', False)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        conn.rollback()
+
+        # Ensure site_settings table exists
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'site_settings'
+            )
+        """)
+        table_exists = cursor.fetchone()[0]
+
+        if not table_exists:
+            cursor.execute("""
+                CREATE TABLE site_settings (
+                    id SERIAL PRIMARY KEY,
+                    setting_key VARCHAR(100) UNIQUE NOT NULL,
+                    setting_value TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+
+        # Upsert GA settings
+        settings_to_save = [
+            ('ga_property_id', property_id),
+            ('ga_measurement_id', measurement_id),
+            ('ga_configured', 'true' if property_id else 'false'),
+            ('ga_tracking_enabled', 'true' if tracking_enabled else 'false')
+        ]
+
+        for key, value in settings_to_save:
+            cursor.execute("""
+                INSERT INTO site_settings (setting_key, setting_value, updated_at)
+                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (setting_key)
+                DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = CURRENT_TIMESTAMP
+            """, (key, value))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'Google Analytics settings saved successfully',
+            'data': {
+                'propertyId': property_id,
+                'measurementId': measurement_id,
+                'isConfigured': bool(property_id),
+                'trackingEnabled': tracking_enabled
+            }
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # Database Management Endpoints
 
 @app.route('/api/admin/fix-transactions', methods=['POST'])
