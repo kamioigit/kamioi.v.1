@@ -466,8 +466,21 @@ def admin_dashboard_overview():
         cursor.execute("SELECT COUNT(*) FROM transactions")
         total_transactions = cursor.fetchone()[0]
 
-        cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM transactions")
-        total_amount = float(cursor.fetchone()[0] or 0)
+        # FIX: Get Total Revenue from General Ledger Revenue accounts (40xxx)
+        # Revenue accounts have Credit normal balance, so balance = SUM(credit) - SUM(debit)
+        cursor.execute("""
+            SELECT COALESCE(SUM(
+                CASE
+                    WHEN coa.normal_balance = 'Credit' THEN COALESCE(jel.credit, 0) - COALESCE(jel.debit, 0)
+                    ELSE COALESCE(jel.debit, 0) - COALESCE(jel.credit, 0)
+                END
+            ), 0) as total_revenue
+            FROM chart_of_accounts coa
+            LEFT JOIN journal_entry_lines jel ON coa.account_number = jel.account_number
+            LEFT JOIN journal_entries je ON jel.journal_entry_id = je.id AND je.status = 'posted'
+            WHERE coa.category = 'Revenue'
+        """)
+        total_revenue = float(cursor.fetchone()[0] or 0)
 
         cursor.execute("SELECT COALESCE(SUM(round_up), 0) FROM transactions WHERE round_up > 0")
         total_roundups = float(cursor.fetchone()[0] or 0)
@@ -503,15 +516,24 @@ def admin_dashboard_overview():
                 'value': users_count
             })
 
-        # Revenue trend (weekly for last 5 weeks)
+        # FIX: Revenue trend from General Ledger (weekly journal entries to Revenue accounts)
         cursor.execute("""
             SELECT
-                EXTRACT(WEEK FROM created_at) as week_num,
-                COALESCE(SUM(amount), 0) as value
-            FROM transactions
-            WHERE created_at >= NOW() - INTERVAL '5 weeks'
-            GROUP BY EXTRACT(WEEK FROM created_at)
-            ORDER BY EXTRACT(WEEK FROM created_at)
+                EXTRACT(WEEK FROM je.entry_date) as week_num,
+                COALESCE(SUM(
+                    CASE
+                        WHEN coa.normal_balance = 'Credit' THEN COALESCE(jel.credit, 0) - COALESCE(jel.debit, 0)
+                        ELSE COALESCE(jel.debit, 0) - COALESCE(jel.credit, 0)
+                    END
+                ), 0) as value
+            FROM journal_entries je
+            JOIN journal_entry_lines jel ON je.id = jel.journal_entry_id
+            JOIN chart_of_accounts coa ON jel.account_number = coa.account_number
+            WHERE je.entry_date >= NOW() - INTERVAL '5 weeks'
+              AND je.status = 'posted'
+              AND coa.category = 'Revenue'
+            GROUP BY EXTRACT(WEEK FROM je.entry_date)
+            ORDER BY EXTRACT(WEEK FROM je.entry_date)
             LIMIT 5
         """)
         revenue_raw = cursor.fetchall()
@@ -527,7 +549,7 @@ def admin_dashboard_overview():
 
         revenue_trend = {
             'weekData': week_data,
-            'current_month': total_amount,
+            'current_month': total_revenue,
             'growth_percentage': round(growth_pct, 1),
             'previous_month': sum(week_data[:4]),
             'trend': 'growing' if growth_pct > 0 else ('declining' if growth_pct < 0 else 'stable')
@@ -575,7 +597,7 @@ def admin_dashboard_overview():
             'data': {
                 'stats': {
                     'totalTransactions': total_transactions,
-                    'totalRevenue': total_amount,
+                    'totalRevenue': total_revenue,  # FIX: Now reads from GL Revenue accounts
                     'totalRoundUps': total_roundups,
                     'portfolioValue': portfolio_value
                 },
@@ -592,7 +614,7 @@ def admin_dashboard_overview():
                 # Legacy fields for backwards compatibility
                 'total_users': total_users,
                 'total_transactions': total_transactions,
-                'total_amount': total_amount
+                'total_amount': total_revenue  # FIX: Now reads from GL Revenue accounts
             }
         })
     except Exception as e:
