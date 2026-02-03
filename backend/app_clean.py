@@ -9295,19 +9295,19 @@ def llm_system_status_old():
 
 @app.route('/api/llm-data/event-stats', methods=['GET'])
 def llm_event_stats():
-    """Get RAG Search event statistics - OPTIMIZED: Single query instead of 5"""
+    """Get RAG Search event statistics - OPTIMIZED v2: Simpler aggregates"""
     try:
         conn = get_db_connection()
         conn.rollback()
         cursor = conn.cursor()
 
-        # OPTIMIZED: Combined all 5 queries into 1 using PostgreSQL aggregates
+        # OPTIMIZED v2: Use SUM(CASE WHEN) and AVG with CASE for better performance
         cursor.execute("""
             SELECT
                 COUNT(*) as total_events,
-                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 day') as events_today,
-                COUNT(*) FILTER (WHERE status = 'pending') as queue_size,
-                AVG(confidence) FILTER (WHERE confidence > 0) as avg_confidence,
+                SUM(CASE WHEN created_at > NOW() - INTERVAL '1 day' THEN 1 ELSE 0 END) as events_today,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as queue_size,
+                AVG(CASE WHEN confidence > 0 THEN confidence END) as avg_confidence,
                 MAX(created_at) as last_processed
             FROM llm_mappings
         """)
@@ -17784,19 +17784,19 @@ def get_quality_metrics():
 
 @app.route('/api/llm-data/system-status', methods=['GET'])
 def llm_data_system_status():
-    """Get LLM data management system status - OPTIMIZED: Single query instead of 4"""
+    """Get LLM data management system status - OPTIMIZED v2: Simpler aggregates"""
     try:
         conn = get_db_connection()
         conn.rollback()
         cursor = conn.cursor()
 
-        # OPTIMIZED: Combined all 4 queries into 1 using PostgreSQL FILTER clause
+        # OPTIMIZED v2: Use SUM(CASE WHEN) for better performance
         cursor.execute("""
             SELECT
                 COUNT(*) as total_mappings,
-                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 day') as recent_mappings,
-                COUNT(*) FILTER (WHERE status = 'pending') as queue_size,
-                AVG(confidence) FILTER (WHERE confidence > 0) as avg_confidence
+                SUM(CASE WHEN created_at > NOW() - INTERVAL '1 day' THEN 1 ELSE 0 END) as recent_mappings,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as queue_size,
+                AVG(CASE WHEN confidence > 0 THEN confidence END) as avg_confidence
             FROM llm_mappings
         """)
         row = cursor.fetchone()
@@ -17838,19 +17838,19 @@ def llm_data_system_status():
 
 @app.route('/api/llm-data/vector-embeddings', methods=['GET'])
 def llm_data_vector_embeddings():
-    """Get vector embeddings status and metrics - OPTIMIZED: Single query instead of 4"""
+    """Get vector embeddings status and metrics - OPTIMIZED v2: Simpler aggregates"""
     try:
         conn = get_db_connection()
         conn.rollback()
         cursor = conn.cursor()
 
-        # OPTIMIZED: Combined all 4 queries into 1 using PostgreSQL aggregates
+        # OPTIMIZED v2: COUNT(DISTINCT) already ignores NULLs, removed FILTER for performance
         cursor.execute("""
             SELECT
-                COUNT(DISTINCT merchant_name) FILTER (WHERE merchant_name IS NOT NULL) as unique_merchants,
-                COUNT(DISTINCT category) FILTER (WHERE category IS NOT NULL) as unique_categories,
+                COUNT(DISTINCT merchant_name) as unique_merchants,
+                COUNT(DISTINCT category) as unique_categories,
                 COUNT(*) as total_embeddings,
-                AVG(confidence) FILTER (WHERE confidence > 0) as avg_confidence
+                AVG(CASE WHEN confidence > 0 THEN confidence END) as avg_confidence
             FROM llm_mappings
         """)
         row = cursor.fetchone()
@@ -17892,19 +17892,19 @@ def llm_data_vector_embeddings():
 
 @app.route('/api/llm-data/feature-store', methods=['GET'])
 def llm_data_feature_store():
-    """Get feature store status and metrics - OPTIMIZED: Single query instead of 4"""
+    """Get feature store status and metrics - OPTIMIZED v2: Simpler aggregates"""
     try:
         conn = get_db_connection()
         conn.rollback()
         cursor = conn.cursor()
 
-        # OPTIMIZED: Combined all 4 queries into 1 using PostgreSQL aggregates
+        # OPTIMIZED v2: Use CASE WHEN for filtered counts (more compatible)
         cursor.execute("""
             SELECT
                 COUNT(*) as total_features,
-                COUNT(DISTINCT merchant_name) FILTER (WHERE merchant_name IS NOT NULL) as merchant_patterns,
-                COUNT(DISTINCT category) FILTER (WHERE category IS NOT NULL) as user_behavior,
-                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 day') as transaction_features
+                COUNT(DISTINCT merchant_name) as merchant_patterns,
+                COUNT(DISTINCT category) as user_behavior,
+                SUM(CASE WHEN created_at > NOW() - INTERVAL '1 day' THEN 1 ELSE 0 END) as transaction_features
             FROM llm_mappings
         """)
         row = cursor.fetchone()
