@@ -36,14 +36,14 @@ const LoadingReport = () => {
   const getCardClass = () => `bg-white/10 backdrop-blur-xl rounded-lg shadow-lg p-6 border border-white/20 ${isLightMode ? 'bg-opacity-80' : 'bg-opacity-10'}`
 
   // Admin pages with their associated API endpoints to test
+  // These endpoints match the actual backend routes in app_clean.py
   const adminPages = useMemo(() => [
     {
       id: 'overview',
       name: 'Platform Overview',
       category: 'Dashboard',
       endpoints: [
-        { path: '/api/admin/stats', name: 'Admin Stats' },
-        { path: '/api/admin/recent-users', name: 'Recent Users' }
+        { path: '/api/admin/dashboard/overview', name: 'Dashboard Overview' }
       ]
     },
     {
@@ -59,8 +59,8 @@ const LoadingReport = () => {
       name: 'Subscriptions',
       category: 'Billing',
       endpoints: [
-        { path: '/api/admin/subscriptions', name: 'Subscriptions List' },
-        { path: '/api/admin/subscription-plans', name: 'Subscription Plans' }
+        { path: '/api/admin/subscriptions/users', name: 'Subscription Users' },
+        { path: '/api/admin/subscriptions/plans', name: 'Subscription Plans' }
       ]
     },
     {
@@ -68,7 +68,7 @@ const LoadingReport = () => {
       name: 'Investment Summary',
       category: 'Analytics',
       endpoints: [
-        { path: '/api/admin/investments/summary', name: 'Investment Summary' }
+        { path: '/api/admin/subscriptions/analytics/overview', name: 'Analytics Overview' }
       ]
     },
     {
@@ -76,7 +76,7 @@ const LoadingReport = () => {
       name: 'Investment Processing',
       category: 'Operations',
       endpoints: [
-        { path: '/api/admin/investments/queue', name: 'Investment Queue' }
+        { path: '/api/admin/llm-center/queue', name: 'Processing Queue' }
       ]
     },
     {
@@ -84,8 +84,8 @@ const LoadingReport = () => {
       name: 'LLM Center',
       category: 'AI/ML',
       endpoints: [
-        { path: '/api/admin/llm/stats', name: 'LLM Stats' },
-        { path: '/api/admin/llm/prompts', name: 'LLM Prompts' }
+        { path: '/api/admin/llm-center/queue', name: 'LLM Queue' },
+        { path: '/api/admin/llm-center/processing-stats', name: 'Processing Stats' }
       ]
     },
     {
@@ -93,8 +93,7 @@ const LoadingReport = () => {
       name: 'ML Dashboard',
       category: 'AI/ML',
       endpoints: [
-        { path: '/api/admin/ml/models', name: 'ML Models' },
-        { path: '/api/admin/ml/stats', name: 'ML Stats' }
+        { path: '/api/admin/llm-center/transaction-stats', name: 'Transaction Stats' }
       ]
     },
     {
@@ -102,8 +101,8 @@ const LoadingReport = () => {
       name: 'LLM Data Management',
       category: 'AI/ML',
       endpoints: [
-        { path: '/api/admin/llm/mappings', name: 'LLM Mappings' },
-        { path: '/api/admin/llm/responses', name: 'LLM Responses' }
+        { path: '/api/llm-data/system-status', name: 'System Status' },
+        { path: '/api/llm-data/event-stats', name: 'Event Stats' }
       ]
     },
     {
@@ -127,8 +126,7 @@ const LoadingReport = () => {
       name: 'Financial Analytics',
       category: 'Analytics',
       endpoints: [
-        { path: '/api/admin/analytics/revenue', name: 'Revenue Analytics' },
-        { path: '/api/admin/analytics/mrr', name: 'MRR Analytics' }
+        { path: '/api/admin/subscriptions/analytics/overview', name: 'Subscription Analytics' }
       ]
     },
     {
@@ -137,7 +135,7 @@ const LoadingReport = () => {
       category: 'Communication',
       endpoints: [
         { path: '/api/admin/notifications', name: 'Notifications List' },
-        { path: '/api/admin/messages', name: 'Admin Messages' }
+        { path: '/api/admin/messaging/campaigns', name: 'Messaging Campaigns' }
       ]
     },
     {
@@ -145,7 +143,7 @@ const LoadingReport = () => {
       name: 'Content Management',
       category: 'Content',
       endpoints: [
-        { path: '/api/blog', name: 'Blog Posts' }
+        { path: '/api/admin/content/blogs', name: 'Blog Content' }
       ]
     },
     {
@@ -153,7 +151,7 @@ const LoadingReport = () => {
       name: 'Advertisement',
       category: 'Marketing',
       endpoints: [
-        { path: '/api/admin/ads', name: 'Advertisements' }
+        { path: '/api/admin/advertisements/campaigns', name: 'Ad Campaigns' }
       ]
     },
     {
@@ -185,7 +183,7 @@ const LoadingReport = () => {
       name: 'Standard Operating Procedures',
       category: 'Documentation',
       endpoints: [
-        { path: '/api/admin/sop', name: 'SOP List' }
+        { path: '/api/admin/content/pages', name: 'Content Pages' }
       ]
     },
     {
@@ -201,7 +199,7 @@ const LoadingReport = () => {
       name: 'API Tracking',
       category: 'Monitoring',
       endpoints: [
-        { path: '/api/admin/api-logs', name: 'API Logs' }
+        { path: '/api/admin/api-usage/records', name: 'API Usage Records' }
       ]
     },
     {
@@ -209,7 +207,7 @@ const LoadingReport = () => {
       name: 'Error Tracking',
       category: 'Monitoring',
       endpoints: [
-        { path: '/api/admin/errors', name: 'Error Logs' }
+        { path: '/api/admin/db-status', name: 'DB Status' }
       ]
     }
   ], [])
