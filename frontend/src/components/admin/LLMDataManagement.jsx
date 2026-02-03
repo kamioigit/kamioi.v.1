@@ -21,66 +21,101 @@ const LLMDataManagement = () => {
     return localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'
   }
 
-  // React Query v5 compatible - fetch LLM data
-  const { data: llmData, isLoading, error, refetch } = useQuery({
-    queryKey: ['llm-data-management'],
+  // Separate queries for each endpoint to prevent one slow endpoint from blocking all
+  const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+
+  const fetchWithTimeout = async (url, options, timeout = 10000) => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal })
+      clearTimeout(timeoutId)
+      if (!response.ok) return null
+      const json = await response.json()
+      return json.data || json || null
+    } catch (e) {
+      clearTimeout(timeoutId)
+      console.warn(`Request to ${url} failed:`, e.message)
+      return null
+    }
+  }
+
+  const queryOptions = {
+    staleTime: 300000,
+    gcTime: 600000,
+    refetchOnWindowFocus: false,
+    retry: 1
+  }
+
+  const { data: systemStatus, isLoading: loadingStatus } = useQuery({
+    queryKey: ['llm-system-status'],
     queryFn: async () => {
       const token = getAuthToken()
-      if (!token) {
-        return { systemStatus: null, eventStats: null, vectorEmbeddings: null, featureStore: null }
-      }
-
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-      const headers = { 'Authorization': `Bearer ${token}` }
-
-      const [statusRes, statsRes, vectorsRes, featuresRes] = await Promise.allSettled([
-        fetch(`${apiUrl}/api/llm-data/system-status`, { headers }),
-        fetch(`${apiUrl}/api/llm-data/event-stats`, { headers }),
-        fetch(`${apiUrl}/api/llm-data/vector-embeddings`, { headers }),
-        fetch(`${apiUrl}/api/llm-data/feature-store`, { headers })
-      ])
-
-      const parseResponse = async (result) => {
-        if (result.status === 'fulfilled' && result.value.ok) {
-          const json = await result.value.json()
-          return json.data || null
-        }
-        return null
-      }
-
-      return {
-        systemStatus: await parseResponse(statusRes),
-        eventStats: await parseResponse(statsRes),
-        vectorEmbeddings: await parseResponse(vectorsRes),
-        featureStore: await parseResponse(featuresRes)
-      }
+      return fetchWithTimeout(`${apiUrl}/api/llm-data/system-status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
     },
-    staleTime: 300000, // 5 minutes
-    gcTime: 600000, // 10 minutes (renamed from cacheTime in v5)
-    refetchOnWindowFocus: false,
-    refetchOnMount: 'always', // Always fetch on mount to ensure fresh data
-    retry: 2
+    ...queryOptions
   })
 
-  // Extract data from query result
-  const systemStatus = llmData?.systemStatus || null
-  const eventStats = llmData?.eventStats || null
-  const vectorEmbeddings = llmData?.vectorEmbeddings || null
-  const featureStore = llmData?.featureStore || null
-  const loading = isLoading || manualLoading
+  const { data: eventStats, isLoading: loadingStats } = useQuery({
+    queryKey: ['llm-event-stats'],
+    queryFn: async () => {
+      const token = getAuthToken()
+      return fetchWithTimeout(`${apiUrl}/api/llm-data/event-stats`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+    },
+    ...queryOptions
+  })
 
-  // Dispatch page load completion
+  const { data: vectorEmbeddings, isLoading: loadingVectors } = useQuery({
+    queryKey: ['llm-vector-embeddings'],
+    queryFn: async () => {
+      const token = getAuthToken()
+      return fetchWithTimeout(`${apiUrl}/api/llm-data/vector-embeddings`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+    },
+    ...queryOptions
+  })
+
+  const { data: featureStore, isLoading: loadingFeatures } = useQuery({
+    queryKey: ['llm-feature-store'],
+    queryFn: async () => {
+      const token = getAuthToken()
+      return fetchWithTimeout(`${apiUrl}/api/llm-data/feature-store`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+    },
+    ...queryOptions
+  })
+
+  // Combined loading state - only show loading if ALL are loading and NO data exists
+  const isInitialLoading = (loadingStatus && loadingStats && loadingVectors && loadingFeatures) &&
+    !systemStatus && !eventStats && !vectorEmbeddings && !featureStore
+  const loading = isInitialLoading || manualLoading
+
+  // Refetch function for manual refresh
+  const refetch = () => {
+    queryClient.invalidateQueries({ queryKey: ['llm-system-status'] })
+    queryClient.invalidateQueries({ queryKey: ['llm-event-stats'] })
+    queryClient.invalidateQueries({ queryKey: ['llm-vector-embeddings'] })
+    queryClient.invalidateQueries({ queryKey: ['llm-feature-store'] })
+  }
+
+  // Dispatch page load completion when initial loading is done
   useEffect(() => {
-    if (!isLoading) {
+    if (!isInitialLoading) {
       window.dispatchEvent(new CustomEvent('admin-page-load-complete', {
-        detail: { pageId: 'llm-data', error: !!error }
+        detail: { pageId: 'llm-data' }
       }))
     }
-  }, [isLoading, error])
+  }, [isInitialLoading])
 
   // Refresh function for buttons
   const handleRefresh = async () => {
-    await refetch()
+    refetch()
   }
 
   const initializeSystem = async () => {
@@ -638,7 +673,7 @@ const LLMDataManagement = () => {
 
       {/* Tab Content */}
       <div>
-        {loading && !systemStatus && !eventStats && !vectorEmbeddings && !featureStore ? (
+        {isInitialLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <RefreshCw className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-4" />

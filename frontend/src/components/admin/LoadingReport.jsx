@@ -1,364 +1,508 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Activity, Clock, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Zap, Database, BarChart3, RefreshCw, Download, Filter, Search, Users, Settings, User } from 'lucide-react'
+import {
+  Activity, Clock, TrendingUp, TrendingDown, AlertTriangle, CheckCircle,
+  Zap, RefreshCw, Download, Search, Play, Pause, Settings2,
+  Server, Wifi, WifiOff, TestTube, BarChart2
+} from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 
+/**
+ * REBUILT LoadingReport Component
+ *
+ * New Architecture:
+ * - Actively tests API endpoints instead of relying on custom events
+ * - Uses real HTTP requests to measure actual response times
+ * - Stores historical data in localStorage with proper aggregation
+ * - Provides on-demand and automated testing capabilities
+ */
 const LoadingReport = () => {
-  const { isLightMode, isDarkMode, isCloudMode } = useTheme()
-  const [reports, setReports] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all') // all, slow, fast, errors
+  const { isLightMode } = useTheme()
+  const [testResults, setTestResults] = useState([])
+  const [isRunningTest, setIsRunningTest] = useState(false)
+  const [testingPageId, setTestingPageId] = useState(null)
+  const [autoTestEnabled, setAutoTestEnabled] = useState(false)
+  const [filter, setFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [sortBy, setSortBy] = useState('avgLoadTime') // avgLoadTime, pageLoads, errors
-  const [sortOrder, setSortOrder] = useState('desc') // asc, desc
-  
-  // Use refs to avoid stale closures and ensure data persistence
-  const pageLoadTimesRef = useRef({})
-  const pageLoadCountsRef = useRef({})
-  const errorCountsRef = useRef({})
-  const lastUpdateRef = useRef(Date.now())
-  const isInitializedRef = useRef(false)
-  // 🚀 FIX: Use refs for callbacks to break circular dependencies
-  const generateReportsRef = useRef(null)
-  const saveToLocalStorageRef = useRef(null)
+  const [sortBy, setSortBy] = useState('avgResponseTime')
+  const [sortOrder, setSortOrder] = useState('desc')
+  const [lastTestTime, setLastTestTime] = useState(null)
+  const [testProgress, setTestProgress] = useState({ current: 0, total: 0 })
+
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
   const getTextColor = () => (isLightMode ? 'text-gray-800' : 'text-white')
   const getSubtextClass = () => (isLightMode ? 'text-gray-600' : 'text-gray-400')
   const getCardClass = () => `bg-white/10 backdrop-blur-xl rounded-lg shadow-lg p-6 border border-white/20 ${isLightMode ? 'bg-opacity-80' : 'bg-opacity-10'}`
 
-  // Admin pages list - matches AdminSidebar exactly
+  // Admin pages with their associated API endpoints to test
   const adminPages = useMemo(() => [
-    { id: 'overview', name: 'Platform Overview', category: 'Dashboard' },
-    { id: 'transactions', name: 'Transactions', category: 'Data' },
-    { id: 'subscriptions', name: 'Subscriptions', category: 'Billing' },
-    { id: 'investments', name: 'Investment Summary', category: 'Analytics' },
-    { id: 'investment-processing', name: 'Investment Processing', category: 'Operations' },
-    { id: 'llm', name: 'LLM Center', category: 'AI/ML' },
-    { id: 'ml-dashboard', name: 'ML Dashboard', category: 'AI/ML' },
-    { id: 'llm-data', name: 'LLM Data Management', category: 'AI/ML' },
-    { id: 'database', name: 'Database Management', category: 'Data' },
-    { id: 'consolidated-users', name: 'User Management', category: 'Management' },
-    { id: 'financial', name: 'Financial Analytics', category: 'Analytics' },
-    { id: 'notifications', name: 'Notifications & Messaging', category: 'Communication' },
-    { id: 'content', name: 'Content Management', category: 'Content' },
-    { id: 'advertisement', name: 'Advertisement', category: 'Marketing' },
-    { id: 'badges', name: 'Badges', category: 'Features' },
-    { id: 'employees', name: 'Employee Management', category: 'Management' },
-    { id: 'settings', name: 'System Settings', category: 'Configuration' },
-    { id: 'sop', name: 'Standard Operating Procedures', category: 'Documentation' },
-    { id: 'loading-report', name: 'Loading Report', category: 'Monitoring' },
-    { id: 'api-tracking', name: 'API Tracking', category: 'Monitoring' },
-    { id: 'error-tracking', name: 'Error Tracking', category: 'Monitoring' }
+    {
+      id: 'overview',
+      name: 'Platform Overview',
+      category: 'Dashboard',
+      endpoints: [
+        { path: '/api/admin/stats', name: 'Admin Stats' },
+        { path: '/api/admin/recent-users', name: 'Recent Users' }
+      ]
+    },
+    {
+      id: 'transactions',
+      name: 'Transactions',
+      category: 'Data',
+      endpoints: [
+        { path: '/api/admin/transactions', name: 'Transactions List' }
+      ]
+    },
+    {
+      id: 'subscriptions',
+      name: 'Subscriptions',
+      category: 'Billing',
+      endpoints: [
+        { path: '/api/admin/subscriptions', name: 'Subscriptions List' },
+        { path: '/api/admin/subscription-plans', name: 'Subscription Plans' }
+      ]
+    },
+    {
+      id: 'investments',
+      name: 'Investment Summary',
+      category: 'Analytics',
+      endpoints: [
+        { path: '/api/admin/investments/summary', name: 'Investment Summary' }
+      ]
+    },
+    {
+      id: 'investment-processing',
+      name: 'Investment Processing',
+      category: 'Operations',
+      endpoints: [
+        { path: '/api/admin/investments/queue', name: 'Investment Queue' }
+      ]
+    },
+    {
+      id: 'llm',
+      name: 'LLM Center',
+      category: 'AI/ML',
+      endpoints: [
+        { path: '/api/admin/llm/stats', name: 'LLM Stats' },
+        { path: '/api/admin/llm/prompts', name: 'LLM Prompts' }
+      ]
+    },
+    {
+      id: 'ml-dashboard',
+      name: 'ML Dashboard',
+      category: 'AI/ML',
+      endpoints: [
+        { path: '/api/admin/ml/models', name: 'ML Models' },
+        { path: '/api/admin/ml/stats', name: 'ML Stats' }
+      ]
+    },
+    {
+      id: 'llm-data',
+      name: 'LLM Data Management',
+      category: 'AI/ML',
+      endpoints: [
+        { path: '/api/admin/llm/mappings', name: 'LLM Mappings' },
+        { path: '/api/admin/llm/responses', name: 'LLM Responses' }
+      ]
+    },
+    {
+      id: 'database',
+      name: 'Database Management',
+      category: 'Data',
+      endpoints: [
+        { path: '/api/admin/database/stats', name: 'Database Stats' }
+      ]
+    },
+    {
+      id: 'consolidated-users',
+      name: 'User Management',
+      category: 'Management',
+      endpoints: [
+        { path: '/api/admin/users', name: 'Users List' }
+      ]
+    },
+    {
+      id: 'financial',
+      name: 'Financial Analytics',
+      category: 'Analytics',
+      endpoints: [
+        { path: '/api/admin/analytics/revenue', name: 'Revenue Analytics' },
+        { path: '/api/admin/analytics/mrr', name: 'MRR Analytics' }
+      ]
+    },
+    {
+      id: 'notifications',
+      name: 'Notifications & Messaging',
+      category: 'Communication',
+      endpoints: [
+        { path: '/api/admin/notifications', name: 'Notifications List' },
+        { path: '/api/admin/messages', name: 'Admin Messages' }
+      ]
+    },
+    {
+      id: 'content',
+      name: 'Content Management',
+      category: 'Content',
+      endpoints: [
+        { path: '/api/blog', name: 'Blog Posts' }
+      ]
+    },
+    {
+      id: 'advertisement',
+      name: 'Advertisement',
+      category: 'Marketing',
+      endpoints: [
+        { path: '/api/admin/ads', name: 'Advertisements' }
+      ]
+    },
+    {
+      id: 'badges',
+      name: 'Badges',
+      category: 'Features',
+      endpoints: [
+        { path: '/api/admin/badges', name: 'Badges List' }
+      ]
+    },
+    {
+      id: 'employees',
+      name: 'Employee Management',
+      category: 'Management',
+      endpoints: [
+        { path: '/api/admin/employees', name: 'Employees List' }
+      ]
+    },
+    {
+      id: 'settings',
+      name: 'System Settings',
+      category: 'Configuration',
+      endpoints: [
+        { path: '/api/admin/settings', name: 'Admin Settings' }
+      ]
+    },
+    {
+      id: 'sop',
+      name: 'Standard Operating Procedures',
+      category: 'Documentation',
+      endpoints: [
+        { path: '/api/admin/sop', name: 'SOP List' }
+      ]
+    },
+    {
+      id: 'loading-report',
+      name: 'Loading Report',
+      category: 'Monitoring',
+      endpoints: [
+        { path: '/api/health', name: 'Health Check' }
+      ]
+    },
+    {
+      id: 'api-tracking',
+      name: 'API Tracking',
+      category: 'Monitoring',
+      endpoints: [
+        { path: '/api/admin/api-logs', name: 'API Logs' }
+      ]
+    },
+    {
+      id: 'error-tracking',
+      name: 'Error Tracking',
+      category: 'Monitoring',
+      endpoints: [
+        { path: '/api/admin/errors', name: 'Error Logs' }
+      ]
+    }
   ], [])
 
-  // Load performance data from localStorage
-  // 🚀 FIX: Use ref to avoid circular dependency
-  const loadPerformanceData = useCallback(() => {
+  // Load historical data from localStorage
+  const loadHistoricalData = useCallback(() => {
     try {
-      // Load page load times
-      const savedPageLoadTimes = localStorage.getItem('admin_page_load_times')
-      if (savedPageLoadTimes) {
-        try {
-          pageLoadTimesRef.current = JSON.parse(savedPageLoadTimes)
-          console.log('📊 LoadingReport - Loaded page load times:', Object.keys(pageLoadTimesRef.current).length, 'pages')
-        } catch (e) {
-          console.warn('📊 LoadingReport - Failed to parse page load times, resetting')
-          pageLoadTimesRef.current = {}
-        }
-      }
-
-      // Load page load counts
-      const savedPageLoadCounts = localStorage.getItem('admin_page_load_counts')
-      if (savedPageLoadCounts) {
-        try {
-          pageLoadCountsRef.current = JSON.parse(savedPageLoadCounts)
-          console.log('📊 LoadingReport - Loaded page load counts:', Object.keys(pageLoadCountsRef.current).length, 'pages')
-        } catch (e) {
-          console.warn('📊 LoadingReport - Failed to parse page load counts, resetting')
-          pageLoadCountsRef.current = {}
-        }
-      }
-
-      // Load error counts
-      const savedErrorCounts = localStorage.getItem('admin_error_counts')
-      if (savedErrorCounts) {
-        try {
-          errorCountsRef.current = JSON.parse(savedErrorCounts)
-        } catch (e) {
-          errorCountsRef.current = {}
-        }
-      }
-
-      // Use ref to get latest generateReports, or call directly if ref not set yet
-      if (generateReportsRef.current) {
-        generateReportsRef.current()
+      const savedData = localStorage.getItem('admin_endpoint_test_results')
+      if (savedData) {
+        const parsed = JSON.parse(savedData)
+        setTestResults(parsed.results || [])
+        setLastTestTime(parsed.lastTestTime ? new Date(parsed.lastTestTime) : null)
       } else {
-        // Fallback: generateReports might not be in ref yet, but it should be defined
-        // This ensures reports are generated even if ref timing is off
-        setTimeout(() => {
-          if (generateReportsRef.current) {
-            generateReportsRef.current()
-          }
-        }, 0)
+        // Initialize with empty results for all pages
+        const initialResults = adminPages.map(page => ({
+          ...page,
+          lastTest: null,
+          avgResponseTime: 0,
+          minResponseTime: 0,
+          maxResponseTime: 0,
+          testCount: 0,
+          errorCount: 0,
+          lastStatus: 'untested',
+          endpointResults: page.endpoints.map(ep => ({
+            ...ep,
+            responseTime: 0,
+            status: 'untested',
+            error: null
+          }))
+        }))
+        setTestResults(initialResults)
       }
-      setLoading(false)
-      isInitializedRef.current = true
-      
-      // 🚀 FIX: Dispatch admin-page-load-complete event after initialization
-      console.log('📊 LoadingReport - Dispatching admin-page-load-complete for loading-report')
-      window.dispatchEvent(new CustomEvent('admin-page-load-complete', {
-        detail: { pageId: 'loading-report' }
-      }))
     } catch (error) {
-      console.error('📊 LoadingReport - Error loading performance data:', error)
-      setLoading(false)
-      isInitializedRef.current = true
-      
-      // 🚀 FIX: Dispatch admin-page-load-complete even on error
-      window.dispatchEvent(new CustomEvent('admin-page-load-complete', {
-        detail: { pageId: 'loading-report', error: true }
+      console.error('Failed to load historical data:', error)
+      // Initialize with empty results
+      const initialResults = adminPages.map(page => ({
+        ...page,
+        lastTest: null,
+        avgResponseTime: 0,
+        minResponseTime: 0,
+        maxResponseTime: 0,
+        testCount: 0,
+        errorCount: 0,
+        lastStatus: 'untested',
+        endpointResults: page.endpoints.map(ep => ({
+          ...ep,
+          responseTime: 0,
+          status: 'untested',
+          error: null
+        }))
       }))
+      setTestResults(initialResults)
     }
-  }, []) // Empty deps - use ref for generateReports
+  }, [adminPages])
 
-  // Save data to localStorage (debounced)
-  const saveToLocalStorage = useCallback(() => {
+  // Save data to localStorage
+  const saveToLocalStorage = useCallback((results) => {
     try {
-      localStorage.setItem('admin_page_load_times', JSON.stringify(pageLoadTimesRef.current))
-      localStorage.setItem('admin_page_load_counts', JSON.stringify(pageLoadCountsRef.current))
-      localStorage.setItem('admin_error_counts', JSON.stringify(errorCountsRef.current))
-      lastUpdateRef.current = Date.now()
+      localStorage.setItem('admin_endpoint_test_results', JSON.stringify({
+        results,
+        lastTestTime: new Date().toISOString()
+      }))
     } catch (error) {
-      console.error('📊 LoadingReport - Error saving to localStorage:', error)
+      console.error('Failed to save to localStorage:', error)
     }
   }, [])
 
-  // Handle page load events - single unified handler
-  // 🚀 FIX: Use refs to avoid circular dependencies - event handlers don't need to be in dependency arrays
-  const handlePageLoaded = useCallback((event) => {
-    const { pageId, loadTime } = event.detail
-    
-    if (!pageId) {
-      console.warn('📊 LoadingReport - Received event without pageId')
-      return
-    }
+  // Test a single endpoint
+  const testEndpoint = async (endpoint) => {
+    const token = localStorage.getItem('kamioi_admin_token')
+    const startTime = performance.now()
 
-    // Validate loadTime
-    const validLoadTime = loadTime && loadTime > 0 ? loadTime : null
-    
-    console.log('📊 LoadingReport - Received admin-page-loaded:', { pageId, loadTime: validLoadTime })
+    try {
+      const response = await fetch(`${apiBaseUrl}${endpoint.path}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        signal: AbortSignal.timeout(30000) // 30 second timeout
+      })
 
-    // Always update load count
-    pageLoadCountsRef.current[pageId] = (pageLoadCountsRef.current[pageId] || 0) + 1
+      const endTime = performance.now()
+      const responseTime = endTime - startTime
 
-    // Update load times if we have a valid time
-    if (validLoadTime) {
-      if (!pageLoadTimesRef.current[pageId]) {
-        pageLoadTimesRef.current[pageId] = []
+      return {
+        ...endpoint,
+        responseTime: Math.round(responseTime),
+        status: response.ok ? 'success' : 'error',
+        statusCode: response.status,
+        error: response.ok ? null : `HTTP ${response.status}`
       }
-      
-      pageLoadTimesRef.current[pageId].push(validLoadTime)
-      
-      // Keep only last 100 load times per page
-      if (pageLoadTimesRef.current[pageId].length > 100) {
-        pageLoadTimesRef.current[pageId] = pageLoadTimesRef.current[pageId].slice(-100)
+    } catch (error) {
+      const endTime = performance.now()
+      const responseTime = endTime - startTime
+
+      return {
+        ...endpoint,
+        responseTime: Math.round(responseTime),
+        status: 'error',
+        statusCode: 0,
+        error: error.name === 'TimeoutError' ? 'Timeout (30s)' : error.message
       }
     }
+  }
 
-    // Save to localStorage (debounced) - use ref to get latest version
-    if (saveToLocalStorageRef.current) {
-      saveToLocalStorageRef.current()
+  // Test a single page (all its endpoints)
+  const testPage = async (page) => {
+    const endpointResults = await Promise.all(
+      page.endpoints.map(endpoint => testEndpoint(endpoint))
+    )
+
+    const successfulResults = endpointResults.filter(r => r.status === 'success')
+    const avgTime = successfulResults.length > 0
+      ? successfulResults.reduce((sum, r) => sum + r.responseTime, 0) / successfulResults.length
+      : endpointResults.reduce((sum, r) => sum + r.responseTime, 0) / endpointResults.length
+
+    const hasErrors = endpointResults.some(r => r.status === 'error')
+
+    return {
+      ...page,
+      lastTest: new Date().toISOString(),
+      avgResponseTime: Math.round(avgTime),
+      minResponseTime: Math.min(...endpointResults.map(r => r.responseTime)),
+      maxResponseTime: Math.max(...endpointResults.map(r => r.responseTime)),
+      testCount: (testResults.find(t => t.id === page.id)?.testCount || 0) + 1,
+      errorCount: (testResults.find(t => t.id === page.id)?.errorCount || 0) + (hasErrors ? 1 : 0),
+      lastStatus: hasErrors ? 'error' : (avgTime > 2000 ? 'slow' : avgTime > 500 ? 'moderate' : 'fast'),
+      endpointResults
     }
-    
-    // Regenerate reports - use ref to get latest version
-    if (generateReportsRef.current) {
-      generateReportsRef.current()
+  }
+
+  // Test a single page by ID
+  const testSinglePage = async (pageId) => {
+    const page = adminPages.find(p => p.id === pageId)
+    if (!page) return
+
+    setTestingPageId(pageId)
+
+    try {
+      const result = await testPage(page)
+
+      setTestResults(prev => {
+        const updated = prev.map(p => p.id === pageId ? result : p)
+        saveToLocalStorage(updated)
+        return updated
+      })
+    } finally {
+      setTestingPageId(null)
     }
-  }, []) // Empty deps - use refs for latest callbacks
+  }
 
-  // 🚀 FIX: Handle admin-page-load-complete events (dispatched by pages)
-  const handlePageLoadComplete = useCallback((event) => {
-    const { pageId, error } = event.detail
-    
-    if (!pageId) {
-      console.warn('📊 LoadingReport - Received admin-page-load-complete event without pageId')
-      return
-    }
+  // Run full test suite
+  const runFullTest = async () => {
+    if (isRunningTest) return
 
-    console.log('📊 LoadingReport - Received admin-page-load-complete:', { pageId, error })
+    setIsRunningTest(true)
+    setTestProgress({ current: 0, total: adminPages.length })
 
-    // Always update load count (page completed loading, even if with error)
-    pageLoadCountsRef.current[pageId] = (pageLoadCountsRef.current[pageId] || 0) + 1
+    try {
+      const results = []
 
-    // If there's an error, increment error count
-    if (error) {
-      errorCountsRef.current[pageId] = (errorCountsRef.current[pageId] || 0) + 1
-    }
+      for (let i = 0; i < adminPages.length; i++) {
+        setTestProgress({ current: i + 1, total: adminPages.length })
+        setTestingPageId(adminPages[i].id)
 
-    // Save to localStorage (debounced) - use ref to get latest version
-    if (saveToLocalStorageRef.current) {
-      saveToLocalStorageRef.current()
-    }
-    
-    // Regenerate reports - use ref to get latest version
-    if (generateReportsRef.current) {
-      generateReportsRef.current()
-    }
-  }, []) // Empty deps - use refs for latest callbacks
+        const result = await testPage(adminPages[i])
+        results.push(result)
 
-  // Handle page error events
-  // 🚀 FIX: Use refs to avoid circular dependencies
-  const handlePageError = useCallback((event) => {
-    const { pageId } = event.detail
-    
-    if (!pageId) return
+        // Update state incrementally for visual feedback
+        setTestResults(prev => {
+          const existing = prev.filter(p => p.id !== adminPages[i].id)
+          return [...existing.slice(0, i), result, ...existing.slice(i)]
+        })
 
-    errorCountsRef.current[pageId] = (errorCountsRef.current[pageId] || 0) + 1
-    
-    // Use refs to get latest callbacks
-    if (saveToLocalStorageRef.current) {
-      saveToLocalStorageRef.current()
-    }
-    if (generateReportsRef.current) {
-      generateReportsRef.current()
-    }
-  }, []) // Empty deps - use refs for latest callbacks
-
-  // Generate reports from collected data
-  // 🚀 FIX: adminPages is memoized, so this callback is stable
-  const generateReports = useCallback(() => {
-    if (!isInitializedRef.current) return
-
-    const reportsData = adminPages.map(page => {
-      const loadTimes = pageLoadTimesRef.current[page.id] || []
-      const loadCount = pageLoadCountsRef.current[page.id] || 0
-      const errorCount = errorCountsRef.current[page.id] || 0
-
-      const avgLoadTime = loadTimes.length > 0
-        ? loadTimes.reduce((sum, time) => sum + time, 0) / loadTimes.length
-        : 0
-
-      const minLoadTime = loadTimes.length > 0 ? Math.min(...loadTimes) : 0
-      const maxLoadTime = loadTimes.length > 0 ? Math.max(...loadTimes) : 0
-
-      // Determine status
-      let status = 'never-loaded'
-      if (loadCount > 0) {
-        // If page has been loaded but no timing data, show as 'loaded' (not 'never-loaded')
-        if (avgLoadTime === 0 || loadTimes.length === 0) {
-          status = 'moderate' // Loaded but no timing data - show as moderate
-        } else if (avgLoadTime < 500) {
-          status = 'fast'
-        } else if (avgLoadTime < 2000) {
-          status = 'moderate'
-        } else {
-          status = 'slow'
+        // Small delay to prevent overwhelming the server
+        if (i < adminPages.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100))
         }
       }
 
-      return {
-        ...page,
-        avgLoadTime,
-        minLoadTime,
-        maxLoadTime,
-        loadCount,
-        errorCount,
-        errorRate: loadCount > 0 ? (errorCount / loadCount) * 100 : 0,
-        status
-      }
-    })
+      // Sort results back to original order and save
+      const sortedResults = adminPages.map(page =>
+        results.find(r => r.id === page.id) || {
+          ...page,
+          lastTest: null,
+          avgResponseTime: 0,
+          testCount: 0,
+          errorCount: 0,
+          lastStatus: 'untested',
+          endpointResults: []
+        }
+      )
 
-    setReports(reportsData)
-  }, [adminPages])
-  
-  // 🚀 FIX: Update refs when callbacks change - use useEffect to ensure refs are always current
-  useEffect(() => {
-    generateReportsRef.current = generateReports
-    saveToLocalStorageRef.current = saveToLocalStorage
-  }, [generateReports, saveToLocalStorage])
+      setTestResults(sortedResults)
+      saveToLocalStorage(sortedResults)
+      setLastTestTime(new Date())
+    } finally {
+      setIsRunningTest(false)
+      setTestingPageId(null)
+      setTestProgress({ current: 0, total: 0 })
+    }
+  }
 
   // Initialize on mount
-  // 🚀 FIX: Event handlers use refs, so they're stable - only depend on loadPerformanceData
   useEffect(() => {
-    loadPerformanceData()
+    loadHistoricalData()
+  }, [loadHistoricalData])
 
-    // Set up event listeners
-    // 🚀 FIX: Listen to both admin-page-loaded (with timing) and admin-page-load-complete (from pages)
-    console.log('📊 LoadingReport - Setting up event listeners')
-    window.addEventListener('admin-page-loaded', handlePageLoaded)
-    window.addEventListener('admin-page-error', handlePageError)
-    window.addEventListener('admin-page-load-complete', handlePageLoadComplete)
+  // Auto-test interval
+  useEffect(() => {
+    if (!autoTestEnabled) return
 
-    // Auto-refresh reports every 2 seconds to catch any missed events
-    const refreshInterval = setInterval(() => {
-      if (isInitializedRef.current && generateReportsRef.current) {
-        generateReportsRef.current()
+    const interval = setInterval(() => {
+      if (!isRunningTest) {
+        runFullTest()
       }
-    }, 2000)
+    }, 60000) // Run every 60 seconds when auto-test is enabled
 
-    return () => {
-      window.removeEventListener('admin-page-loaded', handlePageLoaded)
-      window.removeEventListener('admin-page-error', handlePageError)
-      window.removeEventListener('admin-page-load-complete', handlePageLoadComplete)
-      clearInterval(refreshInterval)
-    }
-  }, [loadPerformanceData, handlePageLoaded, handlePageError, handlePageLoadComplete]) // Event handlers are stable (empty deps)
+    return () => clearInterval(interval)
+  }, [autoTestEnabled, isRunningTest])
 
-  // Filter and sort reports
-  const filteredAndSortedReports = reports
-    .filter(report => {
-      if (filter === 'slow') return report.status === 'slow'
-      if (filter === 'fast') return report.status === 'fast'
-      if (filter === 'errors') return report.errorCount > 0
-      return true
-    })
-    .filter(report => {
-      if (!searchTerm) return true
-      return report.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-             report.category.toLowerCase().includes(searchTerm.toLowerCase())
-    })
-    .sort((a, b) => {
-      let aValue, bValue
-      
-      switch (sortBy) {
-        case 'avgLoadTime':
-          aValue = a.avgLoadTime
-          bValue = b.avgLoadTime
-          break
-        case 'pageLoads':
-          aValue = a.loadCount
-          bValue = b.loadCount
-          break
-        case 'errors':
-          aValue = a.errorCount
-          bValue = b.errorCount
-          break
-        default:
-          aValue = a.avgLoadTime
-          bValue = b.avgLoadTime
-      }
+  // Filter and sort results
+  const filteredAndSortedResults = useMemo(() => {
+    return testResults
+      .filter(result => {
+        if (filter === 'slow') return result.lastStatus === 'slow'
+        if (filter === 'fast') return result.lastStatus === 'fast'
+        if (filter === 'errors') return result.errorCount > 0 || result.lastStatus === 'error'
+        if (filter === 'untested') return result.lastStatus === 'untested'
+        return true
+      })
+      .filter(result => {
+        if (!searchTerm) return true
+        return result.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+               result.category.toLowerCase().includes(searchTerm.toLowerCase())
+      })
+      .sort((a, b) => {
+        let aValue, bValue
 
-      return sortOrder === 'asc' ? aValue - bValue : bValue - aValue
-    })
+        switch (sortBy) {
+          case 'avgResponseTime':
+            aValue = a.avgResponseTime || 0
+            bValue = b.avgResponseTime || 0
+            break
+          case 'testCount':
+            aValue = a.testCount || 0
+            bValue = b.testCount || 0
+            break
+          case 'errors':
+            aValue = a.errorCount || 0
+            bValue = b.errorCount || 0
+            break
+          case 'name':
+            aValue = a.name
+            bValue = b.name
+            return sortOrder === 'asc'
+              ? aValue.localeCompare(bValue)
+              : bValue.localeCompare(aValue)
+          default:
+            aValue = a.avgResponseTime || 0
+            bValue = b.avgResponseTime || 0
+        }
+
+        return sortOrder === 'asc' ? aValue - bValue : bValue - aValue
+      })
+  }, [testResults, filter, searchTerm, sortBy, sortOrder])
 
   // Calculate overall statistics
-  const overallStats = {
-    totalPages: reports.length,
-    loadedPages: reports.filter(r => r.loadCount > 0).length,
-    neverLoaded: reports.filter(r => r.loadCount === 0).length,
-    avgLoadTime: reports.filter(r => r.loadCount > 0 && r.avgLoadTime > 0).length > 0
-      ? reports.filter(r => r.loadCount > 0 && r.avgLoadTime > 0).reduce((sum, r) => sum + r.avgLoadTime, 0) / reports.filter(r => r.loadCount > 0 && r.avgLoadTime > 0).length
-      : 0,
-    totalErrors: reports.reduce((sum, r) => sum + r.errorCount, 0),
-    slowPages: reports.filter(r => r.status === 'slow').length,
-    fastPages: reports.filter(r => r.status === 'fast').length
-  }
+  const overallStats = useMemo(() => {
+    const testedPages = testResults.filter(r => r.lastStatus !== 'untested')
+    const pagesWithTiming = testedPages.filter(r => r.avgResponseTime > 0)
+
+    return {
+      totalPages: testResults.length,
+      testedPages: testedPages.length,
+      untestedPages: testResults.filter(r => r.lastStatus === 'untested').length,
+      avgResponseTime: pagesWithTiming.length > 0
+        ? Math.round(pagesWithTiming.reduce((sum, r) => sum + r.avgResponseTime, 0) / pagesWithTiming.length)
+        : 0,
+      totalErrors: testResults.reduce((sum, r) => sum + (r.errorCount || 0), 0),
+      slowPages: testResults.filter(r => r.lastStatus === 'slow').length,
+      fastPages: testResults.filter(r => r.lastStatus === 'fast').length,
+      errorPages: testResults.filter(r => r.lastStatus === 'error').length
+    }
+  }, [testResults])
 
   const getStatusColor = (status) => {
     switch (status) {
       case 'fast': return 'text-green-400'
       case 'moderate': return 'text-yellow-400'
-      case 'slow': return 'text-red-400'
+      case 'slow': return 'text-orange-400'
+      case 'error': return 'text-red-400'
       default: return 'text-gray-400'
     }
   }
@@ -367,30 +511,41 @@ const LoadingReport = () => {
     switch (status) {
       case 'fast': return 'bg-green-500/20 border-green-500/30'
       case 'moderate': return 'bg-yellow-500/20 border-yellow-500/30'
-      case 'slow': return 'bg-red-500/20 border-red-500/30'
+      case 'slow': return 'bg-orange-500/20 border-orange-500/30'
+      case 'error': return 'bg-red-500/20 border-red-500/30'
       default: return 'bg-gray-500/20 border-gray-500/30'
     }
   }
 
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'fast': return <Zap className="w-4 h-4 text-green-400" />
+      case 'moderate': return <Clock className="w-4 h-4 text-yellow-400" />
+      case 'slow': return <AlertTriangle className="w-4 h-4 text-orange-400" />
+      case 'error': return <WifiOff className="w-4 h-4 text-red-400" />
+      default: return <Wifi className="w-4 h-4 text-gray-400" />
+    }
+  }
+
   const formatTime = (ms) => {
-    if (ms === 0 || !ms) return 'N/A'
-    if (ms < 1000) return `${ms.toFixed(0)}ms`
+    if (!ms || ms === 0) return 'N/A'
+    if (ms < 1000) return `${ms}ms`
     return `${(ms / 1000).toFixed(2)}s`
   }
 
   const exportReport = () => {
     const csv = [
-      ['Page Name', 'Category', 'Avg Load Time (ms)', 'Min Load Time (ms)', 'Max Load Time (ms)', 'Load Count', 'Error Count', 'Error Rate (%)', 'Status'],
-      ...filteredAndSortedReports.map(r => [
+      ['Page Name', 'Category', 'Avg Response Time (ms)', 'Min (ms)', 'Max (ms)', 'Test Count', 'Errors', 'Status', 'Last Test'],
+      ...filteredAndSortedResults.map(r => [
         r.name,
         r.category,
-        r.avgLoadTime.toFixed(2),
-        r.minLoadTime.toFixed(2),
-        r.maxLoadTime.toFixed(2),
-        r.loadCount,
+        r.avgResponseTime,
+        r.minResponseTime || 0,
+        r.maxResponseTime || 0,
+        r.testCount,
         r.errorCount,
-        r.errorRate.toFixed(2),
-        r.status
+        r.lastStatus,
+        r.lastTest ? new Date(r.lastTest).toISOString() : 'Never'
       ])
     ].map(row => row.join(',')).join('\n')
 
@@ -398,104 +553,172 @@ const LoadingReport = () => {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `admin-loading-report-${new Date().toISOString().split('T')[0]}.csv`
+    a.download = `admin-api-performance-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     window.URL.revokeObjectURL(url)
   }
 
   const clearData = () => {
-    if (window.confirm('Are you sure you want to clear all performance data? This cannot be undone.')) {
-      pageLoadTimesRef.current = {}
-      pageLoadCountsRef.current = {}
-      errorCountsRef.current = {}
-      if (saveToLocalStorageRef.current) {
-        saveToLocalStorageRef.current()
-      }
-      if (generateReportsRef.current) {
-        generateReportsRef.current()
-      }
+    if (window.confirm('Clear all test history? This cannot be undone.')) {
+      localStorage.removeItem('admin_endpoint_test_results')
+      loadHistoricalData()
+      setLastTestTime(null)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className={`${getCardClass()} text-center py-12`}>
-        <RefreshCw className={`w-8 h-8 mx-auto mb-4 animate-spin ${getTextColor()}`} />
-        <p className={getSubtextClass()}>Loading performance data...</p>
-      </div>
-    )
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className={getCardClass()}>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
           <div>
-            <h1 className={`text-3xl font-bold ${getTextColor()} mb-2`}>
-              Admin Dashboard Loading Report
+            <h1 className={`text-3xl font-bold ${getTextColor()} mb-2 flex items-center gap-3`}>
+              <BarChart2 className="w-8 h-8" />
+              Admin API Performance Monitor
             </h1>
             <p className={getSubtextClass()}>
-              Performance metrics and load times for all admin pages
+              Real-time API endpoint testing and performance tracking
             </p>
+            {lastTestTime && (
+              <p className={`text-sm mt-1 ${getSubtextClass()}`}>
+                Last full test: {lastTestTime.toLocaleString()}
+              </p>
+            )}
           </div>
-          <div className="flex gap-2">
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setAutoTestEnabled(!autoTestEnabled)}
+              className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${
+                autoTestEnabled
+                  ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                  : isLightMode
+                    ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    : 'bg-white/10 text-white/70 hover:bg-white/20'
+              }`}
+            >
+              {autoTestEnabled ? <Pause className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}
+              <span>Auto-test: {autoTestEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+
+            <button
+              onClick={runFullTest}
+              disabled={isRunningTest}
+              className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${
+                isRunningTest
+                  ? 'bg-blue-500/50 text-blue-200 cursor-not-allowed'
+                  : isLightMode
+                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                    : 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30'
+              }`}
+            >
+              {isRunningTest ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Testing ({testProgress.current}/{testProgress.total})</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4" />
+                  <span>Run Full Test</span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={clearData}
               className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${
-                isLightMode 
-                  ? 'bg-red-500 text-white hover:bg-red-600' 
+                isLightMode
+                  ? 'bg-red-500 text-white hover:bg-red-600'
                   : 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30'
               }`}
             >
               <RefreshCw className="w-4 h-4" />
-              <span>Clear Data</span>
+              <span>Clear</span>
             </button>
+
             <button
               onClick={exportReport}
               className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${
-                isLightMode 
-                  ? 'bg-blue-500 text-white hover:bg-blue-600' 
-                  : 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30'
+                isLightMode
+                  ? 'bg-green-500 text-white hover:bg-green-600'
+                  : 'bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30'
               }`}
             >
               <Download className="w-4 h-4" />
-              <span>Export CSV</span>
+              <span>Export</span>
             </button>
           </div>
         </div>
 
+        {/* Progress Bar */}
+        {isRunningTest && (
+          <div className="mb-6">
+            <div className="flex justify-between text-sm mb-1">
+              <span className={getSubtextClass()}>Testing in progress...</span>
+              <span className={getTextColor()}>{testProgress.current} / {testProgress.total}</span>
+            </div>
+            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+              <motion.div
+                className="h-full bg-blue-500"
+                initial={{ width: 0 }}
+                animate={{ width: `${(testProgress.current / testProgress.total) * 100}%` }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Overall Statistics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
           <div className={`${getCardClass()} p-4`}>
             <div className="flex items-center space-x-2 mb-2">
-              <Activity className={`w-5 h-5 ${getSubtextClass()}`} />
-              <span className={`text-sm ${getSubtextClass()}`}>Total Pages</span>
+              <Server className={`w-5 h-5 ${getSubtextClass()}`} />
+              <span className={`text-sm ${getSubtextClass()}`}>Total Endpoints</span>
             </div>
             <p className={`text-2xl font-bold ${getTextColor()}`}>{overallStats.totalPages}</p>
           </div>
+
           <div className={`${getCardClass()} p-4`}>
             <div className="flex items-center space-x-2 mb-2">
-              <CheckCircle className={`w-5 h-5 text-green-400`} />
-              <span className={`text-sm ${getSubtextClass()}`}>Loaded Pages</span>
+              <CheckCircle className="w-5 h-5 text-green-400" />
+              <span className={`text-sm ${getSubtextClass()}`}>Tested</span>
             </div>
-            <p className={`text-2xl font-bold ${getTextColor()}`}>{overallStats.loadedPages}</p>
+            <p className={`text-2xl font-bold ${getTextColor()}`}>{overallStats.testedPages}</p>
           </div>
+
           <div className={`${getCardClass()} p-4`}>
             <div className="flex items-center space-x-2 mb-2">
               <Clock className={`w-5 h-5 ${getSubtextClass()}`} />
-              <span className={`text-sm ${getSubtextClass()}`}>Avg Load Time</span>
+              <span className={`text-sm ${getSubtextClass()}`}>Avg Response</span>
             </div>
             <p className={`text-2xl font-bold ${getTextColor()}`}>
-              {formatTime(overallStats.avgLoadTime)}
+              {formatTime(overallStats.avgResponseTime)}
             </p>
           </div>
+
           <div className={`${getCardClass()} p-4`}>
             <div className="flex items-center space-x-2 mb-2">
-              <AlertTriangle className={`w-5 h-5 text-red-400`} />
-              <span className={`text-sm ${getSubtextClass()}`}>Total Errors</span>
+              <Zap className="w-5 h-5 text-green-400" />
+              <span className={`text-sm ${getSubtextClass()}`}>Fast</span>
             </div>
-            <p className={`text-2xl font-bold ${getTextColor()}`}>{overallStats.totalErrors}</p>
+            <p className={`text-2xl font-bold text-green-400`}>{overallStats.fastPages}</p>
+          </div>
+
+          <div className={`${getCardClass()} p-4`}>
+            <div className="flex items-center space-x-2 mb-2">
+              <AlertTriangle className="w-5 h-5 text-orange-400" />
+              <span className={`text-sm ${getSubtextClass()}`}>Slow</span>
+            </div>
+            <p className={`text-2xl font-bold text-orange-400`}>{overallStats.slowPages}</p>
+          </div>
+
+          <div className={`${getCardClass()} p-4`}>
+            <div className="flex items-center space-x-2 mb-2">
+              <WifiOff className="w-5 h-5 text-red-400" />
+              <span className={`text-sm ${getSubtextClass()}`}>Errors</span>
+            </div>
+            <p className={`text-2xl font-bold text-red-400`}>{overallStats.errorPages}</p>
           </div>
         </div>
       </div>
@@ -507,18 +730,19 @@ const LoadingReport = () => {
             <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${getSubtextClass()}`} />
             <input
               type="text"
-              placeholder="Search pages..."
+              placeholder="Search pages or categories..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className={`w-full pl-10 pr-4 py-2 rounded-lg ${
-                isLightMode 
-                  ? 'bg-white border border-gray-300 text-gray-800' 
+                isLightMode
+                  ? 'bg-white border border-gray-300 text-gray-800'
                   : 'bg-white/10 border border-white/20 text-white'
               } focus:outline-none focus:ring-2 focus:ring-blue-500`}
             />
           </div>
-          <div className="flex gap-2">
-            {['all', 'fast', 'slow', 'errors'].map(f => (
+
+          <div className="flex gap-2 flex-wrap">
+            {['all', 'fast', 'slow', 'errors', 'untested'].map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -539,7 +763,7 @@ const LoadingReport = () => {
         </div>
       </div>
 
-      {/* Reports Table */}
+      {/* Results Table */}
       <div className={getCardClass()}>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -553,104 +777,118 @@ const LoadingReport = () => {
                     }}
                     className="flex items-center space-x-2 hover:opacity-70"
                   >
-                    <span>Page Name</span>
+                    <span>Page / Endpoints</span>
                   </button>
                 </th>
                 <th className={`text-left py-3 px-4 ${getTextColor()} font-semibold`}>Category</th>
                 <th className={`text-left py-3 px-4 ${getTextColor()} font-semibold`}>
                   <button
                     onClick={() => {
-                      setSortBy('avgLoadTime')
+                      setSortBy('avgResponseTime')
                       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
                     }}
                     className="flex items-center space-x-2 hover:opacity-70"
                   >
-                    <span>Avg Load Time</span>
-                    {sortBy === 'avgLoadTime' && (
+                    <span>Avg Response</span>
+                    {sortBy === 'avgResponseTime' && (
                       sortOrder === 'asc' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />
                     )}
                   </button>
                 </th>
-                <th className={`text-left py-3 px-4 ${getTextColor()} font-semibold`}>Min/Max</th>
+                <th className={`text-left py-3 px-4 ${getTextColor()} font-semibold`}>Min / Max</th>
                 <th className={`text-left py-3 px-4 ${getTextColor()} font-semibold`}>
                   <button
                     onClick={() => {
-                      setSortBy('pageLoads')
+                      setSortBy('testCount')
                       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
                     }}
                     className="flex items-center space-x-2 hover:opacity-70"
                   >
-                    <span>Loads</span>
-                  </button>
-                </th>
-                <th className={`text-left py-3 px-4 ${getTextColor()} font-semibold`}>
-                  <button
-                    onClick={() => {
-                      setSortBy('errors')
-                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-                    }}
-                    className="flex items-center space-x-2 hover:opacity-70"
-                  >
-                    <span>Errors</span>
+                    <span>Tests</span>
                   </button>
                 </th>
                 <th className={`text-left py-3 px-4 ${getTextColor()} font-semibold`}>Status</th>
+                <th className={`text-left py-3 px-4 ${getTextColor()} font-semibold`}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredAndSortedReports.length === 0 ? (
+              {filteredAndSortedResults.length === 0 ? (
                 <tr>
                   <td colSpan="7" className={`text-center py-8 ${getSubtextClass()}`}>
-                    No pages found matching your criteria
+                    No results matching your criteria. Run a test to see performance data.
                   </td>
                 </tr>
               ) : (
-                filteredAndSortedReports.map((report, index) => (
+                filteredAndSortedResults.map((result, index) => (
                   <motion.tr
-                    key={report.id}
+                    key={result.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.02 }}
-                    className={`border-b ${isLightMode ? 'border-gray-200' : 'border-white/5'} hover:bg-white/5 transition-colors`}
+                    className={`border-b ${isLightMode ? 'border-gray-200' : 'border-white/5'} hover:bg-white/5 transition-colors ${
+                      testingPageId === result.id ? 'bg-blue-500/10' : ''
+                    }`}
                   >
-                    <td className={`py-4 px-4 ${getTextColor()} font-medium`}>
-                      {report.name}
+                    <td className={`py-4 px-4`}>
+                      <div className={`font-medium ${getTextColor()}`}>{result.name}</div>
+                      <div className={`text-xs ${getSubtextClass()} mt-1`}>
+                        {result.endpoints.length} endpoint{result.endpoints.length !== 1 ? 's' : ''}
+                        {result.endpointResults?.length > 0 && (
+                          <span className="ml-2">
+                            ({result.endpointResults.filter(e => e.status === 'success').length} ok, {result.endpointResults.filter(e => e.status === 'error').length} failed)
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td className={`py-4 px-4 ${getSubtextClass()}`}>
-                      {report.category}
-                    </td>
-                    <td className={`py-4 px-4 ${getTextColor()}`}>
-                      {report.avgLoadTime > 0 ? (
-                        <span className="font-mono">{formatTime(report.avgLoadTime)}</span>
-                      ) : report.loadCount > 0 ? (
-                        <span className={getSubtextClass()}>Loaded (no timing)</span>
+                    <td className={`py-4 px-4 ${getSubtextClass()}`}>{result.category}</td>
+                    <td className={`py-4 px-4 ${getTextColor()} font-mono`}>
+                      {testingPageId === result.id ? (
+                        <span className="flex items-center gap-2">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          Testing...
+                        </span>
+                      ) : result.avgResponseTime > 0 ? (
+                        formatTime(result.avgResponseTime)
                       ) : (
-                        <span className={getSubtextClass()}>Never loaded</span>
+                        <span className={getSubtextClass()}>--</span>
                       )}
                     </td>
                     <td className={`py-4 px-4 ${getSubtextClass()} font-mono text-sm`}>
-                      {report.minLoadTime > 0 && report.maxLoadTime > 0 ? (
-                        `${formatTime(report.minLoadTime)} / ${formatTime(report.maxLoadTime)}`
+                      {result.minResponseTime > 0 && result.maxResponseTime > 0 ? (
+                        `${formatTime(result.minResponseTime)} / ${formatTime(result.maxResponseTime)}`
                       ) : (
-                        'N/A'
+                        '--'
                       )}
                     </td>
-                    <td className={`py-4 px-4 ${getTextColor()}`}>
-                      {report.loadCount}
-                    </td>
-                    <td className={`py-4 px-4 ${report.errorCount > 0 ? 'text-red-400' : getTextColor()}`}>
-                      {report.errorCount > 0 ? (
-                        <span className="font-semibold">{report.errorCount}</span>
-                      ) : (
-                        report.errorCount
-                      )}
+                    <td className={`py-4 px-4 ${getTextColor()}`}>{result.testCount || 0}</td>
+                    <td className="py-4 px-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1 ${getStatusBg(result.lastStatus)} ${getStatusColor(result.lastStatus)}`}>
+                        {getStatusIcon(result.lastStatus)}
+                        {result.lastStatus === 'untested' ? 'Untested' :
+                         result.lastStatus === 'fast' ? 'Fast' :
+                         result.lastStatus === 'moderate' ? 'Moderate' :
+                         result.lastStatus === 'slow' ? 'Slow' : 'Error'}
+                      </span>
                     </td>
                     <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBg(report.status)} ${getStatusColor(report.status)}`}>
-                        {report.status === 'never-loaded' ? 'Never Loaded' :
-                         report.status === 'fast' ? 'Fast' :
-                         report.status === 'moderate' ? 'Moderate' : 'Slow'}
-                      </span>
+                      <button
+                        onClick={() => testSinglePage(result.id)}
+                        disabled={isRunningTest || testingPageId === result.id}
+                        className={`p-2 rounded-lg transition-all ${
+                          testingPageId === result.id
+                            ? 'bg-blue-500/20 cursor-not-allowed'
+                            : isLightMode
+                              ? 'bg-blue-100 hover:bg-blue-200 text-blue-600'
+                              : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400'
+                        }`}
+                        title="Test this page"
+                      >
+                        {testingPageId === result.id ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <TestTube className="w-4 h-4" />
+                        )}
+                      </button>
                     </td>
                   </motion.tr>
                 ))
@@ -660,18 +898,20 @@ const LoadingReport = () => {
         </div>
       </div>
 
-      {/* Instructions */}
+      {/* How It Works */}
       <div className={getCardClass()}>
-        <h3 className={`text-lg font-semibold ${getTextColor()} mb-3`}>
-          How to Use This Report
+        <h3 className={`text-lg font-semibold ${getTextColor()} mb-3 flex items-center gap-2`}>
+          <Activity className="w-5 h-5" />
+          How This Works
         </h3>
         <ul className={`space-y-2 ${getSubtextClass()} text-sm`}>
-          <li>• Pages are automatically tracked when loaded in the admin dashboard</li>
-          <li>• Load times are measured from page mount to data fetch completion</li>
-          <li>• Data is stored locally and persists across sessions</li>
-          <li>• Use filters to find slow pages or pages with errors</li>
-          <li>• Export CSV for detailed analysis or reporting</li>
-          <li>• Click "Clear Data" to reset all performance metrics</li>
+          <li>• <strong>Real API Testing:</strong> Actually sends HTTP requests to each page's backend endpoints</li>
+          <li>• <strong>Response Time:</strong> Measures the actual time for the server to respond (in milliseconds)</li>
+          <li>• <strong>Status Classification:</strong> Fast (&lt;500ms), Moderate (500-2000ms), Slow (&gt;2000ms), Error (failed)</li>
+          <li>• <strong>Run Full Test:</strong> Tests all 21 admin pages sequentially with real API calls</li>
+          <li>• <strong>Auto-test Mode:</strong> Automatically runs a full test every 60 seconds when enabled</li>
+          <li>• <strong>Per-Page Testing:</strong> Click the test tube icon to test a single page on-demand</li>
+          <li>• <strong>Historical Tracking:</strong> Test results are saved locally and persist across sessions</li>
         </ul>
       </div>
     </div>
