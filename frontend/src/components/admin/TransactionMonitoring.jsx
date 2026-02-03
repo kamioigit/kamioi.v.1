@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Filter, Download, Eye, Search, CheckCircle, AlertTriangle } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Filter, Download, Eye, Search, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications'
 import { useTheme } from '../../context/ThemeContext'
 
@@ -8,6 +8,15 @@ const TransactionMonitoring = () => {
   const { isLightMode } = useTheme()
   const [currentPage, setCurrentPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [transactions, setTransactions] = useState([])
+  const [stats, setStats] = useState({
+    totalRoundUps: 0,
+    totalTransactions: 0,
+    flaggedTransactions: 0,
+    successRate: 0
+  })
+  const [loading, setLoading] = useState(true)
   const transactionsPerPage = 10
 
   // Theme helper functions
@@ -26,20 +35,49 @@ const TransactionMonitoring = () => {
   const getBorderClass = () => isLightMode ? 'border-gray-200' : 'border-white/10'
   const getHoverBgClass = () => isLightMode ? 'hover:bg-gray-50' : 'hover:bg-white/5'
 
-  const transactions = [
-    { id: 1, user: 'Alex Johnson', merchant: 'Nike', amount: 89.99, roundUp: 0.01, stock: 'NKE', date: '2024-01-20', status: 'Completed', risk: 'Low' },
-    { id: 2, user: 'Sarah Miller', merchant: 'Apple Store', amount: 1299.99, roundUp: 0.01, stock: 'AAPL', date: '2024-01-19', status: 'Completed', risk: 'Low' },
-    { id: 3, user: 'Mike Chen', merchant: 'Amazon', amount: 45.50, roundUp: 0.50, stock: 'AMZN', date: '2024-01-18', status: 'Flagged', risk: 'High' },
-    { id: 4, user: 'Emily Davis', merchant: 'Starbucks', amount: 5.75, roundUp: 0.25, stock: 'SBUX', date: '2024-01-17', status: 'Completed', risk: 'Low' },
-    { id: 5, user: 'David Wilson', merchant: 'Walmart', amount: 125.30, roundUp: 0.70, stock: 'WMT', date: '2024-01-16', status: 'Pending', risk: 'Medium' },
-    { id: 6, user: 'Lisa Brown', merchant: 'Target', amount: 67.89, roundUp: 0.11, stock: 'TGT', date: '2024-01-15', status: 'Completed', risk: 'Low' },
-    { id: 7, user: 'Kevin Garcia', merchant: 'Best Buy', amount: 450.00, roundUp: 0.50, stock: 'BBY', date: '2024-01-14', status: 'Completed', risk: 'Low' },
-    { id: 8, user: 'Amy Thompson', merchant: 'Home Depot', amount: 89.45, roundUp: 0.55, stock: 'HD', date: '2024-01-13', status: 'Flagged', risk: 'High' }
-  ]
+  // Fetch transactions from API
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      setLoading(true)
+      try {
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+        const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken')
 
-  const filteredTransactions = statusFilter === 'all' 
-    ? transactions 
-    : transactions.filter(t => t.status.toLowerCase() === statusFilter.toLowerCase())
+        const response = await fetch(`${apiBaseUrl}/api/admin/transactions/monitoring`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success) {
+            setTransactions(result.data.transactions || [])
+            setStats({
+              totalRoundUps: result.data.totalRoundUps || 0,
+              totalTransactions: result.data.totalTransactions || 0,
+              flaggedTransactions: result.data.flaggedTransactions || 0,
+              successRate: result.data.successRate || 0
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching transactions:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchTransactions()
+  }, [])
+
+  // Filter transactions
+  const filteredTransactions = transactions.filter(t => {
+    const matchesStatus = statusFilter === 'all' || t.status?.toLowerCase() === statusFilter.toLowerCase()
+    const matchesSearch = !searchQuery ||
+      t.user?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.merchant?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.stock?.toLowerCase().includes(searchQuery.toLowerCase())
+    return matchesStatus && matchesSearch
+  })
 
   const indexOfLastTransaction = currentPage * transactionsPerPage
   const indexOfFirstTransaction = indexOfLastTransaction - transactionsPerPage
@@ -53,6 +91,12 @@ const TransactionMonitoring = () => {
       message: 'Transaction data exported successfully!',
       timestamp: new Date()
     })
+  }
+
+  const formatNumber = (num) => {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'k'
+    return num.toString()
   }
 
   return (
@@ -79,6 +123,8 @@ const TransactionMonitoring = () => {
             <input
               type="text"
               placeholder="Search transactions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className={getInputClass()}
             />
           </div>
@@ -101,69 +147,86 @@ const TransactionMonitoring = () => {
 
         {/* Transactions Table */}
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className={`border-b ${getBorderClass()}`}>
-                <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>User</th>
-                <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Merchant</th>
-                <th className={`text-right pb-3 ${getSubtextClass()} font-medium`}>Amount</th>
-                <th className={`text-right pb-3 ${getSubtextClass()} font-medium`}>Round-Up</th>
-                <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Stock</th>
-                <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Date</th>
-                <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Status</th>
-                <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Risk</th>
-                <th className={`text-right pb-3 ${getSubtextClass()} font-medium`}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentTransactions.map(transaction => (
-                <tr key={transaction.id} className={`border-b ${getBorderClass()} ${getHoverBgClass()} transition-colors`}>
-                  <td className="py-4">
-                    <p className={`${getTextClass()} font-medium`}>{transaction.user}</p>
-                  </td>
-                  <td className={`py-4 ${getTextClass()}`}>{transaction.merchant}</td>
-                  <td className={`py-4 text-right ${getTextClass()}`}>${transaction.amount.toFixed(2)}</td>
-                  <td className="py-4 text-right text-green-400">${transaction.roundUp.toFixed(2)}</td>
-                  <td className="py-4">
-                    <span className={`font-mono ${getTextClass()}`}>{transaction.stock}</span>
-                  </td>
-                  <td className={`py-4 ${getSecondaryTextClass()}`}>{transaction.date}</td>
-                  <td className="py-4">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      transaction.status === 'Completed' ? 'bg-green-500/20 text-green-400' :
-                      transaction.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                      'bg-red-500/20 text-red-400'
-                    }`}>
-                      {transaction.status}
-                    </span>
-                  </td>
-                  <td className="py-4">
-                    <div className="flex items-center space-x-1">
-                      {transaction.risk === 'High' ? (
-                        <AlertTriangle className="w-4 h-4 text-red-400" />
-                      ) : transaction.risk === 'Medium' ? (
-                        <AlertTriangle className="w-4 h-4 text-yellow-400" />
-                      ) : (
-                        <CheckCircle className="w-4 h-4 text-green-400" />
-                      )}
-                      <span className={`
-                        ${transaction.risk === 'High' ? 'text-red-400' :
-                          transaction.risk === 'Medium' ? 'text-yellow-400' :
-                          'text-green-400'}
-                      `}>
-                        {transaction.risk}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="py-4 text-right">
-                    <button className="p-1 text-blue-400 hover:text-blue-300" title="View Details">
-                      <Eye className="w-4 h-4" />
-                    </button>
-                  </td>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <RefreshCw className="w-8 h-8 animate-spin text-blue-400" />
+              <span className={`ml-3 ${getTextClass()}`}>Loading transactions...</span>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className={`border-b ${getBorderClass()}`}>
+                  <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>User</th>
+                  <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Merchant</th>
+                  <th className={`text-right pb-3 ${getSubtextClass()} font-medium`}>Amount</th>
+                  <th className={`text-right pb-3 ${getSubtextClass()} font-medium`}>Round-Up</th>
+                  <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Stock</th>
+                  <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Date</th>
+                  <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Status</th>
+                  <th className={`text-left pb-3 ${getSubtextClass()} font-medium`}>Risk</th>
+                  <th className={`text-right pb-3 ${getSubtextClass()} font-medium`}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {currentTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan="9" className={`py-8 text-center ${getSubtextClass()}`}>
+                      No transactions found
+                    </td>
+                  </tr>
+                ) : (
+                  currentTransactions.map(transaction => (
+                    <tr key={transaction.id} className={`border-b ${getBorderClass()} ${getHoverBgClass()} transition-colors`}>
+                      <td className="py-4">
+                        <p className={`${getTextClass()} font-medium`}>{transaction.user || 'Unknown'}</p>
+                      </td>
+                      <td className={`py-4 ${getTextClass()}`}>{transaction.merchant || 'N/A'}</td>
+                      <td className={`py-4 text-right ${getTextClass()}`}>${(transaction.amount || 0).toFixed(2)}</td>
+                      <td className="py-4 text-right text-green-400">${(transaction.roundUp || 0).toFixed(2)}</td>
+                      <td className="py-4">
+                        <span className={`font-mono ${getTextClass()}`}>{transaction.stock || 'N/A'}</span>
+                      </td>
+                      <td className={`py-4 ${getSecondaryTextClass()}`}>
+                        {transaction.date ? new Date(transaction.date).toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td className="py-4">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          transaction.status === 'Completed' || transaction.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                          transaction.status === 'Pending' || transaction.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-red-500/20 text-red-400'
+                        }`}>
+                          {transaction.status || 'Unknown'}
+                        </span>
+                      </td>
+                      <td className="py-4">
+                        <div className="flex items-center space-x-1">
+                          {transaction.risk === 'High' ? (
+                            <AlertTriangle className="w-4 h-4 text-red-400" />
+                          ) : transaction.risk === 'Medium' ? (
+                            <AlertTriangle className="w-4 h-4 text-yellow-400" />
+                          ) : (
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          )}
+                          <span className={`
+                            ${transaction.risk === 'High' ? 'text-red-400' :
+                              transaction.risk === 'Medium' ? 'text-yellow-400' :
+                              'text-green-400'}
+                          `}>
+                            {transaction.risk || 'Low'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-4 text-right">
+                        <button className="p-1 text-blue-400 hover:text-blue-300" title="View Details">
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* Pagination */}
@@ -195,19 +258,21 @@ const TransactionMonitoring = () => {
       {/* Transaction Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className={`${isLightMode ? 'bg-white/80 backdrop-blur-lg rounded-2xl border border-gray-200 shadow-sm' : 'bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20'} p-4 text-center`}>
-          <div className="text-2xl font-bold text-green-400 mb-1">$28,450</div>
+          <div className="text-2xl font-bold text-green-400 mb-1">
+            ${stats.totalRoundUps.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
           <div className={`${getSubtextClass()} text-sm`}>Total Round-ups</div>
         </div>
         <div className={`${isLightMode ? 'bg-white/80 backdrop-blur-lg rounded-2xl border border-gray-200 shadow-sm' : 'bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20'} p-4 text-center`}>
-          <div className="text-2xl font-bold text-blue-400 mb-1">12.4k</div>
+          <div className="text-2xl font-bold text-blue-400 mb-1">{formatNumber(stats.totalTransactions)}</div>
           <div className={`${getSubtextClass()} text-sm`}>Total Transactions</div>
         </div>
         <div className={`${isLightMode ? 'bg-white/80 backdrop-blur-lg rounded-2xl border border-gray-200 shadow-sm' : 'bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20'} p-4 text-center`}>
-          <div className="text-2xl font-bold text-yellow-400 mb-1">42</div>
+          <div className="text-2xl font-bold text-yellow-400 mb-1">{stats.flaggedTransactions.toLocaleString()}</div>
           <div className={`${getSubtextClass()} text-sm`}>Flagged Transactions</div>
         </div>
         <div className={`${isLightMode ? 'bg-white/80 backdrop-blur-lg rounded-2xl border border-gray-200 shadow-sm' : 'bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20'} p-4 text-center`}>
-          <div className="text-2xl font-bold text-purple-400 mb-1">98.7%</div>
+          <div className="text-2xl font-bold text-purple-400 mb-1">{stats.successRate.toFixed(1)}%</div>
           <div className={`${getSubtextClass()} text-sm`}>Success Rate</div>
         </div>
       </div>

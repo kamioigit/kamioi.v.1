@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Brain, Zap, Target, TrendingUp, Upload, Shield, Lightbulb } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Brain, Zap, Target, TrendingUp, Upload, Shield, Lightbulb, RefreshCw } from 'lucide-react'
 import RechartsChart from '../common/RechartsChart'
 import { useData } from '../../context/DataContext'
 import { useNotifications } from '../../hooks/useNotifications'
@@ -10,6 +10,14 @@ const AdminAIInsights = ({ user }) => {
   const { isLightMode } = useTheme()
   const [selectedTimeframe, setSelectedTimeframe] = useState('1m')
   const [recommendations] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [aiInsights, setAiInsights] = useState({
+    diversificationScore: 0,
+    riskLevel: 'Unknown',
+    growthPotential: 'Unknown',
+    cashPosition: 0,
+    learningProgress: []
+  })
 
   // Theme helper functions
   const getTextClass = () => isLightMode ? 'text-gray-900' : 'text-white'
@@ -26,28 +34,63 @@ const AdminAIInsights = ({ user }) => {
     : 'bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-500'
 
   const { portfolioValue } = useData()
-  
+
+  // Fetch AI insights from API
+  useEffect(() => {
+    const fetchInsights = async () => {
+      setLoading(true)
+      try {
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+        const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken')
+
+        const response = await fetch(`${apiBaseUrl}/api/admin/ai-insights`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.data) {
+            setAiInsights({
+              diversificationScore: result.data.diversificationScore || 0,
+              riskLevel: result.data.riskLevel || 'Unknown',
+              growthPotential: result.data.growthPotential || 'Unknown',
+              cashPosition: result.data.cashPosition || 0,
+              learningProgress: result.data.learningProgress || []
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching AI insights:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchInsights()
+  }, [])
+
+  // Generate portfolio insights from fetched data
   const portfolioInsights = portfolioValue > 0 ? [
     {
       metric: 'Admin Diversification Score',
-      value: 84,
+      value: aiInsights.diversificationScore,
       target: 90,
-      status: 'Good',
-      suggestion: 'Consider adding healthcare exposure for admin portfolio'
+      status: aiInsights.diversificationScore >= 80 ? 'Excellent' : aiInsights.diversificationScore >= 60 ? 'Good' : 'Needs Work',
+      suggestion: aiInsights.diversificationScore < 80 ? 'Consider diversifying across more sectors' : 'Portfolio is well diversified'
     },
     {
       metric: 'Admin Risk Level',
-      value: 'Moderate',
+      value: aiInsights.riskLevel,
       target: 'Balanced',
-      status: 'Optimal',
-      suggestion: 'Well-balanced for admin investment goals'
+      status: aiInsights.riskLevel === 'Low' || aiInsights.riskLevel === 'Moderate' ? 'Optimal' : 'Review Needed',
+      suggestion: `Current risk level is ${aiInsights.riskLevel.toLowerCase()}`
     },
     {
       metric: 'Admin Growth Potential',
-      value: 'High',
+      value: aiInsights.growthPotential,
       target: 'High',
-      status: 'Excellent',
-      suggestion: 'Tech-heavy admin portfolio aligns with growth goals'
+      status: aiInsights.growthPotential === 'High' ? 'Excellent' : aiInsights.growthPotential === 'Medium' ? 'Good' : 'Low',
+      suggestion: 'Portfolio aligned with growth objectives'
     }
   ] : []
 
@@ -108,7 +151,7 @@ const AdminAIInsights = ({ user }) => {
             </div>
             <p className={`${getSecondaryTextClass()} text-sm`}>
               AI detects positive momentum in technology and healthcare sectors for admin investments.
-              Consider increasing admin exposure to growth stocks while maintaining 20% cash position.
+              Consider increasing admin exposure to growth stocks while maintaining {aiInsights.cashPosition}% cash position.
             </p>
           </div>
         )}
@@ -209,7 +252,7 @@ const AdminAIInsights = ({ user }) => {
               height={200}
               series={[{
                 name: 'Admin Model Accuracy',
-                data: [65, 72, 78, 82, 85, 88, 92]
+                data: aiInsights.learningProgress.length > 0 ? aiInsights.learningProgress : [0]
               }]}
             />
             <p className={`${getSubtextClass()} text-sm mt-3`}>

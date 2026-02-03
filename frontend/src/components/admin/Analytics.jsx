@@ -1,11 +1,59 @@
-import React, { useState } from 'react'
-import { TrendingUp, Users, Download, PieChart, BarChart3, User, DollarSign } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { TrendingUp, Users, Download, PieChart, BarChart3, User, DollarSign, RefreshCw } from 'lucide-react'
 import RechartsChart from '../common/RechartsChart'
 import { useTheme } from '../../context/ThemeContext'
 
 const Analytics = () => {
   const { isLightMode } = useTheme()
   const [timeRange, setTimeRange] = useState('30d')
+  const [loading, setLoading] = useState(true)
+  const [engagementMetrics, setEngagementMetrics] = useState({
+    dailyActiveUsers: 0,
+    avgSessionDuration: 0,
+    retentionRate: 0
+  })
+  const [performanceMetrics, setPerformanceMetrics] = useState({
+    apiResponseTime: 0,
+    uptime: 0,
+    errorRate: 0
+  })
+
+  // Fetch real analytics data
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      setLoading(true)
+      try {
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+        const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken')
+
+        const response = await fetch(`${apiBaseUrl}/api/admin/analytics/metrics?range=${timeRange}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.data) {
+            setEngagementMetrics({
+              dailyActiveUsers: result.data.dailyActiveUsers || 0,
+              avgSessionDuration: result.data.avgSessionDuration || 0,
+              retentionRate: result.data.retentionRate || 0
+            })
+            setPerformanceMetrics({
+              apiResponseTime: result.data.apiResponseTime || 0,
+              uptime: result.data.uptime || 0,
+              errorRate: result.data.errorRate || 0
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching analytics:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAnalytics()
+  }, [timeRange])
 
   // Theme helper functions
   const getTextClass = () => isLightMode ? 'text-gray-900' : 'text-white'
@@ -168,38 +216,50 @@ const Analytics = () => {
 
           <div className={getInnerCardClass()}>
             <h4 className={`font-bold ${getTextClass()} mb-3`}>User Engagement</h4>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className={getSubtextClass()}>Daily Active Users</span>
-                <span className={getTextClass()}>1,245</span>
+            {loading ? (
+              <div className="flex items-center justify-center py-4">
+                <RefreshCw className="w-5 h-5 animate-spin text-blue-400" />
               </div>
-              <div className="flex justify-between">
-                <span className={getSubtextClass()}>Avg Session Duration</span>
-                <span className={getTextClass()}>8.2min</span>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className={getSubtextClass()}>Daily Active Users</span>
+                  <span className={getTextClass()}>{engagementMetrics.dailyActiveUsers.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={getSubtextClass()}>Avg Session Duration</span>
+                  <span className={getTextClass()}>{engagementMetrics.avgSessionDuration.toFixed(1)}min</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={getSubtextClass()}>Retention Rate</span>
+                  <span className="text-green-400">{engagementMetrics.retentionRate.toFixed(1)}%</span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className={getSubtextClass()}>Retention Rate</span>
-                <span className="text-green-400">0%</span>
-              </div>
-            </div>
+            )}
           </div>
 
           <div className={getInnerCardClass()}>
             <h4 className={`font-bold ${getTextClass()} mb-3`}>Performance Metrics</h4>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className={getSubtextClass()}>API Response Time</span>
-                <span className="text-green-400">128ms</span>
+            {loading ? (
+              <div className="flex items-center justify-center py-4">
+                <RefreshCw className="w-5 h-5 animate-spin text-blue-400" />
               </div>
-              <div className="flex justify-between">
-                <span className={getSubtextClass()}>Uptime</span>
-                <span className="text-green-400">99.98%</span>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className={getSubtextClass()}>API Response Time</span>
+                  <span className="text-green-400">{performanceMetrics.apiResponseTime}ms</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={getSubtextClass()}>Uptime</span>
+                  <span className="text-green-400">{performanceMetrics.uptime.toFixed(2)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={getSubtextClass()}>Error Rate</span>
+                  <span className={performanceMetrics.errorRate > 1 ? 'text-red-400' : 'text-yellow-400'}>{performanceMetrics.errorRate.toFixed(2)}%</span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className={getSubtextClass()}>Error Rate</span>
-                <span className="text-yellow-400">0.12%</span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
