@@ -879,7 +879,7 @@ const MLDashboard = () => {
                     <div className="space-y-3">
                       <div className="flex justify-between">
                         <span className="text-gray-600 dark:text-gray-400">Total Predictions:</span>
-                        <span className="font-medium text-gray-900 dark:text-white">{mlStats?.totalPredictions || 0}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{(mlStats?.totalPredictions || 0).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600 dark:text-gray-400">Accuracy Rate:</span>
@@ -887,7 +887,7 @@ const MLDashboard = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600 dark:text-gray-400">Learning Events:</span>
-                        <span className="font-medium text-gray-900 dark:text-white">{mlStats?.learningHistorySize || 0}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{(mlStats?.learningHistorySize || 0).toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
@@ -906,7 +906,7 @@ const MLDashboard = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600 dark:text-gray-400">Total Patterns:</span>
-                        <span className="font-medium text-gray-900 dark:text-white">{mlStats?.totalPatterns || 0}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{(mlStats?.totalPatterns || 0).toLocaleString()}</span>
                       </div>
                     </div>
                   </div>

@@ -17399,6 +17399,21 @@ def ml_dashboard_stats():
         cursor.execute("SELECT COUNT(*) FROM llm_mappings WHERE source_type = 'admin'")
         admin_uploads = cursor.fetchone()[0]
 
+        # Get total predictions (sum of all usage counts - actual times the ML made predictions)
+        cursor.execute("SELECT COALESCE(SUM(COALESCE(usage_count, 0)), 0) FROM llm_mappings WHERE status = 'approved'")
+        total_predictions = cursor.fetchone()[0] or 0
+
+        # Get last training date (most recent created_at or updated_at from llm_mappings)
+        cursor.execute("SELECT MAX(created_at) FROM llm_mappings")
+        last_training_result = cursor.fetchone()[0]
+
+        # Get learning events count (patterns added in last 30 days)
+        cursor.execute("""
+            SELECT COUNT(*) FROM llm_mappings
+            WHERE created_at >= NOW() - INTERVAL '30 days'
+        """)
+        learning_events = cursor.fetchone()[0] or 0
+
         # Get top patterns (merchant, ticker, category, confidence, usage_count)
         cursor.execute("""
             SELECT merchant_name, ticker_symbol, category, confidence,
@@ -17463,12 +17478,12 @@ def ml_dashboard_stats():
             'modelVersion': 'v2.1.3',
             'totalPatterns': total_mappings,
             'accuracyRate': float(avg_confidence) if avg_confidence else 0.85,
-            'totalPredictions': total_mappings + approved_mappings,
+            'totalPredictions': total_predictions,  # Real count from usage_count sum
             'successRate': success_rate,
-            'learningHistorySize': user_submissions + admin_uploads,
-            'lastTraining': datetime.now().isoformat() + 'Z',
+            'learningHistorySize': learning_events,  # Real learning events from last 30 days
+            'lastTraining': last_training_result.isoformat() + 'Z' if last_training_result else datetime.now().isoformat() + 'Z',
             'topPatterns': top_patterns,
-            'avgResponseTime': 45,
+            'avgResponseTime': 45,  # Could track actual response times in future
             'dataQuality': 'High' if avg_confidence > 0.7 else 'Medium'
         }
 
