@@ -16658,6 +16658,11 @@ def admin_investments_summary():
             }
         })
 
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/api/admin/investments/backfill-prices', methods=['POST'])
 def admin_backfill_prices():
