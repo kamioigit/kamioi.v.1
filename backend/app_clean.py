@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Version: 2026.02.03.v2 - Fixed user_profiles query, uses dynamic table checking
 
 from flask import Flask, jsonify, request, send_from_directory, make_response
 from flask_cors import CORS, cross_origin
