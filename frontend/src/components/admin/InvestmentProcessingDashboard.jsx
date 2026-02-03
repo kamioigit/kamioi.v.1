@@ -118,7 +118,8 @@ const InvestmentProcessingDashboard = ({ user, transactions = [], onRefresh }) =
         status: 'completed',
         roundUpAmount: parseFloat(t.roundUp || t.round_up || 0),
         actualShares: parseFloat(t.shares || t.shares_purchased || 0),
-        actualPrice: parseFloat(t.price || t.price_per_share || 0),
+        // Purchase price stored as stock_price in DB
+        actualPrice: parseFloat(t.stock_price || t.stockPrice || t.price || t.price_per_share || 0),
         timestamp: t.createdAt || t.created_at || new Date().toISOString()
       })))
       
@@ -638,7 +639,10 @@ const InvestmentProcessingDashboard = ({ user, transactions = [], onRefresh }) =
                 <div className="flex-1">
                   <p className={`font-medium ${getTextClass()}`}>User ID: {transaction.userId || 'N/A'}</p>
                   <p className={`text-sm ${getSubtextClass()}`}>
-                    ${transaction.roundUpAmount} → {transaction.ticker} ({transaction.actualShares.toFixed(4)} shares @ ${transaction.actualPrice.toFixed(2)})
+                    ${(transaction.roundUpAmount || 0).toFixed(2)} → {transaction.ticker}
+                    {transaction.actualPrice > 0
+                      ? ` (${(transaction.actualShares || (transaction.roundUpAmount / transaction.actualPrice)).toFixed(6)} shares @ $${transaction.actualPrice.toFixed(2)})`
+                      : ' (price not recorded)'}
                   </p>
                   <p className={`text-xs ${getSubtextClass()}`}>ID: {transaction.transactionId}</p>
                 </div>
@@ -850,7 +854,7 @@ const InvestmentProcessingDashboard = ({ user, transactions = [], onRefresh }) =
               {/* Round Up Amount (Investment Amount) */}
               <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
                 <span className={`font-medium ${getTextClass()}`}>Investment Amount:</span>
-                <span className={`text-green-400 font-semibold`}>${selectedTransaction.roundUpAmount || '0.00'}</span>
+                <span className={`text-green-400 font-semibold`}>${(selectedTransaction.roundUpAmount || 0).toFixed(2)}</span>
               </div>
 
               {/* Estimated Shares (for staged/processing) */}
@@ -861,19 +865,29 @@ const InvestmentProcessingDashboard = ({ user, transactions = [], onRefresh }) =
                 </div>
               )}
 
-              {/* Actual Shares (for completed) */}
-              {selectedTransaction.actualShares && (
+              {/* Purchase Price (price at time of investment) */}
+              {selectedTransaction.status === 'completed' && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
-                  <span className={`font-medium ${getTextClass()}`}>Actual Shares Purchased:</span>
-                  <span className={`text-green-400 font-semibold`}>{selectedTransaction.actualShares.toFixed(4)}</span>
+                  <span className={`font-medium ${getTextClass()}`}>Purchase Price:</span>
+                  <span className={`text-blue-400 font-semibold`}>
+                    {selectedTransaction.actualPrice > 0
+                      ? `$${selectedTransaction.actualPrice.toFixed(2)}`
+                      : 'Not recorded'}
+                  </span>
                 </div>
               )}
 
-              {/* Actual Price (for completed) */}
-              {selectedTransaction.actualPrice && (
+              {/* Shares Purchased (for completed) */}
+              {selectedTransaction.status === 'completed' && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
-                  <span className={`font-medium ${getTextClass()}`}>Actual Price per Share:</span>
-                  <span className={`${getSubtextClass()}`}>${selectedTransaction.actualPrice.toFixed(2)}</span>
+                  <span className={`font-medium ${getTextClass()}`}>Shares Purchased:</span>
+                  <span className={`text-green-400 font-semibold`}>
+                    {selectedTransaction.actualShares > 0
+                      ? selectedTransaction.actualShares.toFixed(6)
+                      : selectedTransaction.actualPrice > 0
+                        ? ((selectedTransaction.roundUpAmount || 0) / selectedTransaction.actualPrice).toFixed(6)
+                        : '0.000000'}
+                  </span>
                 </div>
               )}
 
