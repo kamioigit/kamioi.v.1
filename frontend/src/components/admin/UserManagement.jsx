@@ -315,6 +315,18 @@ const UserManagement = () => {
   // Users are already filtered by the backend based on searchTerm, statusFilter, segmentFilter
   const filteredUsers = users
 
+  // Generate formatted User ID: I/F/B + 7 digits
+  const getFormattedUserId = (user) => {
+    if (!user) return 'Unknown'
+    const role = (user.role || user.account_type || 'individual').toLowerCase()
+    let prefix = 'I' // Default to Individual
+    if (role.includes('family')) prefix = 'F'
+    else if (role.includes('business')) prefix = 'B'
+    // Generate 7-digit number: base 1000000 + user.id
+    const numericId = (1000000 + (user.id || 0)).toString().padStart(7, '0')
+    return `${prefix}${numericId}`
+  }
+
   const getCardClass = () => {
     if (isLightMode) return 'bg-white rounded-xl shadow-lg border border-gray-200 p-6'
     return 'bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 p-6'
@@ -513,7 +525,7 @@ const UserManagement = () => {
                         <div>
                           <p className={`font-medium ${getTextClass()}`}>{user.name}</p>
                           <p className={`text-sm ${getSubtextClass()}`}>{user.email}</p>
-                          <p className={`text-xs ${getSubtextClass()}`}>ID: {user.id}</p>
+                          <p className={`text-xs ${getSubtextClass()}`}>ID: {getFormattedUserId(user)}</p>
                         </div>
                       </div>
                     </td>
