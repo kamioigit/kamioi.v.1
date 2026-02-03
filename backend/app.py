@@ -10738,28 +10738,37 @@ def business_portfolio():
     user = get_auth_user()
     if not user:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    
+
     try:
         user_id = user.get('id')
         conn = db_manager.get_connection()
-        cur = conn.cursor()
-        
-        # First try to get from portfolios table
-        cur.execute('''
-            SELECT ticker, shares, average_price, current_price, total_value, created_at
-            FROM portfolios
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-        ''', (user_id,))
-        
-        portfolio_rows = cur.fetchall()
-        
+
+        portfolio_rows = []
+        if db_manager._use_postgresql:
+            from sqlalchemy import text
+            result = conn.execute(text('''
+                SELECT ticker, shares, average_price, current_price, total_value, created_at
+                FROM portfolios
+                WHERE user_id = :user_id
+                ORDER BY created_at DESC
+            '''), {'user_id': user_id})
+            portfolio_rows = [row for row in result]
+        else:
+            cur = conn.cursor()
+            cur.execute('''
+                SELECT ticker, shares, average_price, current_price, total_value, created_at
+                FROM portfolios
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+            ''', (user_id,))
+            portfolio_rows = cur.fetchall()
+
         if portfolio_rows:
             # Use portfolio table data
             holdings = []
             total_value = 0
             total_invested = 0
-            
+
             for row in portfolio_rows:
                 ticker, shares, average_price, current_price, total_value_row, created_at = row
                 purchase_price = average_price
@@ -10774,8 +10783,11 @@ def business_portfolio():
                 })
                 total_value += (total_value_row or (shares * current_price))
                 total_invested += purchase_price * shares
-            
-            conn.close()
+
+            if db_manager._use_postgresql:
+                db_manager.release_connection(conn)
+            else:
+                conn.close()
             return jsonify({
                 'success': True,
                 'data': {
@@ -10787,24 +10799,27 @@ def business_portfolio():
             })
         else:
             # Fallback to calculating from transactions
-            conn.close()
+            if db_manager._use_postgresql:
+                db_manager.release_connection(conn)
+            else:
+                conn.close()
             transactions = db_manager.get_user_transactions(user_id, limit=1000)
-            
+
             portfolio_value = 0
             holdings = []
             ticker_counts = {}
-            
+
             for txn in transactions:
                 if txn.get('status') == 'completed' and txn.get('ticker'):
                     ticker = txn.get('ticker')
                     shares = float(txn.get('shares', 0))
                     price = float(txn.get('stock_price', 0) or txn.get('price_per_share', 0))
-                    
+
                     if ticker not in ticker_counts:
                         ticker_counts[ticker] = {'shares': 0, 'total_cost': 0}
                     ticker_counts[ticker]['shares'] += shares
                     ticker_counts[ticker]['total_cost'] += shares * price
-            
+
             for ticker, data in ticker_counts.items():
                 current_price = data.get('total_cost', 0) / data['shares'] if data['shares'] > 0 else 0
                 value = data['shares'] * current_price
@@ -10816,7 +10831,7 @@ def business_portfolio():
                     'current_price': current_price,
                     'value': value
                 })
-            
+
             return jsonify({
                 'success': True,
                 'data': {
@@ -10826,6 +10841,9 @@ def business_portfolio():
                 }
             })
     except Exception as e:
+        import traceback
+        print(f"[ERROR] Failed to get business portfolio: {str(e)}")
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/business/goals/<int:goal_id>', methods=['PUT', 'DELETE'])
@@ -18732,19 +18750,29 @@ def business_notifications():
             title = data.get('title', '')
             message = data.get('message', '')
             notification_type = data.get('type', 'info')
-            
+
             conn = db_manager.get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute('''
-                INSERT INTO notifications (user_id, title, message, type, read, created_at)
-                VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
-            ''', (user_id, title, message, notification_type))
-            
-            conn.commit()
-            notification_id = cursor.lastrowid
-            conn.close()
-            
+
+            if db_manager._use_postgresql:
+                from sqlalchemy import text
+                result = conn.execute(text('''
+                    INSERT INTO notifications (user_id, title, message, type, read, created_at)
+                    VALUES (:user_id, :title, :message, :type, false, NOW())
+                    RETURNING id
+                '''), {'user_id': user_id, 'title': title, 'message': message, 'type': notification_type})
+                notification_id = result.fetchone()[0]
+                conn.commit()
+                db_manager.release_connection(conn)
+            else:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO notifications (user_id, title, message, type, read, created_at)
+                    VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
+                ''', (user_id, title, message, notification_type))
+                conn.commit()
+                notification_id = cursor.lastrowid
+                conn.close()
+
             return jsonify({
                 'success': True,
                 'notification': {
