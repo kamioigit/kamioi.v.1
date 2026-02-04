@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Brain, TrendingUp, CheckCircle, XCircle, Clock, Star, Target, BarChart3, Trophy, Users, Zap, ShoppingBag, Upload, Filter, User, X } from 'lucide-react'
+import { Brain, TrendingUp, CheckCircle, XCircle, Clock, Star, Target, BarChart3, Trophy, Users, Zap, ShoppingBag, Upload, Filter, User, X, BookOpen, Dumbbell, GraduationCap, Crown, Flame } from 'lucide-react'
 import CompanyLogo from '../common/CompanyLogo'
 import { useTheme } from '../../context/ThemeContext'
 import { useData } from '../../context/DataContext'
@@ -193,14 +193,14 @@ const AIInsights = ({ user }) => {
   // Generate demo rewards
   const generateDemoRewards = (pointsEarned) => {
     return [
-      { id: 1, name: 'First Mapping', description: 'Complete your first transaction mapping', icon: '🎯', points: 10, unlocked: pointsEarned >= 10 },
-      { id: 2, name: 'AI Learner', description: 'Reach 10 points', icon: '📚', points: 10, unlocked: pointsEarned >= 10 },
-      { id: 3, name: 'AI Helper', description: 'Reach 50 points', icon: '🤝', points: 40, unlocked: pointsEarned >= 50 },
-      { id: 4, name: 'AI Trainer', description: 'Reach 200 points', icon: '🏋️', points: 150, unlocked: pointsEarned >= 200 },
-      { id: 5, name: 'AI Expert', description: 'Reach 500 points', icon: '🎓', points: 300, unlocked: pointsEarned >= 500 },
-      { id: 6, name: 'AI Master', description: 'Reach 1000 points', icon: '👑', points: 500, unlocked: pointsEarned >= 1000 },
-      { id: 7, name: 'Streak Master', description: 'Map transactions 7 days in a row', icon: '🔥', points: 50, unlocked: pointsEarned >= 70 },
-      { id: 8, name: 'Category Expert', description: 'Map 5 different categories', icon: '📊', points: 25, unlocked: pointsEarned >= 30 }
+      { id: 1, name: 'First Mapping', description: 'Complete your first transaction mapping', icon: 'target', points: 10, unlocked: pointsEarned >= 10 },
+      { id: 2, name: 'AI Learner', description: 'Reach 10 points', icon: 'book', points: 10, unlocked: pointsEarned >= 10 },
+      { id: 3, name: 'AI Helper', description: 'Reach 50 points', icon: 'users', points: 40, unlocked: pointsEarned >= 50 },
+      { id: 4, name: 'AI Trainer', description: 'Reach 200 points', icon: 'dumbbell', points: 150, unlocked: pointsEarned >= 200 },
+      { id: 5, name: 'AI Expert', description: 'Reach 500 points', icon: 'graduation', points: 300, unlocked: pointsEarned >= 500 },
+      { id: 6, name: 'AI Master', description: 'Reach 1000 points', icon: 'crown', points: 500, unlocked: pointsEarned >= 1000 },
+      { id: 7, name: 'Streak Master', description: 'Map transactions 7 days in a row', icon: 'flame', points: 50, unlocked: pointsEarned >= 70 },
+      { id: 8, name: 'Category Expert', description: 'Map 5 different categories', icon: 'chart', points: 25, unlocked: pointsEarned >= 30 }
     ]
   }
 
@@ -862,13 +862,13 @@ const AIInsights = ({ user }) => {
                 {aiRecommendations.recommendations.map((rec, index) => {
                   const getTypeIcon = () => {
                     switch(rec.type) {
-                      case 'brand_education': return '🏢'
-                      case 'roundup_nudge': return '💰'
-                      case 'category_education': return '📊'
-                      case 'goal_progress': return '🎯'
-                      case 'market_education': return '📈'
-                      case 'content_suggestion': return '📚'
-                      default: return '💡'
+                      case 'brand_education': return null
+                      case 'roundup_nudge': return null
+                      case 'category_education': return null
+                      case 'goal_progress': return null
+                      case 'market_education': return null
+                      case 'content_suggestion': return null
+                      default: return null
                     }
                   }
                   
@@ -1107,10 +1107,25 @@ const AIInsights = ({ user }) => {
 
           {/* Rewards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {(rewards || []).map((reward) => (
+            {(rewards || []).map((reward) => {
+              const getRewardIcon = (iconName) => {
+                const iconClass = "w-8 h-8"
+                switch(iconName) {
+                  case 'target': return <Target className={iconClass} />
+                  case 'book': return <BookOpen className={iconClass} />
+                  case 'users': return <Users className={iconClass} />
+                  case 'dumbbell': return <Dumbbell className={iconClass} />
+                  case 'graduation': return <GraduationCap className={iconClass} />
+                  case 'crown': return <Crown className={iconClass} />
+                  case 'flame': return <Flame className={iconClass} />
+                  case 'chart': return <BarChart3 className={iconClass} />
+                  default: return <Trophy className={iconClass} />
+                }
+              }
+              return (
               <div key={reward.id} className={`${getCardClass()} rounded-xl p-4 border ${reward.unlocked ? 'ring-2 ring-green-500/50' : ''}`}>
                 <div className="text-center">
-                  <div className="text-4xl mb-2">{reward.icon}</div>
+                  <div className={`mb-2 flex justify-center ${reward.unlocked ? 'text-green-400' : 'text-gray-400'}`}>{getRewardIcon(reward.icon)}</div>
                   <h4 className={`font-semibold ${getTextClass()} mb-1`}>{reward.name}</h4>
                   <p className={`text-sm ${getSubtextClass()} mb-3`}>{reward.description}</p>
                   <div className="flex items-center justify-between">
@@ -1123,7 +1138,8 @@ const AIInsights = ({ user }) => {
                   </div>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -1153,7 +1169,7 @@ const AIInsights = ({ user }) => {
                           entry.rank === 3 ? 'bg-orange-500/20 text-orange-400' :
                           'bg-white/10 text-gray-400'
                         }`}>
-                          {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`}
+                          {`#${entry.rank}`}
                         </div>
                         <div>
                           <p className={`font-semibold ${getTextClass()} ${isCurrentUser ? 'text-blue-400' : ''}`}>
