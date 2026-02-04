@@ -68,11 +68,21 @@ const DEMO_MERCHANTS = {
 const FAMILY_MEMBERS = ['Demo Family Admin', 'Jane Demo', 'Tommy Demo', 'Sara Demo']
 const BUSINESS_EMPLOYEES = ['John Manager', 'Carol Designer', 'Alice Accountant', 'Bob Developer', 'Demo Business']
 
-// Generate a full year of 2025 transactions
+// Generate a full year of 2025 transactions with status variety
 const generateDemoTransactions = (accountType, roundUpAmount = 1) => {
   const merchants = DEMO_MERCHANTS[accountType] || DEMO_MERCHANTS.individual
   const transactions = []
   let id = 1
+
+  // Status distribution: 75% completed, 10% pending, 8% processing, 5% mapped, 2% failed
+  const getRandomStatus = () => {
+    const rand = Math.random()
+    if (rand < 0.75) return 'completed'
+    if (rand < 0.85) return 'pending'
+    if (rand < 0.93) return 'processing'
+    if (rand < 0.98) return 'mapped'
+    return 'failed'
+  }
 
   // Generate ~3-4 transactions per week for the full year 2025
   const startDate = new Date('2025-01-01')
@@ -95,7 +105,7 @@ const generateDemoTransactions = (accountType, roundUpAmount = 1) => {
       round_up: roundUpAmount,
       ticker: merchantData.ticker,
       date: date.toISOString().split('T')[0],
-      status: 'completed',
+      status: getRandomStatus(),
       category: merchantData.category
     }
 
