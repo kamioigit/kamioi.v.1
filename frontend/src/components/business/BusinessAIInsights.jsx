@@ -4,6 +4,86 @@ import { useTheme } from '../../context/ThemeContext'
 import { useData } from '../../context/DataContext'
 import CompanyLogo from '../common/CompanyLogo'
 
+// Check if in demo mode
+const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+
+// Demo AI recommendations for demo mode
+const DEMO_AI_RECOMMENDATIONS = {
+  recommendations: [
+    {
+      type: 'brand_education',
+      title: 'Top Merchant Investment Opportunity',
+      description: 'Your most frequent purchases are at Starbucks. Did you know SBUX has grown 15% this year? Consider increasing your round-up to invest more in brands you love.',
+      merchant: 'Starbucks',
+      brand_stock: 'SBUX',
+      priority: 'high'
+    },
+    {
+      type: 'roundup_nudge',
+      title: 'Round-Up Optimization',
+      description: 'Increasing your round-up from $1 to $2 could grow your portfolio 2x faster based on your current transaction frequency.',
+      priority: 'medium'
+    },
+    {
+      type: 'category_education',
+      title: 'Sector Diversification',
+      description: 'Most of your investments are in retail and food sectors. Consider adding tech purchases to diversify with companies like AAPL or MSFT.',
+      category: 'Technology',
+      priority: 'low'
+    }
+  ],
+  insights: [
+    'Your team has invested $15,230 through round-ups this quarter',
+    'Top performing investment: SBUX (+12.5%)',
+    'Transaction mapping accuracy is at 95%'
+  ],
+  disclaimer: "Kamioi's insights are for educational purposes only and are not financial advice or recommendations."
+}
+
+// Demo receipt mappings
+const DEMO_RECEIPT_MAPPINGS = [
+  {
+    id: 'demo-mapping-1',
+    merchant_name: 'Office Depot',
+    ticker: 'ODP',
+    company_name: 'Office Depot',
+    category: 'Office Supplies',
+    confidence: 0.92,
+    status: 'approved',
+    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+  },
+  {
+    id: 'demo-mapping-2',
+    merchant_name: 'Zoom Video Communications',
+    ticker: 'ZM',
+    company_name: 'Zoom',
+    category: 'Technology',
+    confidence: 0.95,
+    status: 'approved',
+    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+  },
+  {
+    id: 'demo-mapping-3',
+    merchant_name: 'Adobe Creative Cloud',
+    ticker: 'ADBE',
+    company_name: 'Adobe',
+    category: 'Software',
+    confidence: 0.98,
+    status: 'auto-approved',
+    created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  },
+  {
+    id: 'demo-mapping-4',
+    merchant_name: 'Local Restaurant',
+    ticker: null,
+    company_name: null,
+    category: 'Food & Dining',
+    confidence: 0.45,
+    status: 'pending',
+    created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
+  }
+]
+
 // Helper function to get company name from ticker
 const getCompanyName = (ticker) => {
   if (!ticker) return null
@@ -86,6 +166,28 @@ const BusinessAIInsights = ({ user }) => {
   useEffect(() => {
     const fetchMappingHistory = async () => {
       setLoading(true)
+
+      // Use demo data in demo mode
+      if (isDemoMode) {
+        setMappingHistory([])
+        setUserStats({
+          totalMappings: 12,
+          approvedMappings: 10,
+          pendingMappings: 2,
+          rejectedMappings: 0,
+          accuracyRate: 83.3,
+          pointsEarned: 100,
+          currentTier: 'AI Helper',
+          nextTierPoints: 200,
+          rank: 15,
+          totalUsers: 100,
+          tierProgress: 50,
+          nextTier: 'AI Trainer'
+        })
+        setLoading(false)
+        return
+      }
+
       try {
         const authToken = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_token') || localStorage.getItem('authToken')
         if (authToken === 'null' || authToken === 'undefined' || !authToken) {
@@ -187,7 +289,26 @@ const BusinessAIInsights = ({ user }) => {
       console.log('📋 [BusinessAIInsights] Already loading, skipping duplicate fetch')
       return
     }
-    
+
+    // Use demo data in demo mode
+    if (isDemoMode) {
+      setReceiptMappings(DEMO_RECEIPT_MAPPINGS)
+      setReceiptMappingsLoaded(true)
+      setReceiptMappingsLoading(false)
+      const totalMappings = DEMO_RECEIPT_MAPPINGS.length
+      const approvedMappings = DEMO_RECEIPT_MAPPINGS.filter(m => m.status === 'approved' || m.status === 'auto-approved').length
+      const pendingMappings = DEMO_RECEIPT_MAPPINGS.filter(m => m.status === 'pending').length
+      const accuracyRate = totalMappings > 0 ? Math.round((approvedMappings / totalMappings) * 100 * 10) / 10 : 0
+      setUserStats(prev => ({
+        ...prev,
+        totalMappings,
+        approvedMappings,
+        pendingMappings,
+        accuracyRate
+      }))
+      return
+    }
+
     // ALWAYS fetch from backend - backend is the source of truth
     // Don't skip based on loaded state - always get fresh data
     console.log('📋 [BusinessAIInsights] 🔄 Fetching receipt mappings from backend (source of truth)...', { forceRefresh })
@@ -513,7 +634,16 @@ const BusinessAIInsights = ({ user }) => {
   // Fetch AI Recommendations with caching - only call API when needed
   const fetchAIRecommendations = useCallback(async (forceRefresh = false) => {
     if (recommendationsLoading) return
-    
+
+    // Use demo data in demo mode
+    if (isDemoMode) {
+      setRecommendationsLoading(true)
+      await new Promise(resolve => setTimeout(resolve, 800)) // Simulate loading
+      setAiRecommendations(DEMO_AI_RECOMMENDATIONS)
+      setRecommendationsLoading(false)
+      return
+    }
+
     let authToken = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_token') || localStorage.getItem('authToken')
     if (authToken === 'null' || authToken === 'undefined' || !authToken) {
       authToken = localStorage.getItem('kamioi_user_token') || null

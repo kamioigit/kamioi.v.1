@@ -8,7 +8,68 @@ import MXConnectWidget from '../common/MXConnectWidget'
 import StripeSubscriptionManager from '../common/StripeSubscriptionManager'
 import StripeCheckout from '../common/StripeCheckout'
 
+// Demo data constants for demo mode
+const DEMO_BANK_CONNECTIONS = [
+  {
+    id: 'demo-bank-1',
+    bank_name: 'Chase Business',
+    institution_name: 'Chase',
+    account_name: 'Business Checking',
+    account_type: 'checking',
+    masked_account_number: '4523',
+    status: 'active'
+  },
+  {
+    id: 'demo-bank-2',
+    bank_name: 'Bank of America',
+    institution_name: 'Bank of America',
+    account_name: 'Business Savings',
+    account_type: 'savings',
+    masked_account_number: '7891',
+    status: 'active'
+  }
+]
+
+const DEMO_SUBSCRIPTION_PLANS = [
+  {
+    id: 'plan-starter',
+    name: 'Business Starter',
+    tier: 'Starter',
+    price_monthly: 9.99,
+    price_yearly: 99.99,
+    features: ['Up to 5 team members', 'Basic analytics', 'Email support']
+  },
+  {
+    id: 'plan-pro',
+    name: 'Business Pro',
+    tier: 'Professional',
+    price_monthly: 29.99,
+    price_yearly: 299.99,
+    features: ['Up to 25 team members', 'Advanced analytics', 'Priority support', 'Custom reports']
+  },
+  {
+    id: 'plan-enterprise',
+    name: 'Enterprise',
+    tier: 'Enterprise',
+    price_monthly: 99.99,
+    price_yearly: 999.99,
+    features: ['Unlimited team members', 'Full analytics suite', 'Dedicated support', 'API access', 'Custom integrations']
+  }
+]
+
+const DEMO_CURRENT_SUBSCRIPTION = {
+  id: 'demo-sub-1',
+  plan_name: 'Business Pro',
+  plan_id: 'plan-pro',
+  status: 'active',
+  billing_cycle: 'monthly',
+  current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  price: 29.99
+}
+
 const BusinessSettings = ({ user }) => {
+  // Check if in demo mode
+  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
   const { showSuccessModal, showErrorModal, showConfirmationModal } = useModal()
   const { addNotification } = useNotifications()
   const { refreshUser } = useAuth()
@@ -230,6 +291,14 @@ const BusinessSettings = ({ user }) => {
   const fetchPlans = async () => {
     try {
       setLoadingPlans(true)
+
+      // Use demo data in demo mode
+      if (isDemoMode) {
+        setPlans(DEMO_SUBSCRIPTION_PLANS)
+        setLoadingPlans(false)
+        return
+      }
+
       const token = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const response = await fetch(`${apiBaseUrl}/api/business/subscriptions/plans`, {
@@ -240,11 +309,19 @@ const BusinessSettings = ({ user }) => {
         setPlans(Array.isArray(json.data) ? json.data : [])
       } else {
         console.error('Failed to fetch plans:', response.status, response.statusText)
-        setPlans([])
+        if (isDemoMode) {
+          setPlans(DEMO_SUBSCRIPTION_PLANS)
+        } else {
+          setPlans([])
+        }
       }
     } catch (e) {
       console.error('Failed to load plans:', e)
-      setPlans([])
+      if (isDemoMode) {
+        setPlans(DEMO_SUBSCRIPTION_PLANS)
+      } else {
+        setPlans([])
+      }
     } finally {
       setLoadingPlans(false)
     }
@@ -253,6 +330,14 @@ const BusinessSettings = ({ user }) => {
   const fetchCurrentSubscription = async () => {
     try {
       setLoadingSubscription(true)
+
+      // Use demo data in demo mode
+      if (isDemoMode) {
+        setCurrentSubscription(DEMO_CURRENT_SUBSCRIPTION)
+        setLoadingSubscription(false)
+        return
+      }
+
       const token = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
             const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const response = await fetch(`${apiBaseUrl}/api/business/subscriptions/current`, {
@@ -314,20 +399,37 @@ const BusinessSettings = ({ user }) => {
 
   const cancelSubscription = async () => {
     if (!currentSubscription) return
-    
+
+    // Demo mode - simulate cancellation
+    if (isDemoMode) {
+      setCancelling(true)
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      setCurrentSubscription({
+        ...currentSubscription,
+        status: 'cancelled',
+        cancel_at_period_end: true
+      })
+      setNotificationMessage('Subscription will cancel at the end of your billing period')
+      setNotificationType('success')
+      setShowNotification(true)
+      setTimeout(() => setShowNotification(false), 5000)
+      setCancelling(false)
+      return
+    }
+
     try {
       setCancelling(true)
       const token = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
             const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const response = await fetch(`${apiBaseUrl}/api/business/subscriptions/cancel`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
+        headers: {
+          'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         }
       })
       const result = await response.json()
-      
+
       if (response.ok && result.success) {
         await fetchCurrentSubscription()
         // Show success notification modal
@@ -354,14 +456,39 @@ const BusinessSettings = ({ user }) => {
   }
 
   const subscribeToPlan = async (plan) => {
+    // Demo mode - simulate subscription
+    if (isDemoMode) {
+      setSubscribing(true)
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      const newSubscription = {
+        id: `demo-sub-${Date.now()}`,
+        plan_name: plan.name,
+        plan_id: plan.id,
+        status: 'active',
+        billing_cycle: selectedBillingCycle,
+        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        price: selectedBillingCycle === 'monthly' ? plan.price_monthly : plan.price_yearly
+      }
+      setCurrentSubscription(newSubscription)
+      setPromoCode('')
+      setValidatedPromo(null)
+      addNotification({
+        type: 'success',
+        title: 'Subscription Updated',
+        message: `Successfully subscribed to ${plan.name}!`
+      })
+      setSubscribing(false)
+      return
+    }
+
     try {
       setSubscribing(true)
       const token = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
             const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const response = await fetch(`${apiBaseUrl}/api/business/subscriptions/subscribe`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
+        headers: {
+          'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
@@ -513,17 +640,21 @@ const BusinessSettings = ({ user }) => {
       }
 
       // Load bank connections
-      const bankConnectionsResponse = await fetch(`${apiBaseUrl}/api/business/bank-connections`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
+      if (isDemoMode) {
+        setBankConnections(DEMO_BANK_CONNECTIONS)
+      } else {
+        const bankConnectionsResponse = await fetch(`${apiBaseUrl}/api/business/bank-connections`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
 
-      if (bankConnectionsResponse.ok) {
-        const result = await bankConnectionsResponse.json()
-        if (result.success && result.connections) {
-          setBankConnections(Array.isArray(result.connections) ? result.connections : [])
+        if (bankConnectionsResponse.ok) {
+          const result = await bankConnectionsResponse.json()
+          if (result.success && result.connections) {
+            setBankConnections(Array.isArray(result.connections) ? result.connections : [])
+          }
         }
       }
 
@@ -537,6 +668,20 @@ const BusinessSettings = ({ user }) => {
 
   const handleDisconnectBank = async (connectionId) => {
     console.log('✅ BusinessSettings: handleDisconnectBank called with connectionId:', connectionId);
+
+    // Demo mode - simulate disconnecting bank
+    if (isDemoMode) {
+      setBankConnections(prev => prev.filter(c => c.id !== connectionId));
+      showSuccessModal('Success', 'Bank account disconnected successfully!');
+      addNotification({
+        type: 'success',
+        title: 'Disconnected',
+        message: 'Bank account has been disconnected.',
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
     try {
       const token = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token');
       console.log('✅ BusinessSettings: Using token for DELETE:', token ? 'Token found' : 'No token');
@@ -638,7 +783,24 @@ const BusinessSettings = ({ user }) => {
   const saveSettings = async (settingsType, data) => {
     setSaving(true)
     setMessage({ type: '', text: '' })
-    
+
+    // Demo mode - simulate saving settings
+    if (isDemoMode) {
+      await new Promise(resolve => setTimeout(resolve, 500))
+      const settingsTypeName = settingsType.charAt(0).toUpperCase() + settingsType.slice(1).replace(/-/g, ' ')
+      const successMsg = `${settingsTypeName} settings saved successfully`
+      setMessage({ type: 'success', text: successMsg })
+      showSuccessModal('Success', successMsg)
+      addNotification({
+        type: 'success',
+        title: 'Settings Saved',
+        message: successMsg,
+        timestamp: new Date().toISOString()
+      })
+      setSaving(false)
+      return
+    }
+
     try {
       const token = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
       if (!token) {

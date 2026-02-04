@@ -6,10 +6,54 @@ import { useAuth } from '../../context/AuthContext'
 import { useModal } from '../../context/ModalContext'
 import { useNotifications } from '../../hooks/useNotifications'
 
+// Demo team members for demo mode
+const DEMO_TEAM_MEMBERS = [
+  {
+    id: 'demo-1',
+    name: 'Alex Johnson',
+    email: 'alex.johnson@company.com',
+    role: 'admin',
+    status: 'active',
+    portfolioValue: 15230,
+    joinDate: '2024-01-15'
+  },
+  {
+    id: 'demo-2',
+    name: 'Maria Garcia',
+    email: 'maria.garcia@company.com',
+    role: 'manager',
+    status: 'active',
+    portfolioValue: 8450,
+    joinDate: '2024-02-20'
+  },
+  {
+    id: 'demo-3',
+    name: 'James Wilson',
+    email: 'james.wilson@company.com',
+    role: 'employee',
+    status: 'active',
+    portfolioValue: 3200,
+    joinDate: '2024-03-10'
+  },
+  {
+    id: 'demo-4',
+    name: 'Emily Chen',
+    email: 'emily.chen@company.com',
+    role: 'employee',
+    status: 'active',
+    portfolioValue: 5680,
+    joinDate: '2024-04-05'
+  }
+]
+
 const BusinessTeam = ({ user }) => {
   const { isBlackMode, isLightMode } = useTheme()
   const { showSuccessModal, showErrorModal, showConfirmationModal } = useModal()
   const { addNotification } = useNotifications()
+
+  // Check if in demo mode
+  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+
   const [teamMembers, setTeamMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -30,6 +74,14 @@ const BusinessTeam = ({ user }) => {
   const fetchTeamMembers = async () => {
     try {
       setLoading(true)
+
+      // Use demo data in demo mode
+      if (isDemoMode) {
+        setTeamMembers(DEMO_TEAM_MEMBERS)
+        setLoading(false)
+        return
+      }
+
       const authToken = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
             const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
         const response = await fetch(`${apiBaseUrl}/api/business/team/members`, {
@@ -42,11 +94,21 @@ const BusinessTeam = ({ user }) => {
         const data = await response.json()
         setTeamMembers(Array.isArray(data.data?.members || data.members) ? (data.data?.members || data.members) : [])
       } else {
-        setTeamMembers([])
+        // Fallback to demo data on API error
+        if (isDemoMode) {
+          setTeamMembers(DEMO_TEAM_MEMBERS)
+        } else {
+          setTeamMembers([])
+        }
       }
     } catch (error) {
       console.error('Error fetching team members:', error)
-      setTeamMembers([])
+      // Fallback to demo data on error
+      if (isDemoMode) {
+        setTeamMembers(DEMO_TEAM_MEMBERS)
+      } else {
+        setTeamMembers([])
+      }
     } finally {
       setLoading(false)
     }
@@ -54,6 +116,31 @@ const BusinessTeam = ({ user }) => {
 
   const handleAddMember = async (e) => {
     e.preventDefault()
+
+    // Demo mode - simulate adding member
+    if (isDemoMode) {
+      const newMember = {
+        id: `demo-${Date.now()}`,
+        name: memberForm.name,
+        email: memberForm.email,
+        role: memberForm.role,
+        status: 'active',
+        portfolioValue: 0,
+        joinDate: new Date().toISOString().split('T')[0]
+      }
+      setTeamMembers(prev => [...prev, newMember])
+      showSuccessModal('Success', 'Team member added successfully!')
+      addNotification({
+        type: 'success',
+        title: 'Member Added',
+        message: `${memberForm.name} has been added to your team.`,
+        timestamp: new Date().toISOString()
+      })
+      setShowAddModal(false)
+      setMemberForm({ name: '', email: '', role: 'employee', permissions: [] })
+      return
+    }
+
     try {
       const authToken = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
             const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
@@ -109,6 +196,26 @@ const BusinessTeam = ({ user }) => {
     e.preventDefault()
     if (!editingMember?.id) return
 
+    // Demo mode - simulate updating member
+    if (isDemoMode) {
+      setTeamMembers(prev => prev.map(m =>
+        m.id === editingMember.id
+          ? { ...m, name: memberForm.name, email: memberForm.email, role: memberForm.role }
+          : m
+      ))
+      showSuccessModal('Success', 'Team member updated successfully!')
+      addNotification({
+        type: 'success',
+        title: 'Member Updated',
+        message: `${memberForm.name}'s information has been updated.`,
+        timestamp: new Date().toISOString()
+      })
+      setShowAddModal(false)
+      setEditingMember(null)
+      setMemberForm({ name: '', email: '', role: 'employee', permissions: [] })
+      return
+    }
+
     try {
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const response = await fetch(`${apiBaseUrl}/api/business/team/members/${editingMember.id}`, {
@@ -154,15 +261,28 @@ const BusinessTeam = ({ user }) => {
       'Remove Team Member',
       `Are you sure you want to remove ${member.name} from your team? This action cannot be undone.`,
       async () => {
+        // Demo mode - simulate deleting member
+        if (isDemoMode) {
+          setTeamMembers(prev => prev.filter(m => m.id !== member.id))
+          showSuccessModal('Success', 'Team member removed successfully!')
+          addNotification({
+            type: 'success',
+            title: 'Member Removed',
+            message: `${member.name} has been removed from your team.`,
+            timestamp: new Date().toISOString()
+          })
+          return
+        }
+
         console.log('✅ [BusinessTeam] Confirmation modal confirmed, deleting member:', member.id)
         try {
           const authToken = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
           console.log('🔐 [BusinessTeam] Using auth token:', authToken ? 'Token exists' : 'No token')
-          
+
           const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
           const deleteUrl = `${apiBaseUrl}/api/business/team/members/${member.id}`
           console.log('📡 [BusinessTeam] DELETE request to:', deleteUrl)
-          
+
           const response = await fetch(deleteUrl, {
             method: 'DELETE',
             headers: {

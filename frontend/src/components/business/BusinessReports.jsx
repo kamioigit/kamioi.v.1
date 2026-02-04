@@ -4,10 +4,42 @@ import { useTheme } from '../../context/ThemeContext'
 import { useModal } from '../../context/ModalContext'
 import { useNotifications } from '../../hooks/useNotifications'
 
+// Demo reports for demo mode
+const DEMO_REPORTS = [
+  {
+    id: 'demo-report-1',
+    name: 'Q4 2024 Financial Report',
+    type: 'financial',
+    status: 'completed',
+    created_at: '2024-12-31T10:00:00Z',
+    format: 'PDF'
+  },
+  {
+    id: 'demo-report-2',
+    name: 'Monthly Performance Summary',
+    type: 'performance',
+    status: 'completed',
+    created_at: '2025-01-15T14:30:00Z',
+    format: 'PDF'
+  },
+  {
+    id: 'demo-report-3',
+    name: 'Team Investment Analytics',
+    type: 'analytics',
+    status: 'completed',
+    created_at: '2025-01-20T09:15:00Z',
+    format: 'PDF'
+  }
+]
+
 const BusinessReports = ({ user }) => {
   const { isBlackMode, isLightMode } = useTheme()
   const { showSuccessModal, showErrorModal } = useModal()
   const { addNotification } = useNotifications()
+
+  // Check if in demo mode
+  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [generatingReport, setGeneratingReport] = useState(null)
@@ -20,6 +52,14 @@ const BusinessReports = ({ user }) => {
   const fetchReports = async () => {
     try {
       setLoading(true)
+
+      // Use demo data in demo mode
+      if (isDemoMode) {
+        setReports(DEMO_REPORTS)
+        setLoading(false)
+        return
+      }
+
       const authToken = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
             const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
         const response = await fetch(`${apiBaseUrl}/api/business/reports`, {
@@ -28,17 +68,27 @@ const BusinessReports = ({ user }) => {
           'Content-Type': 'application/json'
         }
       })
-      
+
       if (response.ok) {
         const result = await response.json()
         const reportsList = result.reports || result.data?.reports || []
         setReports(Array.isArray(reportsList) ? reportsList : [])
       } else {
-        setReports([])
+        // Fallback to demo data on error
+        if (isDemoMode) {
+          setReports(DEMO_REPORTS)
+        } else {
+          setReports([])
+        }
       }
     } catch (error) {
       console.error('Error fetching reports:', error)
-      setReports([])
+      // Fallback to demo data on error
+      if (isDemoMode) {
+        setReports(DEMO_REPORTS)
+      } else {
+        setReports([])
+      }
     } finally {
       setLoading(false)
     }
@@ -47,13 +97,39 @@ const BusinessReports = ({ user }) => {
   const generateReport = async (type) => {
     try {
       setGeneratingReport(type)
-      
+
+      // Demo mode - simulate generating report
+      if (isDemoMode) {
+        // Simulate a delay for generating
+        await new Promise(resolve => setTimeout(resolve, 1500))
+
+        const reportTypeName = type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ')
+        const newReport = {
+          id: `demo-report-${Date.now()}`,
+          name: `${reportTypeName} Report`,
+          type: type,
+          status: 'completed',
+          created_at: new Date().toISOString(),
+          format: 'PDF'
+        }
+        setReports(prev => [newReport, ...prev])
+        showSuccessModal('Success', `${reportTypeName} report generated successfully!`)
+        addNotification({
+          type: 'success',
+          title: 'Report Generated',
+          message: `Your ${reportTypeName} report is ready for download.`,
+          timestamp: new Date().toISOString()
+        })
+        setGeneratingReport(null)
+        return
+      }
+
       // Prepare report parameters based on type
       const reportParams = {
         type: type,
         format: 'PDF'
       }
-      
+
       // Add period for monthly/quarterly reports
       if (type === 'monthly') {
         const now = new Date()
@@ -65,7 +141,7 @@ const BusinessReports = ({ user }) => {
         reportParams.period = `${now.getFullYear()}-Q${quarter}`
         reportParams.period_type = 'quarterly'
       }
-      
+
       const authToken = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
             const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
         const response = await fetch(`${apiBaseUrl}/api/business/reports/generate`, {
@@ -76,7 +152,7 @@ const BusinessReports = ({ user }) => {
         },
         body: JSON.stringify(reportParams)
       })
-      
+
       if (response.ok) {
         const result = await response.json()
         if (result.success) {
@@ -88,7 +164,7 @@ const BusinessReports = ({ user }) => {
             message: `Your ${reportTypeName} report is ready for download.`,
             timestamp: new Date().toISOString()
           })
-          
+
           // Refresh reports list
           await fetchReports()
         } else {
@@ -113,6 +189,18 @@ const BusinessReports = ({ user }) => {
   }
 
   const handleDownload = async (report) => {
+    // Demo mode - simulate download
+    if (isDemoMode) {
+      showSuccessModal('Demo Mode', `In demo mode, reports are simulated. In a real environment, "${report.name}" would download as a PDF.`)
+      addNotification({
+        type: 'info',
+        title: 'Demo Download',
+        message: `${report.name} download simulated in demo mode.`,
+        timestamp: new Date().toISOString()
+      })
+      return
+    }
+
     try {
       const authToken = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
       

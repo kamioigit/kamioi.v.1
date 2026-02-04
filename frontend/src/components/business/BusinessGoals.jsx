@@ -5,10 +5,58 @@ import { useTheme } from '../../context/ThemeContext'
 import { useModal } from '../../context/ModalContext'
 import { useNotifications } from '../../hooks/useNotifications'
 
+// Demo business goals for demo mode
+const DEMO_BUSINESS_GOALS = [
+  {
+    id: 'demo-goal-1',
+    name: 'Q1 Investment Target',
+    description: 'Achieve $50,000 in round-up investments by end of Q1',
+    target: 50000,
+    current: 32500,
+    department: 'Finance',
+    deadline: '2025-03-31',
+    status: 'in_progress'
+  },
+  {
+    id: 'demo-goal-2',
+    name: 'Employee Participation',
+    description: 'Get 80% of employees enrolled in the round-up program',
+    target: 100,
+    current: 65,
+    department: 'HR',
+    deadline: '2025-06-30',
+    status: 'in_progress'
+  },
+  {
+    id: 'demo-goal-3',
+    name: 'Monthly Savings Goal',
+    description: 'Achieve $5,000 monthly investment consistency',
+    target: 5000,
+    current: 5000,
+    department: 'Finance',
+    deadline: '2025-01-31',
+    status: 'completed'
+  },
+  {
+    id: 'demo-goal-4',
+    name: 'Annual Investment Portfolio',
+    description: 'Build $200,000 investment portfolio by year end',
+    target: 200000,
+    current: 78500,
+    department: 'Executive',
+    deadline: '2025-12-31',
+    status: 'in_progress'
+  }
+]
+
 const BusinessGoals = ({ user }) => {
   const { isBlackMode, isLightMode } = useTheme()
   const { showSuccessModal, showErrorModal, showConfirmationModal } = useModal()
   const { addNotification } = useNotifications()
+
+  // Check if in demo mode
+  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+
   const [goals, setGoals] = useState([])
   const [loading, setLoading] = useState(true)
   const [showGoalModal, setShowGoalModal] = useState(false)
@@ -30,6 +78,14 @@ const BusinessGoals = ({ user }) => {
   const fetchGoals = async () => {
     try {
       setLoading(true)
+
+      // Use demo data in demo mode
+      if (isDemoMode) {
+        setGoals(DEMO_BUSINESS_GOALS)
+        setLoading(false)
+        return
+      }
+
       const authToken = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const response = await fetch(`${apiBaseUrl}/api/business/goals`, {
@@ -42,11 +98,21 @@ const BusinessGoals = ({ user }) => {
         const data = await response.json()
         setGoals(Array.isArray(data.goals || data.data?.goals) ? (data.goals || data.data.goals) : [])
       } else {
-        setGoals([])
+        // Fallback to demo data on error
+        if (isDemoMode) {
+          setGoals(DEMO_BUSINESS_GOALS)
+        } else {
+          setGoals([])
+        }
       }
     } catch (error) {
       console.error('Error fetching business goals:', error)
-      setGoals([])
+      // Fallback to demo data on error
+      if (isDemoMode) {
+        setGoals(DEMO_BUSINESS_GOALS)
+      } else {
+        setGoals([])
+      }
     } finally {
       setLoading(false)
     }
@@ -54,6 +120,32 @@ const BusinessGoals = ({ user }) => {
 
   const handleAddGoal = async (e) => {
     e.preventDefault()
+
+    // Demo mode - simulate adding goal
+    if (isDemoMode) {
+      const newGoal = {
+        id: `demo-goal-${Date.now()}`,
+        name: goalForm.name,
+        description: goalForm.description,
+        target: parseFloat(goalForm.target) || 0,
+        current: parseFloat(goalForm.current) || 0,
+        department: goalForm.department,
+        deadline: goalForm.deadline,
+        status: goalForm.status
+      }
+      setGoals(prev => [...prev, newGoal])
+      showSuccessModal('Success', 'Business goal created successfully!')
+      addNotification({
+        type: 'success',
+        title: 'Goal Created',
+        message: `Goal "${goalForm.name}" has been created.`,
+        timestamp: new Date().toISOString()
+      })
+      setShowGoalModal(false)
+      resetGoalForm()
+      return
+    }
+
     try {
       const authToken = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
             const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
@@ -118,6 +210,35 @@ const BusinessGoals = ({ user }) => {
     e.preventDefault()
     if (!editingGoal?.id) return
 
+    // Demo mode - simulate updating goal
+    if (isDemoMode) {
+      setGoals(prev => prev.map(g =>
+        g.id === editingGoal.id
+          ? {
+              ...g,
+              name: goalForm.name,
+              description: goalForm.description,
+              target: parseFloat(goalForm.target) || 0,
+              current: parseFloat(goalForm.current) || 0,
+              department: goalForm.department,
+              deadline: goalForm.deadline,
+              status: goalForm.status
+            }
+          : g
+      ))
+      showSuccessModal('Success', 'Business goal updated successfully!')
+      addNotification({
+        type: 'success',
+        title: 'Goal Updated',
+        message: `Goal "${goalForm.name}" has been updated.`,
+        timestamp: new Date().toISOString()
+      })
+      setShowGoalModal(false)
+      setEditingGoal(null)
+      resetGoalForm()
+      return
+    }
+
     try {
       const authToken = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
@@ -169,6 +290,19 @@ const BusinessGoals = ({ user }) => {
       'Delete Business Goal',
       `Are you sure you want to delete "${goal.name}"? This action cannot be undone.`,
       async () => {
+        // Demo mode - simulate deleting goal
+        if (isDemoMode) {
+          setGoals(prev => prev.filter(g => g.id !== goal.id))
+          showSuccessModal('Success', 'Business goal deleted successfully!')
+          addNotification({
+            type: 'success',
+            title: 'Goal Deleted',
+            message: `Goal "${goal.name}" has been deleted.`,
+            timestamp: new Date().toISOString()
+          })
+          return
+        }
+
         try {
           const authToken = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
           const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
