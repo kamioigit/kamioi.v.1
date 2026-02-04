@@ -21,7 +21,16 @@ const Login = ({ initialMode = 'login' }) => {
   const [isLogin, setIsLogin] = useState(initialMode === 'signup' ? false : true)
   const [isDemo, setIsDemo] = useState(false)
   const [registrationType, setRegistrationType] = useState(null) // 'individual', 'family', 'business'
-  
+
+  // Access Controls state (fetched from admin settings)
+  const [accessSettings, setAccessSettings] = useState({
+    signInEnabled: true,
+    signUpEnabled: true,
+    allowedAccountTypes: ['individual', 'family', 'business'],
+    demoOnly: false
+  })
+  const [loadingAccessSettings, setLoadingAccessSettings] = useState(true)
+
   // Demo form state
   const [demoData, setDemoData] = useState({
     email: '',
@@ -112,7 +121,43 @@ const Login = ({ initialMode = 'login' }) => {
     
     console.log('✅ Login - Demo data cleanup complete')
   }, [])
-  
+
+  // Fetch access settings from backend
+  useEffect(() => {
+    const fetchAccessSettings = async () => {
+      try {
+        setLoadingAccessSettings(true)
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+        const response = await fetch(`${apiBaseUrl}/api/public/access-settings`)
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success) {
+            setAccessSettings({
+              signInEnabled: data.signInEnabled !== false,
+              signUpEnabled: data.signUpEnabled !== false,
+              allowedAccountTypes: data.allowedAccountTypes || ['individual', 'family', 'business'],
+              demoOnly: data.demoOnly || false
+            })
+
+            // If demo only mode is enabled, automatically switch to demo tab
+            if (data.demoOnly) {
+              setIsDemo(true)
+              setIsLogin(false)
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching access settings:', error)
+        // Keep default settings on error
+      } finally {
+        setLoadingAccessSettings(false)
+      }
+    }
+
+    fetchAccessSettings()
+  }, [])
+
   // Individual Account Form Data
   const [individualData, setIndividualData] = useState({
     // Personal Info
@@ -1392,35 +1437,42 @@ const Login = ({ initialMode = 'login' }) => {
           </div>
 
           {/* Toggle between Login, Registration, and Demo */}
-          {!registrationType && (
+          {!registrationType && !loadingAccessSettings && (
             <div className="flex justify-center mb-8">
               <div className="bg-white/5 rounded-lg p-1 flex border border-white/10">
-                <button
-                  onClick={() => {
-                    setIsLogin(true)
-                    setIsDemo(false)
-                  }}
-                  className={`px-6 py-2 rounded-md transition-all font-medium ${
-                    isLogin && !isDemo
-                      ? 'bg-purple-600 text-white'
-                      : 'text-white/60 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  Sign In
-                </button>
-                <button
-                  onClick={() => {
-                    setIsLogin(false)
-                    setIsDemo(false)
-                  }}
-                  className={`px-6 py-2 rounded-md transition-all font-medium ${
-                    !isLogin && !isDemo
-                      ? 'bg-purple-600 text-white'
-                      : 'text-white/60 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  Sign Up
-                </button>
+                {/* Sign In Tab - only show if not demo-only mode and sign-in is enabled */}
+                {!accessSettings.demoOnly && accessSettings.signInEnabled && (
+                  <button
+                    onClick={() => {
+                      setIsLogin(true)
+                      setIsDemo(false)
+                    }}
+                    className={`px-6 py-2 rounded-md transition-all font-medium ${
+                      isLogin && !isDemo
+                        ? 'bg-purple-600 text-white'
+                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    Sign In
+                  </button>
+                )}
+                {/* Sign Up Tab - only show if not demo-only mode and sign-up is enabled */}
+                {!accessSettings.demoOnly && accessSettings.signUpEnabled && (
+                  <button
+                    onClick={() => {
+                      setIsLogin(false)
+                      setIsDemo(false)
+                    }}
+                    className={`px-6 py-2 rounded-md transition-all font-medium ${
+                      !isLogin && !isDemo
+                        ? 'bg-purple-600 text-white'
+                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    Sign Up
+                  </button>
+                )}
+                {/* Demo Tab - always shown */}
                 <button
                   onClick={() => {
                     setIsLogin(false)
@@ -1510,9 +1562,11 @@ const Login = ({ initialMode = 'login' }) => {
 
                     if (data.success && data.session) {
                       localStorage.setItem('kamioi_demo_token', data.session.token)
-                      localStorage.setItem('kamioi_demo_expires', data.session.expires_at)
-                      localStorage.setItem('kamioi_demo_dashboard', data.session.dashboard || 'user')
-                      navigate('/demo/dashboard')
+                      localStorage.setItem('kamioi_demo_expires', data.session.expiresAt)
+                      localStorage.setItem('kamioi_demo_session', JSON.stringify(data.session))
+                      // Navigate to the appropriate demo dashboard based on access level
+                      const dashboard = data.session.dashboard || 'user'
+                      navigate(`/demo/${dashboard === 'all' ? 'user' : dashboard}`)
                     } else {
                       setDemoError(data.error || 'Invalid demo code. Please check and try again.')
                     }
@@ -1641,97 +1695,103 @@ const Login = ({ initialMode = 'login' }) => {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Individual Account */}
-                <button
-                  onClick={() => setRegistrationType('individual')}
-                  className="bg-white/10 backdrop-blur-lg p-6 rounded-xl hover:bg-white/15 transition-all duration-200 text-left group border border-white/20 hover:border-purple-500/50"
-                >
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center border border-purple-400/30 group-hover:scale-110 transition-transform">
-                      <User className="w-8 h-8 text-purple-400" />
+                {accessSettings.allowedAccountTypes.includes('individual') && (
+                  <button
+                    onClick={() => setRegistrationType('individual')}
+                    className="bg-white/10 backdrop-blur-lg p-6 rounded-xl hover:bg-white/15 transition-all duration-200 text-left group border border-white/20 hover:border-purple-500/50"
+                  >
+                    <div className="flex items-center justify-center mb-4">
+                      <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center border border-purple-400/30 group-hover:scale-110 transition-transform">
+                        <User className="w-8 h-8 text-purple-400" />
+                      </div>
                     </div>
-                  </div>
-                  <h3 className="text-xl font-bold text-white mb-2">Individual</h3>
-                  <p className="text-white/70 text-sm mb-4">Perfect for students and young professionals</p>
-                  <ul className="space-y-2 text-xs text-white/60">
-                    <li className="flex items-center">
-                      <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
-                      Personal investing
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
-                      Round-up investing
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
-                      AI-powered insights
-                    </li>
-                  </ul>
-                  <div className="mt-4 pt-4 border-t border-white/10">
-                    <span className="text-white font-bold text-lg">{getPriceForAccountType('individual')}</span>
-                  </div>
-                </button>
+                    <h3 className="text-xl font-bold text-white mb-2">Individual</h3>
+                    <p className="text-white/70 text-sm mb-4">Perfect for students and young professionals</p>
+                    <ul className="space-y-2 text-xs text-white/60">
+                      <li className="flex items-center">
+                        <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
+                        Personal investing
+                      </li>
+                      <li className="flex items-center">
+                        <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
+                        Round-up investing
+                      </li>
+                      <li className="flex items-center">
+                        <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
+                        AI-powered insights
+                      </li>
+                    </ul>
+                    <div className="mt-4 pt-4 border-t border-white/10">
+                      <span className="text-white font-bold text-lg">{getPriceForAccountType('individual')}</span>
+                    </div>
+                  </button>
+                )}
 
                 {/* Family Account */}
-                <button
-                  onClick={() => setRegistrationType('family')}
-                  className="bg-white/10 backdrop-blur-lg p-6 rounded-xl hover:bg-white/15 transition-all duration-200 text-left group border border-white/20 hover:border-purple-500/50"
-                >
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center border border-purple-400/30 group-hover:scale-110 transition-transform">
-                      <Users className="w-8 h-8 text-purple-400" />
+                {accessSettings.allowedAccountTypes.includes('family') && (
+                  <button
+                    onClick={() => setRegistrationType('family')}
+                    className="bg-white/10 backdrop-blur-lg p-6 rounded-xl hover:bg-white/15 transition-all duration-200 text-left group border border-white/20 hover:border-purple-500/50"
+                  >
+                    <div className="flex items-center justify-center mb-4">
+                      <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center border border-purple-400/30 group-hover:scale-110 transition-transform">
+                        <Users className="w-8 h-8 text-purple-400" />
+                      </div>
                     </div>
-                  </div>
-                  <h3 className="text-xl font-bold text-white mb-2">Family</h3>
-                  <p className="text-white/70 text-sm mb-4">Perfect for families managing finances together</p>
-                  <ul className="space-y-2 text-xs text-white/60">
-                    <li className="flex items-center">
-                      <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
-                      Up to 5 family members
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
-                      Shared portfolio views
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
-                      Family financial goals
-                    </li>
-                  </ul>
-                  <div className="mt-4 pt-4 border-t border-white/10">
-                    <span className="text-white font-bold text-lg">{getPriceForAccountType('family')}</span>
-                  </div>
-                </button>
+                    <h3 className="text-xl font-bold text-white mb-2">Family</h3>
+                    <p className="text-white/70 text-sm mb-4">Perfect for families managing finances together</p>
+                    <ul className="space-y-2 text-xs text-white/60">
+                      <li className="flex items-center">
+                        <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
+                        Up to 5 family members
+                      </li>
+                      <li className="flex items-center">
+                        <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
+                        Shared portfolio views
+                      </li>
+                      <li className="flex items-center">
+                        <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
+                        Family financial goals
+                      </li>
+                    </ul>
+                    <div className="mt-4 pt-4 border-t border-white/10">
+                      <span className="text-white font-bold text-lg">{getPriceForAccountType('family')}</span>
+                    </div>
+                  </button>
+                )}
 
                 {/* Business Account */}
-                <button
-                  onClick={() => setRegistrationType('business')}
-                  className="bg-white/10 backdrop-blur-lg p-6 rounded-xl hover:bg-white/15 transition-all duration-200 text-left group border border-white/20 hover:border-purple-500/50"
-                >
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center border border-purple-400/30 group-hover:scale-110 transition-transform">
-                      <Building2 className="w-8 h-8 text-purple-400" />
+                {accessSettings.allowedAccountTypes.includes('business') && (
+                  <button
+                    onClick={() => setRegistrationType('business')}
+                    className="bg-white/10 backdrop-blur-lg p-6 rounded-xl hover:bg-white/15 transition-all duration-200 text-left group border border-white/20 hover:border-purple-500/50"
+                  >
+                    <div className="flex items-center justify-center mb-4">
+                      <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center border border-purple-400/30 group-hover:scale-110 transition-transform">
+                        <Building2 className="w-8 h-8 text-purple-400" />
+                      </div>
                     </div>
-                  </div>
-                  <h3 className="text-xl font-bold text-white mb-2">Business</h3>
-                  <p className="text-white/70 text-sm mb-4">For businesses and teams</p>
-                  <ul className="space-y-2 text-xs text-white/60">
-                    <li className="flex items-center">
-                      <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
-                      Unlimited team members
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
-                      Financial analytics
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
-                      Custom reporting
-                    </li>
-                  </ul>
-                  <div className="mt-4 pt-4 border-t border-white/10">
-                    <span className="text-white font-bold text-lg">{getPriceForAccountType('business')}</span>
-                  </div>
-                </button>
+                    <h3 className="text-xl font-bold text-white mb-2">Business</h3>
+                    <p className="text-white/70 text-sm mb-4">For businesses and teams</p>
+                    <ul className="space-y-2 text-xs text-white/60">
+                      <li className="flex items-center">
+                        <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
+                        Unlimited team members
+                      </li>
+                      <li className="flex items-center">
+                        <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
+                        Financial analytics
+                      </li>
+                      <li className="flex items-center">
+                        <CheckCircle className="w-3 h-3 text-green-400 mr-2" />
+                        Custom reporting
+                      </li>
+                    </ul>
+                    <div className="mt-4 pt-4 border-t border-white/10">
+                      <span className="text-white font-bold text-lg">{getPriceForAccountType('business')}</span>
+                    </div>
+                  </button>
+                )}
               </div>
 
               <div className="text-center pt-6 border-t border-white/10">

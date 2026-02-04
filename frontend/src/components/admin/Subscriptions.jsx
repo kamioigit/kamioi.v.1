@@ -531,7 +531,13 @@ const Subscriptions = ({ user }) => {
   })
   const [renewalQueue, setRenewalQueue] = useState([])
   const [promoCodes, setPromoCodes] = useState([])
-  
+
+  // Demo codes state
+  const [demoCodes, setDemoCodes] = useState([])
+  const [demoLogins, setDemoLogins] = useState([])
+  const [showCreateDemoCode, setShowCreateDemoCode] = useState(false)
+  const [loadingDemoCodes, setLoadingDemoCodes] = useState(false)
+
   // UI state
   const [showCreatePlan, setShowCreatePlan] = useState(false)
   const [showEditPlan, setShowEditPlan] = useState(false)
@@ -656,11 +662,54 @@ const Subscriptions = ({ user }) => {
   useEffect(() => {
     const abortController = new AbortController()
     fetchSubscriptionData(abortController.signal)
-    
+
     return () => {
       abortController.abort()
     }
   }, [])
+
+  // Fetch demo codes and logins
+  const fetchDemoCodes = async () => {
+    setLoadingDemoCodes(true)
+    try {
+      const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+
+      const [codesRes, loginsRes] = await Promise.all([
+        fetch(`${apiBaseUrl}/api/admin/demo-codes`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`${apiBaseUrl}/api/admin/demo-logins`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ])
+
+      if (codesRes.ok) {
+        const codesData = await codesRes.json()
+        if (codesData.success) {
+          setDemoCodes(codesData.data || [])
+        }
+      }
+
+      if (loginsRes.ok) {
+        const loginsData = await loginsRes.json()
+        if (loginsData.success) {
+          setDemoLogins(loginsData.data || [])
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching demo codes:', err)
+    } finally {
+      setLoadingDemoCodes(false)
+    }
+  }
+
+  // Fetch demo codes when promo-codes tab is active
+  useEffect(() => {
+    if (activeTab === 'promo-codes') {
+      fetchDemoCodes()
+    }
+  }, [activeTab])
 
   // Helper functions
   const formatCurrency = (amount) => {
@@ -2042,7 +2091,323 @@ Refresh
             ))}
           </div>
         )}
+
+        {/* Demo Access Codes Section */}
+        <div className="mt-10 pt-8 border-t border-white/10">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className={`text-lg font-semibold ${getTextColor()}`}>Demo Access Codes</h3>
+              <p className={`text-sm ${getSubtextClass()}`}>Manage demo codes for prospective users to explore the platform</p>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={fetchDemoCodes}
+                disabled={loadingDemoCodes}
+                className={`${getSecondaryButtonClass()} flex items-center space-x-2`}
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingDemoCodes ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
+              <button
+                onClick={() => setShowCreateDemoCode(true)}
+                className={getButtonClass()}
+              >
+                Create Demo Code
+              </button>
+            </div>
+          </div>
+
+          {loadingDemoCodes ? (
+            <div className={getCardClass()}>
+              <p className={getSubtextClass()}>Loading demo codes...</p>
+            </div>
+          ) : demoCodes.length === 0 ? (
+            <div className={getCardClass()}>
+              <p className={getSubtextClass()}>No demo codes created yet. Create one to allow users to explore the platform.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {demoCodes.map((demo) => (
+                <div key={demo.id} className={`${getCardClass()} flex items-center justify-between`}>
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3">
+                      <div>
+                        <h4 className={`text-lg font-bold font-mono ${getTextColor()}`}>
+                          {demo.code}
+                        </h4>
+                        <p className={`text-sm ${getSubtextClass()}`}>
+                          Dashboard: {demo.dashboardType === 'all' ? 'All Dashboards' : demo.dashboardType.charAt(0).toUpperCase() + demo.dashboardType.slice(1)}
+                        </p>
+                      </div>
+                      <div className={`px-3 py-1 rounded-full text-xs ${
+                        demo.isActive ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                      }`}>
+                        {demo.isActive ? 'Active' : 'Inactive'}
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className={getSubtextClass()}>Usage Count</p>
+                        <p className={getTextColor()}>{demo.usageCount || 0} logins</p>
+                      </div>
+                      <div>
+                        <p className={getSubtextClass()}>Created</p>
+                        <p className={getTextColor()}>
+                          {demo.createdAt ? new Date(demo.createdAt).toLocaleDateString() : 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className={getSubtextClass()}>Expires</p>
+                        <p className={getTextColor()}>
+                          {demo.expiresAt ? new Date(demo.expiresAt).toLocaleDateString() : 'Never'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ml-4 flex items-center space-x-2">
+                    <button
+                      onClick={async () => {
+                        const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'
+                        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+                        try {
+                          const res = await fetch(`${apiBaseUrl}/api/admin/demo-codes/${demo.id}/toggle`, {
+                            method: 'PUT',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                          })
+                          if (res.ok) {
+                            fetchDemoCodes()
+                            addNotification({
+                              type: 'success',
+                              title: 'Demo Code Updated',
+                              message: `Demo code ${demo.isActive ? 'deactivated' : 'activated'} successfully`,
+                              timestamp: new Date()
+                            })
+                          }
+                        } catch (err) {
+                          console.error('Error toggling demo code:', err)
+                        }
+                      }}
+                      className={`px-3 py-2 rounded-lg transition-colors text-sm ${
+                        demo.isActive
+                          ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400'
+                          : 'bg-green-500/20 hover:bg-green-500/30 text-green-400'
+                      }`}
+                    >
+                      {demo.isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm('Are you sure you want to delete this demo code?')) return
+                        const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'
+                        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+                        try {
+                          const res = await fetch(`${apiBaseUrl}/api/admin/demo-codes?id=${demo.id}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                          })
+                          if (res.ok) {
+                            fetchDemoCodes()
+                            addNotification({
+                              type: 'success',
+                              title: 'Demo Code Deleted',
+                              message: 'Demo code deleted successfully',
+                              timestamp: new Date()
+                            })
+                          }
+                        } catch (err) {
+                          console.error('Error deleting demo code:', err)
+                        }
+                      }}
+                      className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors text-sm"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Demo Login History Section */}
+        <div className="mt-8">
+          <h4 className={`text-md font-semibold mb-4 ${getTextColor()}`}>Demo Login History</h4>
+          {demoLogins.length === 0 ? (
+            <div className={getCardClass()}>
+              <p className={getSubtextClass()}>No demo logins recorded yet.</p>
+            </div>
+          ) : (
+            <div className={`${getCardClass()} overflow-x-auto`}>
+              <table className="w-full">
+                <thead>
+                  <tr className={`border-b border-white/10 ${getSubtextClass()}`}>
+                    <th className="text-left py-3 px-4">Email</th>
+                    <th className="text-left py-3 px-4">Demo Code</th>
+                    <th className="text-left py-3 px-4">Login Time</th>
+                    <th className="text-left py-3 px-4">Dashboard</th>
+                    <th className="text-left py-3 px-4">IP Address</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {demoLogins.map((login) => (
+                    <tr key={login.id} className={`border-b border-white/5 ${getTextColor()}`}>
+                      <td className="py-3 px-4">{login.email}</td>
+                      <td className="py-3 px-4 font-mono">{login.demoCode}</td>
+                      <td className="py-3 px-4">
+                        {login.loginTime ? new Date(login.loginTime).toLocaleString() : 'N/A'}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          login.dashboardType === 'all' ? 'bg-purple-500/20 text-purple-400' :
+                          login.dashboardType === 'individual' ? 'bg-blue-500/20 text-blue-400' :
+                          login.dashboardType === 'family' ? 'bg-green-500/20 text-green-400' :
+                          login.dashboardType === 'business' ? 'bg-orange-500/20 text-orange-400' :
+                          'bg-gray-500/20 text-gray-400'
+                        }`}>
+                          {login.dashboardType === 'all' ? 'All' : login.dashboardType?.charAt(0).toUpperCase() + login.dashboardType?.slice(1) || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-sm">{login.ipAddress || 'N/A'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
+    )
+  }
+
+  // Create Demo Code Form Component
+  const CreateDemoCodeForm = ({ onClose, onSuccess, isLightMode, getTextColor, getSubtextClass }) => {
+    const [formData, setFormData] = useState({
+      code: '',
+      dashboardType: 'all',
+      expiresAt: ''
+    })
+    const [saving, setSaving] = useState(false)
+    const [error, setError] = useState('')
+
+    const handleSubmit = async (e) => {
+      e.preventDefault()
+      setSaving(true)
+      setError('')
+
+      try {
+        const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+
+        const response = await fetch(`${apiBaseUrl}/api/admin/demo-codes`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            code: formData.code || undefined, // Let backend generate if empty
+            dashboardType: formData.dashboardType,
+            expiresAt: formData.expiresAt || null
+          })
+        })
+
+        const result = await response.json()
+
+        if (response.ok && result.success) {
+          onSuccess()
+        } else {
+          setError(result.error || 'Failed to create demo code')
+        }
+      } catch (error) {
+        setError(`Error creating demo code: ${error.message || 'Network error'}`)
+      } finally {
+        setSaving(false)
+      }
+    }
+
+    return (
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className={`p-3 rounded-lg ${isLightMode ? 'bg-red-100 text-red-700' : 'bg-red-500/20 text-red-400'}`}>
+            {error}
+          </div>
+        )}
+
+        <div>
+          <label className={`block text-sm font-medium mb-1 ${getTextColor()}`}>
+            Demo Code (Optional - leave blank to auto-generate)
+          </label>
+          <input
+            type="text"
+            value={formData.code}
+            onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+            placeholder="e.g., DEMO2024"
+            className={`w-full px-3 py-2 rounded-lg border ${
+              isLightMode
+                ? 'bg-white border-gray-300 text-gray-800'
+                : 'bg-white/10 border-white/20 text-white'
+            } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+          />
+        </div>
+
+        <div>
+          <label className={`block text-sm font-medium mb-1 ${getTextColor()}`}>
+            Dashboard Access
+          </label>
+          <select
+            value={formData.dashboardType}
+            onChange={(e) => setFormData({ ...formData, dashboardType: e.target.value })}
+            className={`w-full px-3 py-2 rounded-lg border ${
+              isLightMode
+                ? 'bg-white border-gray-300 text-gray-800'
+                : 'bg-white/10 border-white/20 text-white'
+            } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+          >
+            <option value="all">All Dashboards</option>
+            <option value="individual">Individual Only</option>
+            <option value="family">Family Only</option>
+            <option value="business">Business Only</option>
+            <option value="admin">Admin Only</option>
+          </select>
+        </div>
+
+        <div>
+          <label className={`block text-sm font-medium mb-1 ${getTextColor()}`}>
+            Expiration Date (Optional)
+          </label>
+          <input
+            type="datetime-local"
+            value={formData.expiresAt}
+            onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value })}
+            className={`w-full px-3 py-2 rounded-lg border ${
+              isLightMode
+                ? 'bg-white border-gray-300 text-gray-800'
+                : 'bg-white/10 border-white/20 text-white'
+            } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+          />
+        </div>
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className={`px-4 py-2 rounded-lg border ${
+              isLightMode
+                ? 'border-gray-300 hover:bg-gray-50 text-gray-700'
+                : 'border-white/20 hover:bg-white/10 text-white'
+            } transition-colors`}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Creating...' : 'Create Demo Code'}
+          </button>
+        </div>
+      </form>
     )
   }
 
@@ -2351,7 +2716,7 @@ Refresh
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className={`${isLightMode ? 'bg-white/95 backdrop-blur-xl border-gray-300' : 'bg-gray-800/95 backdrop-blur-xl border-gray-700'} border rounded-2xl p-6 max-w-2xl w-full shadow-2xl`}>
             <h3 className={`text-xl font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'} mb-4`}>Create Promo Code</h3>
-            <CreatePromoCodeForm 
+            <CreatePromoCodeForm
               onClose={() => setShowCreatePromo(false)}
               onSuccess={() => {
                 setShowCreatePromo(false)
@@ -2361,6 +2726,31 @@ Refresh
               getTextColor={getTextColor}
               getSubtextClass={getSubtextClass}
               plans={plans}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Create Demo Code Modal */}
+      {showCreateDemoCode && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`${isLightMode ? 'bg-white/95 backdrop-blur-xl border-gray-300' : 'bg-gray-800/95 backdrop-blur-xl border-gray-700'} border rounded-2xl p-6 max-w-lg w-full shadow-2xl`}>
+            <h3 className={`text-xl font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'} mb-4`}>Create Demo Access Code</h3>
+            <CreateDemoCodeForm
+              onClose={() => setShowCreateDemoCode(false)}
+              onSuccess={() => {
+                setShowCreateDemoCode(false)
+                fetchDemoCodes()
+                addNotification({
+                  type: 'success',
+                  title: 'Demo Code Created',
+                  message: 'Demo access code created successfully',
+                  timestamp: new Date()
+                })
+              }}
+              isLightMode={isLightMode}
+              getTextColor={getTextColor}
+              getSubtextClass={getSubtextClass}
             />
           </div>
         </div>

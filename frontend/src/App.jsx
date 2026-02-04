@@ -74,6 +74,13 @@ const SubscriptionSuccess = lazy(() => import('./pages/SubscriptionSuccess'))
 const SubscriptionCancel = lazy(() => import('./pages/SubscriptionCancel'))
 const SignupWizard = lazy(() => import('./components/signup/SignupWizard'))
 
+// Demo dashboard components - standalone demo experience
+const DemoDashboard = lazy(() => import('./pages/demo/DemoDashboard'))
+const DemoUserDashboard = lazy(() => import('./pages/demo/DemoUserDashboard'))
+const DemoFamilyDashboard = lazy(() => import('./pages/demo/DemoFamilyDashboard'))
+const DemoBusinessDashboard = lazy(() => import('./pages/demo/DemoBusinessDashboard'))
+const DemoAdminDashboard = lazy(() => import('./pages/demo/DemoAdminDashboard'))
+
 // Loading component
 const LoadingSpinner = () => (
   <div className="min-h-screen gradient-bg flex items-center justify-center">
@@ -269,6 +276,15 @@ const AppRoutes = () => {
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/subscription/success" element={<SubscriptionSuccess />} />
         <Route path="/subscription/cancel" element={<SubscriptionCancel />} />
+
+        {/* Demo Dashboard Routes - Standalone demo experience, no auth required */}
+        <Route path="/demo" element={<DemoDashboard />}>
+          <Route index element={<DemoUserDashboard />} />
+          <Route path="user" element={<DemoUserDashboard />} />
+          <Route path="family" element={<DemoFamilyDashboard />} />
+          <Route path="business" element={<DemoBusinessDashboard />} />
+          <Route path="admin" element={<DemoAdminDashboard />} />
+        </Route>
 
         {/* App redirect - sends authenticated users to their dashboard */}
         <Route

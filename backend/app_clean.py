@@ -4942,6 +4942,454 @@ def admin_general_settings():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# Access Controls endpoints for login page
+@app.route('/api/admin/settings/access-controls', methods=['GET', 'PUT'])
+def admin_access_controls():
+    """Admin endpoint to manage login page access controls"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn)
+
+        # Create access_controls table if not exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS access_controls (
+                id SERIAL PRIMARY KEY,
+                setting_key VARCHAR(100) UNIQUE NOT NULL,
+                setting_value TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+
+        if request.method == 'GET':
+            # Fetch current settings
+            cursor.execute("SELECT setting_key, setting_value FROM access_controls")
+            rows = cursor.fetchall()
+            conn.close()
+
+            settings = {
+                'sign_in_enabled': True,
+                'sign_up_enabled': True,
+                'allowed_account_types': ['individual', 'family', 'business'],
+                'demo_only': False
+            }
+
+            for row in rows:
+                key = row[0]
+                value = row[1]
+                if key == 'sign_in_enabled':
+                    settings['sign_in_enabled'] = value == 'true'
+                elif key == 'sign_up_enabled':
+                    settings['sign_up_enabled'] = value == 'true'
+                elif key == 'demo_only':
+                    settings['demo_only'] = value == 'true'
+                elif key == 'allowed_account_types':
+                    import json
+                    try:
+                        settings['allowed_account_types'] = json.loads(value)
+                    except:
+                        settings['allowed_account_types'] = ['individual', 'family', 'business']
+
+            return jsonify({
+                'success': True,
+                'settings': settings
+            })
+
+        elif request.method == 'PUT':
+            data = request.get_json() or {}
+            import json
+
+            # Upsert settings
+            settings_to_save = [
+                ('sign_in_enabled', 'true' if data.get('sign_in_enabled', True) else 'false'),
+                ('sign_up_enabled', 'true' if data.get('sign_up_enabled', True) else 'false'),
+                ('demo_only', 'true' if data.get('demo_only', False) else 'false'),
+                ('allowed_account_types', json.dumps(data.get('allowed_account_types', ['individual', 'family', 'business'])))
+            ]
+
+            for key, value in settings_to_save:
+                cursor.execute("""
+                    INSERT INTO access_controls (setting_key, setting_value, updated_at)
+                    VALUES (%s, %s, NOW())
+                    ON CONFLICT (setting_key)
+                    DO UPDATE SET setting_value = %s, updated_at = NOW()
+                """, (key, value, value))
+
+            conn.commit()
+            conn.close()
+
+            return jsonify({
+                'success': True,
+                'message': 'Access control settings saved successfully'
+            })
+
+    except Exception as e:
+        print(f"Access controls error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/public/access-settings', methods=['GET'])
+def public_access_settings():
+    """Public endpoint for login page to check access settings (no auth required)"""
+    try:
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn)
+
+        # Check if table exists
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'access_controls'
+            )
+        """)
+        table_exists = cursor.fetchone()[0]
+
+        if not table_exists:
+            conn.close()
+            # Return default settings if table doesn't exist
+            return jsonify({
+                'success': True,
+                'signInEnabled': True,
+                'signUpEnabled': True,
+                'allowedAccountTypes': ['individual', 'family', 'business'],
+                'demoOnly': False
+            })
+
+        # Fetch current settings
+        cursor.execute("SELECT setting_key, setting_value FROM access_controls")
+        rows = cursor.fetchall()
+        conn.close()
+
+        settings = {
+            'signInEnabled': True,
+            'signUpEnabled': True,
+            'allowedAccountTypes': ['individual', 'family', 'business'],
+            'demoOnly': False
+        }
+
+        for row in rows:
+            key = row[0]
+            value = row[1]
+            if key == 'sign_in_enabled':
+                settings['signInEnabled'] = value == 'true'
+            elif key == 'sign_up_enabled':
+                settings['signUpEnabled'] = value == 'true'
+            elif key == 'demo_only':
+                settings['demoOnly'] = value == 'true'
+            elif key == 'allowed_account_types':
+                import json
+                try:
+                    settings['allowedAccountTypes'] = json.loads(value)
+                except:
+                    settings['allowedAccountTypes'] = ['individual', 'family', 'business']
+
+        return jsonify({
+            'success': True,
+            **settings
+        })
+
+    except Exception as e:
+        print(f"Public access settings error: {e}")
+        # Return defaults on error
+        return jsonify({
+            'success': True,
+            'signInEnabled': True,
+            'signUpEnabled': True,
+            'allowedAccountTypes': ['individual', 'family', 'business'],
+            'demoOnly': False
+        })
+
+# Demo Codes Management
+@app.route('/api/admin/demo-codes', methods=['GET', 'POST', 'DELETE'])
+def admin_demo_codes():
+    """Admin endpoint to manage demo access codes"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        token = auth_header.split(' ')[1]
+        decoded = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
+
+        if decoded.get('role') != 'admin':
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Create demo_codes table if not exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS demo_codes (
+                id SERIAL PRIMARY KEY,
+                code VARCHAR(20) UNIQUE NOT NULL,
+                dashboard_type VARCHAR(20) DEFAULT 'all',
+                is_active BOOLEAN DEFAULT TRUE,
+                expires_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_by INTEGER
+            )
+        """)
+
+        # Create demo_logins table if not exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS demo_logins (
+                id SERIAL PRIMARY KEY,
+                demo_code_id INTEGER REFERENCES demo_codes(id),
+                email VARCHAR(255) NOT NULL,
+                login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                dashboard_type VARCHAR(20),
+                ip_address VARCHAR(50),
+                user_agent TEXT
+            )
+        """)
+        conn.commit()
+
+        if request.method == 'GET':
+            # Get all demo codes with usage count
+            cursor.execute("""
+                SELECT dc.id, dc.code, dc.dashboard_type, dc.is_active, dc.expires_at, dc.created_at,
+                       COUNT(dl.id) as usage_count
+                FROM demo_codes dc
+                LEFT JOIN demo_logins dl ON dc.id = dl.demo_code_id
+                GROUP BY dc.id
+                ORDER BY dc.created_at DESC
+            """)
+            codes = cursor.fetchall()
+            conn.close()
+
+            return jsonify({
+                'success': True,
+                'data': [{
+                    'id': c[0],
+                    'code': c[1],
+                    'dashboardType': c[2],
+                    'isActive': c[3],
+                    'expiresAt': c[4].isoformat() if c[4] else None,
+                    'createdAt': c[5].isoformat() if c[5] else None,
+                    'usageCount': c[6]
+                } for c in codes]
+            })
+
+        elif request.method == 'POST':
+            data = request.json
+            code = data.get('code', '').upper().strip()
+            dashboard_type = data.get('dashboardType', 'all')
+            expires_at = data.get('expiresAt')
+
+            if not code:
+                # Generate random code if not provided
+                import random
+                import string
+                code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+
+            cursor.execute("""
+                INSERT INTO demo_codes (code, dashboard_type, expires_at, created_by)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id, code, dashboard_type, is_active, expires_at, created_at
+            """, (code, dashboard_type, expires_at, decoded.get('id')))
+
+            result = cursor.fetchone()
+            conn.commit()
+            conn.close()
+
+            return jsonify({
+                'success': True,
+                'data': {
+                    'id': result[0],
+                    'code': result[1],
+                    'dashboardType': result[2],
+                    'isActive': result[3],
+                    'expiresAt': result[4].isoformat() if result[4] else None,
+                    'createdAt': result[5].isoformat() if result[5] else None
+                }
+            })
+
+        elif request.method == 'DELETE':
+            code_id = request.args.get('id')
+            if not code_id:
+                return jsonify({'success': False, 'error': 'Code ID required'}), 400
+
+            cursor.execute("DELETE FROM demo_logins WHERE demo_code_id = %s", (code_id,))
+            cursor.execute("DELETE FROM demo_codes WHERE id = %s", (code_id,))
+            conn.commit()
+            conn.close()
+
+            return jsonify({'success': True, 'message': 'Demo code deleted'})
+
+    except jwt.ExpiredSignatureError:
+        return jsonify({'success': False, 'error': 'Token expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'success': False, 'error': 'Invalid token'}), 401
+    except Exception as e:
+        print(f"Demo codes error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/demo-codes/<int:code_id>/toggle', methods=['PUT'])
+def toggle_demo_code(code_id):
+    """Toggle demo code active status"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        token = auth_header.split(' ')[1]
+        decoded = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
+
+        if decoded.get('role') != 'admin':
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            UPDATE demo_codes SET is_active = NOT is_active WHERE id = %s
+            RETURNING id, is_active
+        """, (code_id,))
+
+        result = cursor.fetchone()
+        conn.commit()
+        conn.close()
+
+        if not result:
+            return jsonify({'success': False, 'error': 'Code not found'}), 404
+
+        return jsonify({
+            'success': True,
+            'data': {'id': result[0], 'isActive': result[1]}
+        })
+
+    except Exception as e:
+        print(f"Toggle demo code error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/demo-logins', methods=['GET'])
+def admin_demo_logins():
+    """Get demo login history"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        token = auth_header.split(' ')[1]
+        decoded = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
+
+        if decoded.get('role') != 'admin':
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Check if table exists
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables WHERE table_name = 'demo_logins'
+            )
+        """)
+        if not cursor.fetchone()[0]:
+            conn.close()
+            return jsonify({'success': True, 'data': []})
+
+        cursor.execute("""
+            SELECT dl.id, dl.email, dc.code, dl.login_time, dl.dashboard_type, dl.ip_address
+            FROM demo_logins dl
+            JOIN demo_codes dc ON dl.demo_code_id = dc.id
+            ORDER BY dl.login_time DESC
+            LIMIT 100
+        """)
+        logins = cursor.fetchall()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'data': [{
+                'id': l[0],
+                'email': l[1],
+                'demoCode': l[2],
+                'loginTime': l[3].isoformat() if l[3] else None,
+                'dashboardType': l[4],
+                'ipAddress': l[5]
+            } for l in logins]
+        })
+
+    except Exception as e:
+        print(f"Demo logins error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/demo/validate-code', methods=['POST'])
+def validate_demo_code():
+    """Public endpoint to validate demo code and create demo session"""
+    try:
+        data = request.json
+        code = data.get('code', '').upper().strip()
+        email = data.get('email', '').strip()
+
+        if not code or not email:
+            return jsonify({'success': False, 'error': 'Code and email required'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Check if tables exist
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables WHERE table_name = 'demo_codes'
+            )
+        """)
+        if not cursor.fetchone()[0]:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Demo system not configured'}), 400
+
+        # Find the demo code
+        cursor.execute("""
+            SELECT id, code, dashboard_type, is_active, expires_at
+            FROM demo_codes WHERE code = %s
+        """, (code,))
+        demo = cursor.fetchone()
+
+        if not demo:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Invalid demo code'}), 400
+
+        if not demo[3]:  # is_active
+            conn.close()
+            return jsonify({'success': False, 'error': 'Demo code is inactive'}), 400
+
+        if demo[4] and demo[4] < datetime.now():  # expires_at
+            conn.close()
+            return jsonify({'success': False, 'error': 'Demo code has expired'}), 400
+
+        # Log the demo login
+        cursor.execute("""
+            INSERT INTO demo_logins (demo_code_id, email, dashboard_type, ip_address, user_agent)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (demo[0], email, demo[2], request.remote_addr, str(request.user_agent)))
+        conn.commit()
+        conn.close()
+
+        # Create demo session token (4 hour expiry)
+        demo_token = jwt.encode({
+            'type': 'demo',
+            'email': email,
+            'dashboard': demo[2],
+            'exp': datetime.utcnow() + timedelta(hours=4)
+        }, JWT_SECRET_KEY, algorithm='HS256')
+
+        return jsonify({
+            'success': True,
+            'session': {
+                'token': demo_token,
+                'dashboard': demo[2],
+                'expiresAt': (datetime.utcnow() + timedelta(hours=4)).isoformat()
+            }
+        })
+
+    except Exception as e:
+        print(f"Demo code validation error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # Business Stress Test endpoint
 @app.route('/api/admin/business-stress-test/categories', methods=['GET'])
 def business_stress_test_categories():

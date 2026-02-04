@@ -19,6 +19,17 @@ const UserManagement = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 50 // 🚀 PERFORMANCE FIX: Backend pagination - 50 per page
 
+  // Access Controls state
+  const [showAccessControlModal, setShowAccessControlModal] = useState(false)
+  const [accessSettings, setAccessSettings] = useState({
+    signInEnabled: true,
+    signUpEnabled: true,
+    allowedAccountTypes: ['individual', 'family', 'business'],
+    demoOnly: false
+  })
+  const [loadingAccessSettings, setLoadingAccessSettings] = useState(false)
+  const [savingAccessSettings, setSavingAccessSettings] = useState(false)
+
   // 🚀 PERFORMANCE FIX: Use React Query with backend pagination - NO localStorage processing
   const { data, isLoading, error: queryError, refetch } = useQuery({
     queryKey: ['admin-users', currentPage, itemsPerPage, searchTerm, statusFilter, segmentFilter],
@@ -252,6 +263,91 @@ const UserManagement = () => {
     refetch() // 🚀 PERFORMANCE FIX: Use refetch instead of localStorage
   }
 
+  // Access Controls functions
+  const fetchAccessSettings = async () => {
+    try {
+      setLoadingAccessSettings(true)
+      const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken')
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+
+      const response = await fetch(`${apiBaseUrl}/api/admin/settings/access-controls`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.settings) {
+          setAccessSettings({
+            signInEnabled: data.settings.sign_in_enabled !== false,
+            signUpEnabled: data.settings.sign_up_enabled !== false,
+            allowedAccountTypes: data.settings.allowed_account_types || ['individual', 'family', 'business'],
+            demoOnly: data.settings.demo_only || false
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching access settings:', error)
+    } finally {
+      setLoadingAccessSettings(false)
+    }
+  }
+
+  const saveAccessSettings = async () => {
+    try {
+      setSavingAccessSettings(true)
+      const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken')
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+
+      const response = await fetch(`${apiBaseUrl}/api/admin/settings/access-controls`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sign_in_enabled: accessSettings.signInEnabled,
+          sign_up_enabled: accessSettings.signUpEnabled,
+          allowed_account_types: accessSettings.allowedAccountTypes,
+          demo_only: accessSettings.demoOnly
+        })
+      })
+
+      if (response.ok) {
+        addNotification({
+          type: 'success',
+          title: 'Settings Saved',
+          message: 'Login page access controls have been updated.',
+          timestamp: new Date()
+        })
+        setShowAccessControlModal(false)
+      } else {
+        throw new Error('Failed to save settings')
+      }
+    } catch (error) {
+      console.error('Error saving access settings:', error)
+      addNotification({
+        type: 'error',
+        title: 'Save Failed',
+        message: 'Failed to save access control settings.',
+        timestamp: new Date()
+      })
+    } finally {
+      setSavingAccessSettings(false)
+    }
+  }
+
+  const toggleAccountType = (type) => {
+    setAccessSettings(prev => {
+      const types = prev.allowedAccountTypes.includes(type)
+        ? prev.allowedAccountTypes.filter(t => t !== type)
+        : [...prev.allowedAccountTypes, type]
+      return { ...prev, allowedAccountTypes: types }
+    })
+  }
+
   // Action handlers
   const handleViewUser = (user) => {
     console.log('👁️ Viewing user:', user.name)
@@ -393,6 +489,16 @@ const UserManagement = () => {
             <button className="bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg px-4 py-2 text-green-400 flex items-center space-x-2 transition-all">
               <Mail className="w-4 h-4" />
               <span>Bulk Actions</span>
+            </button>
+            <button
+              onClick={() => {
+                setShowAccessControlModal(true)
+                fetchAccessSettings()
+              }}
+              className="bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg px-4 py-2 text-orange-400 flex items-center space-x-2 transition-all"
+            >
+              <Shield className="w-4 h-4" />
+              <span>Access Controls</span>
             </button>
           </div>
         </div>
@@ -873,6 +979,177 @@ const UserManagement = () => {
         user={selectedUser}
         title="User Details"
       />
+
+      {/* Access Controls Modal */}
+      {showAccessControlModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`${isLightMode ? 'bg-white' : 'bg-gray-800/95'} rounded-2xl shadow-2xl border ${isLightMode ? 'border-gray-200' : 'border-white/10'} p-6 max-w-md w-full`}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-orange-400" />
+                </div>
+                <div>
+                  <h3 className={`text-lg font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
+                    Login Page Access Controls
+                  </h3>
+                  <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                    Control who can access the login page
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAccessControlModal(false)}
+                className={`p-2 rounded-lg ${isLightMode ? 'hover:bg-gray-100' : 'hover:bg-white/10'} transition-colors`}
+              >
+                <XCircle className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            {loadingAccessSettings ? (
+              <div className="text-center py-8">
+                <RefreshCw className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-2" />
+                <p className={isLightMode ? 'text-gray-600' : 'text-gray-400'}>Loading settings...</p>
+              </div>
+            ) : (
+              <>
+                {/* Mode Selection */}
+                <div className="space-y-4 mb-6">
+                  {/* Demo Only Mode */}
+                  <div
+                    onClick={() => setAccessSettings(prev => ({ ...prev, demoOnly: true, signInEnabled: false, signUpEnabled: false }))}
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      accessSettings.demoOnly
+                        ? 'border-orange-500 bg-orange-500/10'
+                        : isLightMode ? 'border-gray-200 hover:border-gray-300' : 'border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        accessSettings.demoOnly ? 'border-orange-500' : 'border-gray-400'
+                      }`}>
+                        {accessSettings.demoOnly && <div className="w-3 h-3 rounded-full bg-orange-500" />}
+                      </div>
+                      <div>
+                        <p className={`font-medium ${isLightMode ? 'text-gray-900' : 'text-white'}`}>Demo Only Mode</p>
+                        <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          Only show demo access on login page
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Full Access Mode */}
+                  <div
+                    onClick={() => setAccessSettings(prev => ({ ...prev, demoOnly: false, signInEnabled: true, signUpEnabled: true }))}
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      !accessSettings.demoOnly
+                        ? 'border-green-500 bg-green-500/10'
+                        : isLightMode ? 'border-gray-200 hover:border-gray-300' : 'border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        !accessSettings.demoOnly ? 'border-green-500' : 'border-gray-400'
+                      }`}>
+                        {!accessSettings.demoOnly && <div className="w-3 h-3 rounded-full bg-green-500" />}
+                      </div>
+                      <div>
+                        <p className={`font-medium ${isLightMode ? 'text-gray-900' : 'text-white'}`}>Full Access Mode</p>
+                        <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          Enable Sign In and Sign Up
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Account Type Selection (only shown in Full Access Mode) */}
+                {!accessSettings.demoOnly && (
+                  <div className={`p-4 rounded-lg ${isLightMode ? 'bg-gray-50' : 'bg-white/5'} mb-6`}>
+                    <p className={`text-sm font-medium mb-3 ${isLightMode ? 'text-gray-700' : 'text-gray-300'}`}>
+                      Account Types Allowed for Sign Up:
+                    </p>
+                    <div className="space-y-3">
+                      {/* Individual */}
+                      <label className="flex items-center space-x-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={accessSettings.allowedAccountTypes.includes('individual')}
+                          onChange={() => toggleAccountType('individual')}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <div className="flex items-center space-x-2">
+                          <User className="w-4 h-4 text-blue-400" />
+                          <span className={isLightMode ? 'text-gray-700' : 'text-gray-300'}>Individual Accounts</span>
+                        </div>
+                      </label>
+
+                      {/* Family */}
+                      <label className="flex items-center space-x-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={accessSettings.allowedAccountTypes.includes('family')}
+                          onChange={() => toggleAccountType('family')}
+                          className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                        />
+                        <div className="flex items-center space-x-2">
+                          <Users className="w-4 h-4 text-green-400" />
+                          <span className={isLightMode ? 'text-gray-700' : 'text-gray-300'}>Family Accounts</span>
+                        </div>
+                      </label>
+
+                      {/* Business */}
+                      <label className="flex items-center space-x-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={accessSettings.allowedAccountTypes.includes('business')}
+                          onChange={() => toggleAccountType('business')}
+                          className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                        />
+                        <div className="flex items-center space-x-2">
+                          <Target className="w-4 h-4 text-purple-400" />
+                          <span className={isLightMode ? 'text-gray-700' : 'text-gray-300'}>Business Accounts</span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setShowAccessControlModal(false)}
+                    className={`px-4 py-2 rounded-lg ${
+                      isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/10 text-white hover:bg-white/20'
+                    } transition-colors`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveAccessSettings}
+                    disabled={savingAccessSettings}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    {savingAccessSettings ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Save Changes</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
