@@ -4,6 +4,127 @@ import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import messagingService from '../../services/messagingService'
 
+// Demo channels for demo mode
+const DEMO_CHANNELS = [
+  { id: 'general', name: 'General', type: 'general', unread: 2 },
+  { id: 'support', name: 'Help & Support', type: 'support', unread: 0 },
+  { id: 'family-updates', name: 'Family Updates', type: 'family', unread: 1 },
+  { id: 'investment-tips', name: 'Investment Tips', type: 'business', unread: 0 },
+  { id: 'admin-announcements', name: 'Announcements', type: 'admin', unread: 1 }
+]
+
+// Demo messages for each channel
+const DEMO_MESSAGES = {
+  'general': [
+    {
+      id: 1,
+      sender: 'Sarah M.',
+      message: 'Hey everyone! Just hit my first $500 in round-ups. So excited to see my portfolio growing!',
+      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      type: 'user'
+    },
+    {
+      id: 2,
+      sender: 'Mike T.',
+      message: 'Congrats Sarah! I remember hitting that milestone. It only gets better from here.',
+      timestamp: new Date(Date.now() - 1.5 * 60 * 60 * 1000).toISOString(),
+      type: 'user'
+    },
+    {
+      id: 3,
+      sender: 'Demo User',
+      message: 'Thanks for the motivation! Just started my investment journey last month.',
+      timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+      type: 'user'
+    },
+    {
+      id: 4,
+      sender: 'Alex K.',
+      message: 'Welcome! The round-up feature is amazing. I barely notice the small amounts but they add up fast.',
+      timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      type: 'user'
+    }
+  ],
+  'support': [
+    {
+      id: 1,
+      sender: 'Support Team',
+      message: 'Welcome to Kamioi Support! How can we help you today?',
+      timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      type: 'admin'
+    },
+    {
+      id: 2,
+      sender: 'System',
+      message: 'Our support team typically responds within 24 hours. For urgent matters, please email support@kamioi.com',
+      timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      type: 'system'
+    }
+  ],
+  'family-updates': [
+    {
+      id: 1,
+      sender: 'Family Admin',
+      message: 'Great news! Our family portfolio is up 8.5% this quarter. Keep up the great saving habits everyone!',
+      timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      type: 'user'
+    },
+    {
+      id: 2,
+      sender: 'Mom',
+      message: 'I just increased my round-up amount to $2. Every little bit helps!',
+      timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      type: 'user'
+    },
+    {
+      id: 3,
+      sender: 'Dad',
+      message: 'Reminder: Let\'s discuss our vacation fund goal at dinner this weekend.',
+      timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+      type: 'user'
+    }
+  ],
+  'investment-tips': [
+    {
+      id: 1,
+      sender: 'Kamioi AI',
+      message: 'Tip: Diversification is key! Your portfolio currently has 19 different stocks across multiple sectors.',
+      timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      type: 'admin'
+    },
+    {
+      id: 2,
+      sender: 'Kamioi AI',
+      message: 'Did you know? Consistent small investments often outperform trying to time the market. Your round-ups are a great strategy!',
+      timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      type: 'admin'
+    },
+    {
+      id: 3,
+      sender: 'Kamioi AI',
+      message: 'Weekly Insight: Tech stocks make up 35% of your portfolio. Consider reviewing your allocation if you want more balance.',
+      timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      type: 'admin'
+    }
+  ],
+  'admin-announcements': [
+    {
+      id: 1,
+      sender: 'Admin',
+      message: 'New Feature: AI Insights are now available! Check out personalized investment recommendations based on your spending habits.',
+      timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      type: 'admin'
+    },
+    {
+      id: 2,
+      sender: 'Admin',
+      message: 'Scheduled Maintenance: The platform will undergo maintenance on Saturday 2am-4am EST. Thank you for your patience.',
+      timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      type: 'admin'
+    }
+  ]
+}
+
 const CommunicationHub = ({ isOpen, onClose }) => {
   const { user } = useAuth()
   const { isLightMode } = useTheme()
@@ -14,6 +135,9 @@ const CommunicationHub = ({ isOpen, onClose }) => {
   const [isConnected, setIsConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [dashboardType, setDashboardType] = useState('v1')
+
+  // Check if in demo mode
+  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
   
   // User connection form state
   const [showConnectionForm, setShowConnectionForm] = useState(false)
@@ -106,60 +230,79 @@ const CommunicationHub = ({ isOpen, onClose }) => {
     const initializeMessaging = async () => {
       try {
         setIsLoading(true)
-        
+
+        // In demo mode, use demo data
+        if (isDemoMode) {
+          console.log('CommunicationHub - Demo mode detected, using demo data')
+          setChannels(DEMO_CHANNELS)
+          setMessages(DEMO_MESSAGES['general'] || [])
+          setIsConnected(true)
+          setIsLoading(false)
+          return
+        }
+
         // Connect to messaging service
         await messagingService.connect(user)
         setIsConnected(true)
-        
+
         // Load available channels with cross-dashboard support
         const availableChannels = await messagingService.getAvailableChannels(user)
         setChannels(availableChannels)
-        
+
         // Subscribe to messages for all channels
         const unsubscribe = messagingService.subscribe('all', (message) => {
           if (message.channel === activeChannel) {
             setMessages(prev => [...prev, message])
           }
-          
+
           // Update unread count for other channels
-          setChannels(prev => prev.map(channel => 
+          setChannels(prev => prev.map(channel =>
             channel.id === message.channel && message.channel !== activeChannel
               ? { ...channel, unread: channel.unread + 1 }
               : channel
           ))
         })
-        
+
         setIsLoading(false)
-        
+
         return unsubscribe
       } catch (error) {
         console.error('Failed to initialize messaging:', error)
         setIsLoading(false)
-        // Fallback to offline mode
-        setChannels([
-          { id: 'general', name: 'General', type: 'general', unread: 0 },
-          { id: 'support', name: 'Help & Support', type: 'support', unread: 0 }
-        ])
+        // Fallback to demo channels
+        setChannels(DEMO_CHANNELS)
+        setMessages(DEMO_MESSAGES['general'] || [])
+        setIsConnected(true)
       }
     }
 
-    if (isOpen && user) {
+    if (isOpen && (user || isDemoMode)) {
       initializeMessaging()
     }
-    
+
     return () => {
-      if (!isOpen) {
+      if (!isOpen && !isDemoMode) {
         messagingService.disconnect()
       }
     }
-  }, [isOpen, user, activeChannel])
+  }, [isOpen, user, activeChannel, isDemoMode])
 
   // Load messages when channel changes
   useEffect(() => {
     if (activeChannel && isConnected) {
+      // In demo mode, load demo messages for the channel
+      if (isDemoMode) {
+        const demoMessages = DEMO_MESSAGES[activeChannel] || []
+        setMessages(demoMessages)
+        // Mark channel as read
+        setChannels(prev => prev.map(ch =>
+          ch.id === activeChannel ? { ...ch, unread: 0 } : ch
+        ))
+        return
+      }
       loadChannelMessages(activeChannel)
     }
-  }, [activeChannel, isConnected])
+  }, [activeChannel, isConnected, isDemoMode])
 
 
   const loadChannelMessages = async (channel) => {
@@ -179,22 +322,64 @@ const CommunicationHub = ({ isOpen, onClose }) => {
 
   const handleSendMessage = async () => {
     if (newMessage.trim()) {
-      try {
-        const messageData = {
-          sender: user?.name || 'You',
-          senderId: user?.id,
-          message: newMessage,
-          channel: activeChannel,
-          type: 'user'
+      const messageData = {
+        id: Date.now(),
+        sender: isDemoMode ? 'Demo User' : (user?.name || 'You'),
+        senderId: user?.id,
+        message: newMessage,
+        channel: activeChannel,
+        timestamp: new Date().toISOString(),
+        type: 'user'
+      }
+
+      // In demo mode, just add message locally
+      if (isDemoMode) {
+        setMessages(prev => [...prev, messageData])
+        setNewMessage('')
+
+        // Simulate a response in demo mode for certain channels
+        if (activeChannel === 'support') {
+          setTimeout(() => {
+            const responseMessage = {
+              id: Date.now() + 1,
+              sender: 'Support Team',
+              message: 'Thanks for reaching out! This is a demo environment. In the live app, our support team will respond within 24 hours.',
+              timestamp: new Date().toISOString(),
+              channel: activeChannel,
+              type: 'admin'
+            }
+            setMessages(prev => [...prev, responseMessage])
+          }, 1500)
+        } else if (activeChannel === 'general') {
+          setTimeout(() => {
+            const responses = [
+              { sender: 'Alex K.', message: 'Great point! I totally agree.' },
+              { sender: 'Sarah M.', message: 'Thanks for sharing that!' },
+              { sender: 'Mike T.', message: 'Welcome to the community!' }
+            ]
+            const randomResponse = responses[Math.floor(Math.random() * responses.length)]
+            const responseMessage = {
+              id: Date.now() + 1,
+              sender: randomResponse.sender,
+              message: randomResponse.message,
+              timestamp: new Date().toISOString(),
+              channel: activeChannel,
+              type: 'user'
+            }
+            setMessages(prev => [...prev, responseMessage])
+          }, 2000)
         }
-        
+        return
+      }
+
+      try {
         // Send message through messaging service
         const sentMessage = await messagingService.sendMessage(messageData)
-        
+
         // Add to local messages immediately for better UX
         setMessages(prev => [...prev, sentMessage])
         setNewMessage('')
-        
+
         // If this is a support/admin channel, show confirmation
         if (activeChannel === 'support' || activeChannel === 'admin') {
           const confirmationMessage = {
@@ -209,7 +394,7 @@ const CommunicationHub = ({ isOpen, onClose }) => {
             setMessages(prev => [...prev, confirmationMessage])
           }, 1000)
         }
-        
+
       } catch (error) {
         console.error('Failed to send message:', error)
         // Show error message
