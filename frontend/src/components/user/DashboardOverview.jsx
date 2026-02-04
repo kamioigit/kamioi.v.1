@@ -1,6 +1,5 @@
 import React from 'react'
 import { DollarSign, TrendingUp, PieChart, BarChart3, Users } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import RechartsChart from '../common/RechartsChart'
 import CompanyLogo from '../common/CompanyLogo'
 import TimeOfDay from '../common/TimeOfDay'
@@ -33,14 +32,14 @@ const getChartLabels = () => {
 }
 
 const DashboardOverview = ({ user }) => {
-  const navigate = useNavigate()
   // useData now returns default values if context not available, so this is safe
   const { portfolioValue = 0, portfolioStats, holdings = [], transactions = [] } = useData()
   const { isLightMode } = useTheme()
 
-  // Check if in demo mode - use localStorage for consistent detection
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
-  const transactionsPath = isDemoMode ? '/demo/user/transactions' : '/dashboard/transactions'
+  // Navigate to transactions tab using the parent dashboard's setActiveTab event
+  const goToTransactions = () => {
+    window.dispatchEvent(new CustomEvent('setActiveTab', { detail: 'transactions' }))
+  }
 
   // Calculate stats from actual transaction data to match transaction page
   const completedTransactions = transactions.filter(t => t.status === 'completed')
@@ -209,7 +208,7 @@ const DashboardOverview = ({ user }) => {
         <div className="flex items-center justify-between mb-4">
           <h3 className={`text-xl font-semibold ${getTextClass()}`}>Recent Activity</h3>
           <button
-            onClick={() => navigate(transactionsPath)}
+            onClick={goToTransactions}
             className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
           >
             View All →
@@ -220,7 +219,7 @@ const DashboardOverview = ({ user }) => {
             <div
               key={activity.id}
               className={`flex items-center justify-between p-3 ${isLightMode ? 'bg-gray-100' : 'bg-white/5'} rounded-lg cursor-pointer hover:bg-white/10 transition-colors`}
-              onClick={() => navigate(transactionsPath)}
+              onClick={goToTransactions}
             >
               <div className="flex items-center space-x-3">
                 {activity.company && (
