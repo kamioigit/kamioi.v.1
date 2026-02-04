@@ -8092,51 +8092,358 @@ def family_settings():
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
-        
-        if request.method == 'GET':
-            # Return empty family settings (no hardcoded data)
-            return jsonify({
-                'success': True,
-                'settings': {
-                    'roundup_multiplier': 1.0,
-                    'auto_invest': False,
-                    'notifications': False,
-                    'email_alerts': False,
-                    'theme': 'dark',
-                    'family_sharing': False,
-                    'budget_alerts': False,
-                    'spending_limits': {
-                        'daily': 0.00,
-                        'weekly': 0.00,
-                        'monthly': 0.00
-                    }
-                }
-            })
-        
-        elif request.method == 'PUT':
-            data = request.get_json() or {}
-            token = auth_header.split(' ')[1]
+
+        token = auth_header.split(' ')[1]
+        # Handle both family_token_ and user_token_ prefixes
+        if token.startswith('family_token_'):
             family_id = token.replace('family_token_', '')
-            
-            # Extract settings
-            roundup_multiplier = float(data.get('roundUpPreference', 1.0))
-            auto_invest = bool(data.get('auto_invest', False))
-            notifications = bool(data.get('notifications', False))
-            email_alerts = bool(data.get('email_alerts', False))
-            theme = data.get('theme', 'dark')
-            family_sharing = bool(data.get('family_sharing', False))
-            budget_alerts = bool(data.get('budget_alerts', False))
-            spending_limits = data.get('spending_limits', {})
-            
-            # Update user's round-up amount - PostgreSQL uses %s placeholders
+        elif token.startswith('user_token_'):
+            family_id = token.replace('user_token_', '')
+        else:
+            return jsonify({'success': False, 'error': 'Invalid token format'}), 401
+
+        if request.method == 'GET':
+            # Fetch actual family user data from users table
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("UPDATE users SET round_up_amount = %s WHERE id = %s", (roundup_multiplier, family_id))
+            cursor.execute("""
+                SELECT name, email, phone, address, city, state, zip_code,
+                       family_name, family_code, round_up_amount, risk_tolerance,
+                       investment_goals, mx_data
+                FROM users WHERE id = %s
+            """, (family_id,))
+            row = cursor.fetchone()
+            conn.close()
+
+            if row:
+                cols = ['name', 'email', 'phone', 'address', 'city', 'state', 'zip_code',
+                        'family_name', 'family_code', 'round_up_amount', 'risk_tolerance',
+                        'investment_goals', 'mx_data']
+                user = dict(zip(cols, row))
+
+                return jsonify({
+                    'success': True,
+                    'settings': {
+                        'family_name': user.get('family_name') or '',
+                        'guardian_email': user.get('email') or '',
+                        'phone': user.get('phone') or '',
+                        'family_code': user.get('family_code') or '',
+                        'address': {
+                            'street': user.get('address') or '',
+                            'city': user.get('city') or '',
+                            'state': user.get('state') or '',
+                            'zip': user.get('zip_code') or '',
+                            'country': 'US'
+                        },
+                        'family_size': 0,
+                        'round_up_preference': float(user.get('round_up_amount') or 1.0),
+                        'risk_preference': user.get('risk_tolerance') or 'moderate',
+                        'investment_goal': user.get('investment_goals') or '',
+                        'roundup_multiplier': float(user.get('round_up_amount') or 1.0),
+                        'auto_invest': False,
+                        'notifications': False,
+                        'email_alerts': False,
+                        'theme': 'dark',
+                        'family_sharing': False,
+                        'budget_alerts': False
+                    }
+                })
+            else:
+                return jsonify({'success': False, 'error': 'User not found'}), 404
+
+        elif request.method == 'PUT':
+            data = request.get_json() or {}
+
+            # Extract all profile fields
+            family_name = data.get('family_name', '').strip()
+            guardian_email = data.get('guardian_email', '').strip()
+            phone = data.get('phone', '').strip()
+            family_code = data.get('family_code', '').strip()
+            address_data = data.get('address', {})
+            street = address_data.get('street', '').strip() if isinstance(address_data, dict) else ''
+            city = address_data.get('city', '').strip() if isinstance(address_data, dict) else ''
+            state = address_data.get('state', '').strip() if isinstance(address_data, dict) else ''
+            zip_code = address_data.get('zip', '').strip() if isinstance(address_data, dict) else ''
+            round_up_amount = float(data.get('roundUpPreference', data.get('round_up_preference', 1.0)))
+            risk_tolerance = data.get('risk_preference', 'moderate').strip()
+            investment_goal = data.get('investment_goal', '').strip()
+
+            # Update user's profile in users table
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE users SET
+                    family_name = %s,
+                    phone = %s,
+                    family_code = %s,
+                    address = %s,
+                    city = %s,
+                    state = %s,
+                    zip_code = %s,
+                    round_up_amount = %s,
+                    risk_tolerance = %s,
+                    investment_goals = %s
+                WHERE id = %s
+            """, (
+                family_name or None,
+                phone or None,
+                family_code or None,
+                street or None,
+                city or None,
+                state or None,
+                zip_code or None,
+                round_up_amount,
+                risk_tolerance or None,
+                investment_goal or None,
+                family_id
+            ))
             conn.commit()
             conn.close()
 
             return jsonify({'success': True, 'message': 'Family settings updated successfully'})
-        
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Family Subscription Endpoints
+@app.route('/api/family/subscriptions/plans', methods=['GET'])
+def family_subscription_plans():
+    """Get available family subscription plans"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id, name, description, price, billing_period, account_type, features, stripe_price_id
+            FROM subscription_plans
+            WHERE is_active = TRUE AND (account_type = 'family' OR account_type IS NULL OR account_type = '')
+            ORDER BY price
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+
+        plans = []
+        for row in rows:
+            features = []
+            if row[6]:
+                try:
+                    features = json.loads(row[6]) if isinstance(row[6], str) else row[6]
+                except:
+                    features = []
+
+            plans.append({
+                'id': row[0],
+                'name': row[1],
+                'description': row[2],
+                'price': float(row[3]) if row[3] else 0,
+                'interval': row[4] if row[4] else 'month',
+                'billing_period': row[4],
+                'account_type': row[5],
+                'features': features,
+                'stripe_price_id': row[7]
+            })
+
+        return jsonify({'success': True, 'data': plans})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/family/subscriptions/current', methods=['GET'])
+def family_subscription_current():
+    """Get family's current subscription"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        token = auth_header.split(' ')[1]
+        if token.startswith('family_token_'):
+            family_id = token.replace('family_token_', '')
+        elif token.startswith('user_token_'):
+            family_id = token.replace('user_token_', '')
+        else:
+            return jsonify({'success': False, 'error': 'Invalid token format'}), 401
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Check user_subscriptions table
+        try:
+            cursor.execute("""
+                SELECT us.id, us.plan_id, us.status, us.billing_cycle, us.amount,
+                       us.current_period_start, us.current_period_end, us.cancel_at_period_end,
+                       sp.name, sp.description, sp.features
+                FROM user_subscriptions us
+                JOIN subscription_plans sp ON us.plan_id = sp.id
+                WHERE us.user_id = %s
+                ORDER BY us.created_at DESC
+                LIMIT 1
+            """, (family_id,))
+            active_sub = cursor.fetchone()
+
+            if active_sub and active_sub[2] in ('active', 'trialing'):
+                features = []
+                if active_sub[10]:
+                    try:
+                        features = json.loads(active_sub[10]) if isinstance(active_sub[10], str) else active_sub[10]
+                    except:
+                        features = []
+
+                conn.close()
+                return jsonify({
+                    'success': True,
+                    'subscription': {
+                        'subscription_id': active_sub[0],
+                        'plan_id': active_sub[1],
+                        'status': active_sub[2],
+                        'billing_cycle': active_sub[3],
+                        'amount': float(active_sub[4]) if active_sub[4] else 0,
+                        'current_period_start': str(active_sub[5]) if active_sub[5] else None,
+                        'current_period_end': str(active_sub[6]) if active_sub[6] else None,
+                        'cancel_at_period_end': active_sub[7],
+                        'plan_name': active_sub[8],
+                        'description': active_sub[9],
+                        'features': features
+                    }
+                })
+        except Exception as e:
+            print(f"user_subscriptions check error: {e}")
+            conn.rollback()
+
+        conn.close()
+        return jsonify({'success': True, 'subscription': None})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/family/subscriptions/subscribe', methods=['POST'])
+def family_subscription_subscribe():
+    """Subscribe family to a plan"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        token = auth_header.split(' ')[1]
+        if token.startswith('family_token_'):
+            family_id = token.replace('family_token_', '')
+        elif token.startswith('user_token_'):
+            family_id = token.replace('user_token_', '')
+        else:
+            return jsonify({'success': False, 'error': 'Invalid token format'}), 401
+
+        data = request.get_json() or {}
+        plan_id = data.get('plan_id')
+        billing_cycle = data.get('billing_cycle', 'monthly')
+
+        if not plan_id:
+            return jsonify({'success': False, 'error': 'Plan ID required'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Get plan details
+        cursor.execute("SELECT price FROM subscription_plans WHERE id = %s", (plan_id,))
+        plan = cursor.fetchone()
+        if not plan:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Plan not found'}), 404
+
+        # Create subscription record
+        cursor.execute("""
+            INSERT INTO user_subscriptions (user_id, plan_id, status, billing_cycle, amount, current_period_start, current_period_end)
+            VALUES (%s, %s, 'active', %s, %s, NOW(), NOW() + INTERVAL '1 month')
+            RETURNING id
+        """, (family_id, plan_id, billing_cycle, plan[0]))
+
+        sub_id = cursor.fetchone()[0]
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'subscription_id': sub_id,
+            'message': 'Subscription created successfully'
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/family/subscriptions/cancel', methods=['POST'])
+def family_subscription_cancel():
+    """Cancel family subscription"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No token provided'}), 401
+
+        token = auth_header.split(' ')[1]
+        if token.startswith('family_token_'):
+            family_id = token.replace('family_token_', '')
+        elif token.startswith('user_token_'):
+            family_id = token.replace('user_token_', '')
+        else:
+            return jsonify({'success': False, 'error': 'Invalid token format'}), 401
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            UPDATE user_subscriptions
+            SET cancel_at_period_end = TRUE
+            WHERE user_id = %s AND status = 'active'
+        """, (family_id,))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'Subscription will cancel at end of billing period'
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/family/subscriptions/validate-promo', methods=['POST'])
+def family_validate_promo():
+    """Validate a promo code for family"""
+    try:
+        data = request.get_json() or {}
+        promo_code = data.get('promo_code', '').strip().upper()
+
+        if not promo_code:
+            return jsonify({'success': False, 'error': 'Promo code required'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT code, discount_type, discount_value, max_uses, current_uses, expires_at
+            FROM promo_codes
+            WHERE code = %s AND is_active = TRUE
+        """, (promo_code,))
+        promo = cursor.fetchone()
+        conn.close()
+
+        if not promo:
+            return jsonify({'success': False, 'error': 'Invalid promo code'}), 400
+
+        # Check if expired or max uses reached
+        if promo[4] and promo[3] and promo[4] >= promo[3]:
+            return jsonify({'success': False, 'error': 'Promo code has been used too many times'}), 400
+
+        return jsonify({
+            'success': True,
+            'promo_code': {
+                'code': promo[0],
+                'discount_type': promo[1],
+                'discount_value': float(promo[2]) if promo[2] else 0
+            }
+        })
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -23866,7 +24173,13 @@ def family_bank_connections():
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
         token = auth_header.split(' ')[1]
-        family_id = token.replace('family_token_', '')
+        # Handle both family_token_ and user_token_ prefixes
+        if token.startswith('family_token_'):
+            family_id = token.replace('family_token_', '')
+        elif token.startswith('user_token_'):
+            family_id = token.replace('user_token_', '')
+        else:
+            return jsonify({'success': False, 'error': 'Invalid token format'}), 401
 
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -23877,17 +24190,21 @@ def family_bank_connections():
             member_guid = data.get('member_guid')
             user_guid = data.get('user_guid')
             institution_name = data.get('institution_name', 'Connected Bank')
+            account_name = data.get('account_name', 'Primary Account')
+            account_type = data.get('account_type', 'checking')
 
-            # Store as JSON in mx_data column
+            # Store as JSON in mx_data column in users table
             mx_data = json.dumps({
                 'member_guid': member_guid,
                 'user_guid': user_guid,
                 'institution_name': institution_name,
+                'account_name': account_name,
+                'account_type': account_type,
                 'connected_at': datetime.now().isoformat()
             })
 
             cursor.execute("""
-                UPDATE family_users SET mx_data = %s WHERE id = %s
+                UPDATE users SET mx_data = %s WHERE id = %s
             """, (mx_data, family_id))
             conn.commit()
             conn.close()
@@ -23898,8 +24215,8 @@ def family_bank_connections():
             })
 
         else:
-            # GET - Retrieve bank connections
-            cursor.execute("SELECT mx_data FROM family_users WHERE id = %s", (family_id,))
+            # GET - Retrieve bank connections from users table
+            cursor.execute("SELECT mx_data FROM users WHERE id = %s", (family_id,))
             result = cursor.fetchone()
             conn.close()
 
@@ -23945,13 +24262,19 @@ def delete_family_bank_connection(connection_id):
             return jsonify({'success': False, 'error': 'No token provided'}), 401
 
         token = auth_header.split(' ')[1]
-        family_id = token.replace('family_token_', '')
+        # Handle both family_token_ and user_token_ prefixes
+        if token.startswith('family_token_'):
+            family_id = token.replace('family_token_', '')
+        elif token.startswith('user_token_'):
+            family_id = token.replace('user_token_', '')
+        else:
+            return jsonify({'success': False, 'error': 'Invalid token format'}), 401
 
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Clear the mx_data column to remove bank connection
-        cursor.execute("UPDATE family_users SET mx_data = NULL WHERE id = %s", (family_id,))
+        # Clear the mx_data column to remove bank connection from users table
+        cursor.execute("UPDATE users SET mx_data = NULL WHERE id = %s", (family_id,))
         conn.commit()
         conn.close()
 

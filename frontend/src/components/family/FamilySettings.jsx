@@ -1514,21 +1514,10 @@ startxref
 
           <div className="glass-card p-6">
             <h3 className="text-lg font-semibold text-white mb-4">Family Connected Devices</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                <div>
-                  <p className="text-white font-medium">iPhone 15 Pro (Guardian)</p>
-                  <p className="text-gray-400 text-sm">Last active: 2 hours ago</p>
-                </div>
-                <button className="text-red-400 hover:text-red-300 text-sm">Remove</button>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                <div>
-                  <p className="text-white font-medium">Chrome Browser (Family)</p>
-                  <p className="text-gray-400 text-sm">Last active: 1 day ago</p>
-                </div>
-                <button className="text-red-400 hover:text-red-300 text-sm">Remove</button>
-              </div>
+            <div className="text-center py-8">
+              <Shield className="w-12 h-12 text-gray-500 mx-auto mb-3" />
+              <p className="text-gray-400">No devices currently connected</p>
+              <p className="text-gray-500 text-sm mt-2">Device tracking will be available in a future update</p>
             </div>
           </div>
 
