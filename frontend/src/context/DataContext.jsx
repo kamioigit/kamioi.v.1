@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import apiService from '../services/apiService'
 import { getToken, ROLES } from '../services/apiService' // Import getToken and ROLES
 
@@ -232,15 +232,32 @@ const getDemoGoals = (accountType, totalInvested) => {
   })
 }
 
+// Deterministic seeded random number generator
+// This ensures demo data is consistent across reloads
+const createSeededRandom = (seed) => {
+  let state = seed
+  return () => {
+    state = (state * 1103515245 + 12345) & 0x7fffffff
+    return state / 0x7fffffff
+  }
+}
+
 // Generate a full year of 2025 transactions with status variety
+// Uses deterministic random to ensure consistent data across reloads
 const generateDemoTransactions = (accountType, roundUpAmount = 1) => {
   const merchants = DEMO_MERCHANTS[accountType] || DEMO_MERCHANTS.individual
+
+  // Create a seeded random based on account type and round-up amount
+  // This ensures same inputs always produce same outputs
+  const seedValue = accountType === 'individual' ? 12345 : accountType === 'family' ? 67890 : 11111
+  const seededRandom = createSeededRandom(seedValue + roundUpAmount * 1000)
+
   const transactions = []
   let id = 1
 
   // Status distribution: 75% completed, 10% pending, 8% processing, 5% mapped, 2% failed
   const getRandomStatus = () => {
-    const rand = Math.random()
+    const rand = seededRandom()
     if (rand < 0.75) return 'completed'
     if (rand < 0.85) return 'pending'
     if (rand < 0.93) return 'processing'
@@ -253,11 +270,11 @@ const generateDemoTransactions = (accountType, roundUpAmount = 1) => {
   const endDate = new Date('2025-12-31')
 
   for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 2)) {
-    // Skip some days randomly to make it realistic (not exactly every 2 days)
-    if (Math.random() > 0.85) continue
+    // Skip some days deterministically to make it realistic (not exactly every 2 days)
+    if (seededRandom() > 0.85) continue
 
-    const merchantData = merchants[Math.floor(Math.random() * merchants.length)]
-    const baseAmount = Math.floor(Math.random() * 150) + 5 + Math.random() * 0.99 // $5.xx to $155.xx
+    const merchantData = merchants[Math.floor(seededRandom() * merchants.length)]
+    const baseAmount = Math.floor(seededRandom() * 150) + 5 + seededRandom() * 0.99 // $5.xx to $155.xx
 
     const transaction = {
       id: id++,
@@ -275,14 +292,14 @@ const generateDemoTransactions = (accountType, roundUpAmount = 1) => {
 
     // Add member for family accounts
     if (accountType === 'family') {
-      transaction.member = FAMILY_MEMBERS[Math.floor(Math.random() * FAMILY_MEMBERS.length)]
+      transaction.member = FAMILY_MEMBERS[Math.floor(seededRandom() * FAMILY_MEMBERS.length)]
     }
 
     // Add employee for business accounts
     if (accountType === 'business') {
-      transaction.employee = BUSINESS_EMPLOYEES[Math.floor(Math.random() * BUSINESS_EMPLOYEES.length)]
+      transaction.employee = BUSINESS_EMPLOYEES[Math.floor(seededRandom() * BUSINESS_EMPLOYEES.length)]
       // Business transactions are larger
-      transaction.amount = parseFloat((baseAmount * 5 + Math.random() * 500).toFixed(2))
+      transaction.amount = parseFloat((baseAmount * 5 + seededRandom() * 500).toFixed(2))
       transaction.purchase = transaction.amount
     }
 
@@ -370,6 +387,10 @@ export const DataProvider = ({ children }) => {
   const [error, setError] = useState(null)
   const [hasLoaded, setHasLoaded] = useState(false)
 
+  // Refs to prevent infinite reload loops
+  const lastDemoLoadTimeRef = useRef(0)
+  const isLoadingDemoDataRef = useRef(false)
+
   // Clear all localStorage data to ensure clean state
   const clearAllLocalStorage = () => {
     const keysToRemove = [
@@ -398,6 +419,14 @@ export const DataProvider = ({ children }) => {
       const demoAccountType = localStorage.getItem('kamioi_demo_account_type') || 'individual'
 
       if (isDemoMode) {
+        // Prevent concurrent demo data generation
+        if (isLoadingDemoDataRef.current) {
+          console.log('DataContext - Demo data already loading, skipping')
+          setIsLoading(false)
+          return
+        }
+        isLoadingDemoDataRef.current = true
+
         // Get user's round-up preference from localStorage (default $1)
         const roundUpAmount = parseInt(localStorage.getItem('kamioi_round_up_amount')) || 1
         console.log('DataContext - Demo mode detected, using demo data for:', demoAccountType, 'with round-up:', roundUpAmount)
@@ -415,6 +444,7 @@ export const DataProvider = ({ children }) => {
         setNotifications([])
         setHasLoaded(true)
         setIsLoading(false)
+        isLoadingDemoDataRef.current = false
         return
       }
 
@@ -741,6 +771,20 @@ export const DataProvider = ({ children }) => {
   // Listen for demo mode changes to reload data
   useEffect(() => {
     const handleDemoModeChange = () => {
+      // Throttle: prevent reloading more than once per 2 seconds
+      const now = Date.now()
+      if (now - lastDemoLoadTimeRef.current < 2000) {
+        console.log('DataContext - Skipping reload, throttled (last load was', now - lastDemoLoadTimeRef.current, 'ms ago)')
+        return
+      }
+
+      // Prevent concurrent loads
+      if (isLoadingDemoDataRef.current) {
+        console.log('DataContext - Skipping reload, already loading')
+        return
+      }
+
+      lastDemoLoadTimeRef.current = now
       console.log('DataContext - Demo mode changed, reloading data')
       loadDataFromAPI()
     }
@@ -749,12 +793,19 @@ export const DataProvider = ({ children }) => {
     const handleRoundUpSettingsChange = () => {
       const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
       if (isDemoMode) {
+        // Also throttle round-up settings changes
+        const now = Date.now()
+        if (now - lastDemoLoadTimeRef.current < 2000) {
+          console.log('DataContext - Skipping round-up reload, throttled')
+          return
+        }
+        lastDemoLoadTimeRef.current = now
         console.log('DataContext - Round-up settings changed in demo mode, regenerating demo data')
         loadDataFromAPI()
       }
     }
 
-    // Listen for storage changes (when demo mode is toggled)
+    // Listen for storage changes (when demo mode is toggled from another tab)
     window.addEventListener('storage', handleDemoModeChange)
 
     // Also listen for custom demo mode change event
