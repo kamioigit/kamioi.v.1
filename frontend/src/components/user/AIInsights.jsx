@@ -10,7 +10,7 @@ const AIInsights = ({ user }) => {
   const { isLightMode } = useTheme()
   const { addNotification } = useNotifications()
   const { showSuccessModal, showErrorModal } = useModal()
-  const [activeTab, setActiveTab] = useState('mapping-history')
+  const [activeTab, setActiveTab] = useState('ai-recommendations')
   const [loading, setLoading] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState(null)
   const [showTransactionModal, setShowTransactionModal] = useState(false)
@@ -28,6 +28,9 @@ const AIInsights = ({ user }) => {
     totalUsers: 0
   })
 
+  // Check if in demo mode
+  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+
   // Calculate tier based on points
   const calculateTier = (points) => {
     if (points >= 1000) return { tier: 'AI Master', nextTier: null, nextTierPoints: 0, progress: 100 }
@@ -44,79 +47,265 @@ const AIInsights = ({ user }) => {
   const [recommendationsError, setRecommendationsError] = useState(null)
   const [receiptMappings, setReceiptMappings] = useState([])
 
-  // Fetch mapping history from backend
+  // Generate demo AI recommendations based on transactions
+  const generateDemoAIRecommendations = (transactions) => {
+    const safeTransactions = transactions || []
+
+    // Analyze transactions to generate insights
+    const merchantCounts = {}
+    const categoryCounts = {}
+
+    safeTransactions.forEach(t => {
+      const merchant = t.merchant || 'Unknown'
+      const category = t.category || 'Other'
+      merchantCounts[merchant] = (merchantCounts[merchant] || 0) + 1
+      categoryCounts[category] = (categoryCounts[category] || 0) + 1
+    })
+
+    const topMerchants = Object.entries(merchantCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+
+    const topCategories = Object.entries(categoryCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+
+    const recommendations = []
+
+    // Brand education recommendations
+    topMerchants.forEach(([merchant, count], index) => {
+      const tickerMap = {
+        'Starbucks': 'SBUX',
+        'Amazon': 'AMZN',
+        'Apple Store': 'AAPL',
+        'Netflix': 'NFLX',
+        'Uber': 'UBER',
+        'Target': 'TGT',
+        'Chipotle': 'CMG',
+        'Nike': 'NKE',
+        'Walmart': 'WMT',
+        'McDonalds': 'MCD',
+        'Costco': 'COST',
+        'Home Depot': 'HD',
+        'Spotify': 'SPOT',
+        'Disney+': 'DIS',
+        'CVS Pharmacy': 'CVS',
+        'Best Buy': 'BBY'
+      }
+
+      const ticker = tickerMap[merchant]
+      if (ticker && index < 3) {
+        recommendations.push({
+          type: 'brand_education',
+          title: `Learn About ${merchant}`,
+          description: `You've made ${count} purchases at ${merchant}. Did you know ${merchant} (${ticker}) is a publicly traded company? Learn more about investing in brands you use daily.`,
+          priority: index === 0 ? 'high' : 'medium',
+          merchant: merchant,
+          brand_stock: ticker
+        })
+      }
+    })
+
+    // Category insights
+    topCategories.forEach(([category, count], index) => {
+      if (index < 2) {
+        recommendations.push({
+          type: 'category_education',
+          title: `${category} Spending Insight`,
+          description: `You spend frequently in the ${category} category with ${count} transactions. Consider diversifying your round-up investments across different sectors.`,
+          priority: 'medium',
+          merchant: null
+        })
+      }
+    })
+
+    // Round-up nudges
+    const totalRoundUps = safeTransactions.filter(t => t.status === 'completed').length
+    if (totalRoundUps > 0) {
+      recommendations.push({
+        type: 'roundup_nudge',
+        title: 'Maximize Your Round-Ups',
+        description: `You've completed ${totalRoundUps} round-up investments! Consider increasing your round-up amount from $1 to $2 or $5 to accelerate your portfolio growth.`,
+        priority: 'high',
+        merchant: null
+      })
+    }
+
+    // Goal progress
+    recommendations.push({
+      type: 'goal_progress',
+      title: 'Keep Building Your Portfolio',
+      description: 'Your consistent round-up investments are helping you build long-term wealth. Small amounts invested regularly can grow significantly over time through compound growth.',
+      priority: 'medium',
+      merchant: null
+    })
+
+    // Market education
+    recommendations.push({
+      type: 'market_education',
+      title: 'Understanding Market Basics',
+      description: 'Stock prices fluctuate daily based on company performance and market conditions. Your fractional shares grow or shrink in value alongside the companies you invest in.',
+      priority: 'low',
+      merchant: null
+    })
+
+    return {
+      recommendations: recommendations,
+      insights: [
+        {
+          title: 'Spending Pattern',
+          description: `Based on ${safeTransactions.length} transactions, your top spending categories are ${topCategories.map(c => c[0]).join(', ')}.`
+        },
+        {
+          title: 'Investment Opportunity',
+          description: `You frequently shop at brands like ${topMerchants.slice(0, 3).map(m => m[0]).join(', ')}. Consider learning about investing in companies you already support.`
+        }
+      ],
+      educational_content: [
+        { title: 'What is a Stock?', summary: 'A stock represents ownership in a company.' },
+        { title: 'Fractional Shares', summary: 'Own a piece of expensive stocks with small amounts.' },
+        { title: 'Compound Growth', summary: 'Reinvested earnings accelerate wealth building.' }
+      ]
+    }
+  }
+
+  // Generate demo mapping history from transactions
+  const generateDemoMappingHistory = (transactions) => {
+    const safeTransactions = transactions || []
+    return safeTransactions.slice(0, 10).map((t, index) => ({
+      id: index + 1,
+      mapping_id: `AIM${String(1000 + index).padStart(4, '0')}`,
+      transaction_id: `TXN${String(t.id || index + 1).padStart(6, '0')}`,
+      merchant_name: t.merchant || 'Unknown',
+      ticker_symbol: t.ticker || 'N/A',
+      category: t.category || 'Other',
+      status: index < 7 ? 'approved' : 'pending',
+      admin_approved: index < 7 ? 1 : 0,
+      confidence_status: index < 5 ? 'High' : 'Medium',
+      points: index < 7 ? 10 : 0,
+      submitted_at: t.date || new Date().toISOString(),
+      created_at: t.date || new Date().toISOString(),
+      user_id: 1
+    }))
+  }
+
+  // Generate demo rewards
+  const generateDemoRewards = (pointsEarned) => {
+    return [
+      { id: 1, name: 'First Mapping', description: 'Complete your first transaction mapping', icon: '🎯', points: 10, unlocked: pointsEarned >= 10 },
+      { id: 2, name: 'AI Learner', description: 'Reach 10 points', icon: '📚', points: 10, unlocked: pointsEarned >= 10 },
+      { id: 3, name: 'AI Helper', description: 'Reach 50 points', icon: '🤝', points: 40, unlocked: pointsEarned >= 50 },
+      { id: 4, name: 'AI Trainer', description: 'Reach 200 points', icon: '🏋️', points: 150, unlocked: pointsEarned >= 200 },
+      { id: 5, name: 'AI Expert', description: 'Reach 500 points', icon: '🎓', points: 300, unlocked: pointsEarned >= 500 },
+      { id: 6, name: 'AI Master', description: 'Reach 1000 points', icon: '👑', points: 500, unlocked: pointsEarned >= 1000 },
+      { id: 7, name: 'Streak Master', description: 'Map transactions 7 days in a row', icon: '🔥', points: 50, unlocked: pointsEarned >= 70 },
+      { id: 8, name: 'Category Expert', description: 'Map 5 different categories', icon: '📊', points: 25, unlocked: pointsEarned >= 30 }
+    ]
+  }
+
+  // Generate demo leaderboard
+  const generateDemoLeaderboard = (userPoints) => {
+    const demoUsers = [
+      { rank: 1, name: 'InvestorPro99', points: 1250, tier: 'AI Master' },
+      { rank: 2, name: 'WealthBuilder', points: 890, tier: 'AI Expert' },
+      { rank: 3, name: 'SmartSaver', points: 650, tier: 'AI Expert' },
+      { rank: 4, name: 'RoundUpKing', points: 420, tier: 'AI Trainer' },
+      { rank: 5, name: 'DemoUser', points: userPoints, tier: calculateTier(userPoints).tier },
+      { rank: 6, name: 'StockNewbie', points: 45, tier: 'AI Learner' },
+      { rank: 7, name: 'InvestFirst', points: 30, tier: 'AI Learner' },
+      { rank: 8, name: 'BeginnerBob', points: 15, tier: 'AI Learner' }
+    ]
+    // Sort by points and update ranks
+    return demoUsers.sort((a, b) => b.points - a.points).map((u, i) => ({ ...u, rank: i + 1 }))
+  }
+
+  const [leaderboard, setLeaderboard] = useState([])
+
+  // Fetch mapping history from backend or use demo data
   useEffect(() => {
     const fetchAllData = async () => {
       setLoading(true)
       try {
-        // Fetch mapping history and insights
+        // In demo mode, use generated demo data instead of API calls
+        if (isDemoMode) {
+          console.log('AI Insights - Demo mode detected, using demo data')
+
+          // Wait for transactions to be available from DataContext
+          // The transactions will be set after this component mounts
+          setTimeout(() => {
+            // Generate demo data based on transactions
+            const demoMappings = generateDemoMappingHistory(transactions || [])
+            setMappingHistory(demoMappings)
+
+            // Calculate stats from demo mappings
+            const approvedCount = demoMappings.filter(m => m.admin_approved === 1).length
+            const pendingCount = demoMappings.filter(m => m.status === 'pending').length
+            const pointsEarned = approvedCount * 10
+            const tierInfo = calculateTier(pointsEarned)
+
+            setUserStats({
+              totalMappings: demoMappings.length,
+              approvedMappings: approvedCount,
+              pendingMappings: pendingCount,
+              rejectedMappings: 0,
+              accuracyRate: demoMappings.length > 0 ? (approvedCount / demoMappings.length) * 100 : 0,
+              pointsEarned: pointsEarned,
+              currentTier: tierInfo.tier,
+              nextTierPoints: tierInfo.nextTierPoints,
+              rank: 5,
+              totalUsers: 8,
+              tierProgress: tierInfo.progress,
+              nextTier: tierInfo.nextTier
+            })
+
+            // Set demo rewards
+            setRewards(generateDemoRewards(pointsEarned))
+
+            // Set demo leaderboard
+            setLeaderboard(generateDemoLeaderboard(pointsEarned))
+
+            // Generate demo AI recommendations
+            const demoRecommendations = generateDemoAIRecommendations(transactions || [])
+            setAiRecommendations(demoRecommendations)
+
+            console.log('AI Insights - Demo data loaded successfully')
+          }, 100) // Small delay to allow transactions to load
+
+          setLoading(false)
+          return
+        }
+
+        // Fetch mapping history and insights from API (non-demo mode)
         const authToken = localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token') || localStorage.getItem('authToken')
         console.log('AI Insights - Auth token:', authToken)
-        console.log('AI Insights - All localStorage:', {
-          kamioi_user_token: localStorage.getItem('kamioi_user_token'),
-          kamioi_token: localStorage.getItem('kamioi_token'),
-          authToken: localStorage.getItem('authToken'),
-          kamioi_user: localStorage.getItem('kamioi_user')
-        })
-        
-        // Check user data
-        const userData = localStorage.getItem('kamioi_user')
-        if (userData) {
-          try {
-            const user = JSON.parse(userData)
-            console.log('AI Insights - User data:', user)
-            console.log('AI Insights - User ID:', user.id)
-          } catch (e) {
-            console.log('AI Insights - Error parsing user data:', e)
-          }
-        }
-        
+
         const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
         const insightsResponse = await fetch(`${apiBaseUrl}/api/user/ai/insights`, {
           headers: {
             'Authorization': `Bearer ${authToken}`
           }
         })
-        
+
         console.log('AI Insights - Response status:', insightsResponse.status)
-        
+
         if (insightsResponse.ok) {
           const insightsData = await insightsResponse.json()
           console.log('AI Insights - Response data:', insightsData)
           if (insightsData.success) {
-            // Debug: Show all mappings first to see the data structure
-            console.log('AI Insights - All mappings from backend:', insightsData.data)
-            
             // Extract mappings array from data object
             const mappingsData = insightsData.data?.mappings || insightsData.data || []
             const mappingsArray = Array.isArray(mappingsData) ? mappingsData : (Array.isArray(insightsData.data?.mappings) ? insightsData.data.mappings : [])
-            
-            console.log('AI Insights - First mapping details:', mappingsArray?.[0])
-            
+
             // Filter to only show user-submitted mappings (those with user_id)
             const userSubmittedMappings = mappingsArray.filter(mapping => {
-              console.log('AI Insights - Filtering mapping:', {
-                id: mapping.id,
-                user_id: mapping.user_id,
-                user_id_type: typeof mapping.user_id,
-                user_id_null: mapping.user_id === null,
-                user_id_undefined: mapping.user_id === undefined,
-                user_id_none: mapping.user_id === 'None',
-                has_user_id: !!mapping.user_id,
-                merchant_name: mapping.merchant_name
-              })
-              
-              // Show mappings that have a user_id (user-submitted) - be more permissive
               const hasUserId = mapping.user_id && mapping.user_id !== null && mapping.user_id !== 'None' && mapping.user_id !== ''
               const hasMappingId = mapping.mapping_id && mapping.mapping_id.startsWith('AIM')
-              
-              console.log('AI Insights - Filter result:', { hasUserId, hasMappingId, willInclude: hasUserId || hasMappingId })
-              
               return hasUserId || hasMappingId
             })
             console.log('User-submitted mappings loaded:', userSubmittedMappings.length, 'items')
             setMappingHistory(userSubmittedMappings)
-            // Use stats from backend if available, otherwise calculate from user-submitted mappings only
+
+            // Use stats from backend if available
             const stats = insightsData.data?.stats || insightsData.stats || {
               totalMappings: userSubmittedMappings.length,
               approvedMappings: userSubmittedMappings.filter(m => m.admin_approved === 1).length,
@@ -124,14 +313,14 @@ const AIInsights = ({ user }) => {
               accuracyRate: 0,
               pointsEarned: userSubmittedMappings.filter(m => m.admin_approved === 1).length * 10
             }
-            // Calculate tier based on points
+
             const tierInfo = calculateTier(stats.pointsEarned)
-            
+
             setUserStats({
               totalMappings: stats.totalMappings,
               approvedMappings: stats.approvedMappings,
               pendingMappings: stats.pendingMappings,
-              rejectedMappings: 0, // Not tracked in current backend
+              rejectedMappings: 0,
               accuracyRate: stats.accuracyRate,
               pointsEarned: stats.pointsEarned,
               currentTier: tierInfo.tier,
@@ -141,7 +330,6 @@ const AIInsights = ({ user }) => {
               tierProgress: tierInfo.progress,
               nextTier: tierInfo.nextTier
             })
-            console.log('AI Insights mapping history loaded:', insightsData.data)
           }
         }
 
@@ -155,7 +343,6 @@ const AIInsights = ({ user }) => {
           const rewardsData = await rewardsResponse.json()
           if (rewardsData.success) {
             setRewards(rewardsData.rewards || [])
-            console.log('AI Insights rewards data loaded successfully')
           }
         }
 
@@ -168,47 +355,48 @@ const AIInsights = ({ user }) => {
     }
 
     fetchAllData()
-    
-    // Set up real-time updates every 30 seconds (reduced frequency)
-    const interval = setInterval(() => {
-      console.log('Auto-refreshing AI Insights data...')
-      fetchAllData()
-    }, 30000) // 30 seconds
-    
-    // Set up WebSocket for real-time updates (if available)
-    // WebSocket server not available, using polling only
-    /*
-    const ws = new WebSocket('ws://localhost:8765/ws/user/insights')
-    ws.onmessage = (event) => {
-      const update = JSON.parse(event.data)
-      console.log('Real-time AI Insights update received:', update)
-      if (update.type === 'new_insight' || update.type === 'mapping_updated') {
+
+    // Set up real-time updates every 30 seconds (only in non-demo mode)
+    let interval = null
+    if (!isDemoMode) {
+      interval = setInterval(() => {
+        console.log('Auto-refreshing AI Insights data...')
         fetchAllData()
-      }
+      }, 30000)
     }
-    
-    ws.onerror = (error) => {
-      console.log('WebSocket connection failed, using polling only:', error)
-    }
-    */
-    
+
     return () => {
-      clearInterval(interval)
-      // ws.close()
+      if (interval) clearInterval(interval)
     }
-  }, [])
+  }, [isDemoMode, transactions])
 
   const { transactions, holdings, portfolioValue, goals } = useData()
 
   // Fetch AI Recommendations with caching - only call API when needed
   const fetchAIRecommendations = useCallback(async (forceRefresh = false) => {
     if (recommendationsLoading) return
-    
+
+    // In demo mode, use generated recommendations
+    if (isDemoMode) {
+      console.log('🤖 [UserAIInsights] Demo mode - generating AI recommendations')
+      setRecommendationsLoading(true)
+      setRecommendationsError(null)
+
+      // Small delay to simulate loading
+      setTimeout(() => {
+        const demoRecommendations = generateDemoAIRecommendations(transactions || [])
+        setAiRecommendations(demoRecommendations)
+        setRecommendationsLoading(false)
+        console.log('🤖 [UserAIInsights] Demo recommendations generated:', demoRecommendations)
+      }, 500)
+      return
+    }
+
     let authToken = localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token') || localStorage.getItem('authToken')
     if (authToken === 'null' || authToken === 'undefined' || !authToken) {
       authToken = null
     }
-    
+
     // Get user ID from token or props
     let userId = user?.id || null
     if (!userId && authToken) {
@@ -218,19 +406,19 @@ const AIInsights = ({ user }) => {
         if (match) userId = parseInt(match[1])
       }
     }
-    
+
     // Check cache first - only call API if cache is missing or transaction count changed
     const transactionCount = (transactions || []).length
     const cacheKey = `ai_recommendations_${userId || 'unknown'}_${transactionCount}`
     const cachedData = localStorage.getItem(cacheKey)
-    
+
     if (!forceRefresh && cachedData) {
       try {
         const parsed = JSON.parse(cachedData)
         const cacheTimestamp = parsed.timestamp || 0
         const cacheAge = Date.now() - cacheTimestamp
         const maxCacheAge = 7 * 24 * 60 * 60 * 1000 // 7 days
-        
+
         // Use cache if it's less than 7 days old and transaction count matches
         if (cacheAge < maxCacheAge && parsed.transactionCount === transactionCount) {
           console.log('🤖 [UserAIInsights] Using cached AI recommendations (age:', Math.round(cacheAge / 1000 / 60), 'minutes)')
@@ -242,17 +430,10 @@ const AIInsights = ({ user }) => {
         console.warn('🤖 [UserAIInsights] Failed to parse cached recommendations:', e)
       }
     }
-    
-    // Only call API if cache is missing or force refresh requested
-    if (!forceRefresh && cachedData) {
-      console.log('🤖 [UserAIInsights] Cache exists but transaction count changed or expired, refreshing...')
-    } else {
-      console.log('🤖 [UserAIInsights] No cache found, calling API...')
-    }
-    
+
     setRecommendationsLoading(true)
     setRecommendationsError(null)
-    
+
     try {
       // Prepare user data for AI recommendations
       const userData = {
@@ -265,7 +446,7 @@ const AIInsights = ({ user }) => {
         risk_tolerance: 'moderate',
         investment_history: []
       }
-      
+
       console.log('🤖 [UserAIInsights] Fetching AI recommendations with data:', {
         userId,
         transactionsCount: userData.transactions.length,
@@ -273,7 +454,7 @@ const AIInsights = ({ user }) => {
         holdingsCount: userData.portfolio.holdings.length,
         goalsCount: userData.goals.length
       })
-      
+
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const response = await fetch(`${apiBaseUrl}/api/ai/recommendations`, {
         method: 'POST',
@@ -287,13 +468,13 @@ const AIInsights = ({ user }) => {
           user_data: userData
         })
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         if (data.success && data.data) {
           console.log('🤖 [UserAIInsights] AI Recommendations received:', data.data)
           setAiRecommendations(data.data)
-          
+
           // Cache the recommendations with transaction count
           try {
             localStorage.setItem(cacheKey, JSON.stringify({
@@ -301,7 +482,6 @@ const AIInsights = ({ user }) => {
               timestamp: Date.now(),
               transactionCount: transactionCount
             }))
-            console.log('🤖 [UserAIInsights] Recommendations cached for future use')
           } catch (e) {
             console.warn('🤖 [UserAIInsights] Failed to cache recommendations:', e)
           }
@@ -315,15 +495,13 @@ const AIInsights = ({ user }) => {
     } catch (error) {
       console.error('❌ [UserAIInsights] Error fetching AI recommendations:', error)
       setRecommendationsError(error.message)
-      setAiRecommendations({
-        recommendations: [],
-        insights: [],
-        educational_content: []
-      })
+      // Fallback to demo recommendations on error
+      const fallbackRecommendations = generateDemoAIRecommendations(transactions || [])
+      setAiRecommendations(fallbackRecommendations)
     } finally {
       setRecommendationsLoading(false)
     }
-  }, [transactions, holdings, portfolioValue, goals, recommendationsLoading, user])
+  }, [transactions, holdings, portfolioValue, goals, recommendationsLoading, user, isDemoMode])
 
   // Listen for new transactions to refresh recommendations
   useEffect(() => {
@@ -344,40 +522,34 @@ const AIInsights = ({ user }) => {
   // Fetch AI recommendations when tab is opened (will use cache if available)
   useEffect(() => {
     if (activeTab === 'ai-recommendations' && !aiRecommendations && !recommendationsLoading) {
-      console.log('🤖 [UserAIInsights] Recommendations tab opened, checking cache first...')
-      
-      // FORCE REFRESH THIS ONE TIME - Clear cache for this user
-      let userId = user?.id || null
-      if (!userId) {
-        const authToken = localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token') || localStorage.getItem('authToken')
-        if (authToken && authToken.includes('user_token_')) {
-          const match = authToken.match(/user_token_(\d+)/)
-          if (match) userId = parseInt(match[1])
-        }
-      }
-      
-      // Clear all cached recommendations for this user
-      if (userId) {
-        const transactionCount = (transactions || []).length
-        const cacheKey = `ai_recommendations_${userId}_${transactionCount}`
-        localStorage.removeItem(cacheKey)
-        console.log('🤖 [UserAIInsights] 🗑️ Cleared cache for user:', userId, 'cacheKey:', cacheKey)
-        
-        // Also clear any other cache keys for this user
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i)
-          if (key && key.startsWith(`ai_recommendations_${userId}_`)) {
-            localStorage.removeItem(key)
-            console.log('🤖 [UserAIInsights] 🗑️ Cleared additional cache:', key)
+      console.log('🤖 [UserAIInsights] Recommendations tab opened')
+
+      if (isDemoMode) {
+        // In demo mode, just generate recommendations
+        console.log('🤖 [UserAIInsights] Demo mode - generating recommendations')
+        fetchAIRecommendations(true)
+      } else {
+        // In non-demo mode, clear cache and refresh
+        let userId = user?.id || null
+        if (!userId) {
+          const authToken = localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token') || localStorage.getItem('authToken')
+          if (authToken && authToken.includes('user_token_')) {
+            const match = authToken.match(/user_token_(\d+)/)
+            if (match) userId = parseInt(match[1])
           }
         }
+
+        // Clear cached recommendations for this user
+        if (userId) {
+          const transactionCount = (transactions || []).length
+          const cacheKey = `ai_recommendations_${userId}_${transactionCount}`
+          localStorage.removeItem(cacheKey)
+        }
+
+        fetchAIRecommendations(true)
       }
-      
-      // Force refresh - bypass cache
-      console.log('🤖 [UserAIInsights] 🔄 Force refreshing AI recommendations (cache cleared)')
-      fetchAIRecommendations(true)
     }
-  }, [activeTab, aiRecommendations, recommendationsLoading, fetchAIRecommendations, user, transactions])
+  }, [activeTab, aiRecommendations, recommendationsLoading, fetchAIRecommendations, user, transactions, isDemoMode])
 
   const getTextClass = () => isLightMode ? 'text-gray-800' : 'text-white'
   const getSubtextClass = () => isLightMode ? 'text-gray-600' : 'text-gray-400'
@@ -962,15 +1134,53 @@ const AIInsights = ({ user }) => {
         <div className="space-y-6">
           <div className={`${getCardClass()} rounded-xl p-6 border`}>
             <h3 className={`text-xl font-semibold ${getTextClass()} mb-4`}>Top Contributors</h3>
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-blue-400" />
+            {leaderboard && leaderboard.length > 0 ? (
+              <div className="space-y-3">
+                {leaderboard.map((entry, index) => {
+                  const isCurrentUser = entry.name === 'DemoUser'
+                  return (
+                    <div
+                      key={index}
+                      className={`flex items-center justify-between p-4 rounded-lg ${
+                        isCurrentUser
+                          ? 'bg-blue-500/20 border border-blue-500/50'
+                          : isLightMode ? 'bg-gray-50' : 'bg-white/5'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                          entry.rank === 1 ? 'bg-yellow-500/20 text-yellow-400' :
+                          entry.rank === 2 ? 'bg-gray-400/20 text-gray-300' :
+                          entry.rank === 3 ? 'bg-orange-500/20 text-orange-400' :
+                          'bg-white/10 text-gray-400'
+                        }`}>
+                          {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`}
+                        </div>
+                        <div>
+                          <p className={`font-semibold ${getTextClass()} ${isCurrentUser ? 'text-blue-400' : ''}`}>
+                            {entry.name} {isCurrentUser && '(You)'}
+                          </p>
+                          <p className={`text-sm ${getSubtextClass()}`}>{entry.tier}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-green-400 font-bold">{entry.points.toLocaleString()} pts</p>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-              <h4 className={`text-lg font-medium ${getTextClass()} mb-2`}>No Leaderboard Data Yet</h4>
-              <p className={`${getSubtextClass()} mb-4`}>
-                Submit more mappings to see your ranking among other users
-              </p>
-            </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Users className="w-8 h-8 text-blue-400" />
+                </div>
+                <h4 className={`text-lg font-medium ${getTextClass()} mb-2`}>No Leaderboard Data Yet</h4>
+                <p className={`${getSubtextClass()} mb-4`}>
+                  Submit more mappings to see your ranking among other users
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -978,39 +1188,95 @@ const AIInsights = ({ user }) => {
       {/* AI Performance Tab */}
       {activeTab === 'ai-performance' && (
         <div className="space-y-6">
+          {/* Performance Overview Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className={`${getCardClass()} rounded-xl p-4 border`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`${getSubtextClass()} text-sm`}>AI Accuracy</p>
+                  <p className="text-2xl font-bold text-green-400">{userStats.accuracyRate ? userStats.accuracyRate.toFixed(1) : 0}%</p>
+                </div>
+                <Target className="w-8 h-8 text-green-400" />
+              </div>
+            </div>
+            <div className={`${getCardClass()} rounded-xl p-4 border`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`${getSubtextClass()} text-sm`}>Training Samples</p>
+                  <p className="text-2xl font-bold text-blue-400">{userStats.approvedMappings}</p>
+                </div>
+                <Brain className="w-8 h-8 text-blue-400" />
+              </div>
+            </div>
+            <div className={`${getCardClass()} rounded-xl p-4 border`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`${getSubtextClass()} text-sm`}>Auto-Map Rate</p>
+                  <p className="text-2xl font-bold text-purple-400">{isDemoMode ? '87%' : (userStats.approvedMappings > 0 ? '100%' : '0%')}</p>
+                </div>
+                <Zap className="w-8 h-8 text-purple-400" />
+              </div>
+            </div>
+            <div className={`${getCardClass()} rounded-xl p-4 border`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`${getSubtextClass()} text-sm`}>Satisfaction</p>
+                  <p className="text-2xl font-bold text-yellow-400">{isDemoMode ? '95%' : (userStats.approvedMappings > 0 ? '100%' : 'N/A')}</p>
+                </div>
+                <Star className="w-8 h-8 text-yellow-400" />
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className={`${getCardClass()} rounded-xl p-6 border`}>
               <h3 className={`text-xl font-semibold ${getTextClass()} mb-4`}>Your Impact</h3>
               <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>Mappings Improved</span>
-                  <span className="text-green-400 font-semibold">{userStats.approvedMappings}</span>
+                <div className="flex justify-between items-center">
+                  <span className={`${getSubtextClass()}`}>Mappings Contributed</span>
+                  <span className="text-green-400 font-semibold">{userStats.totalMappings}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>AI Training Data</span>
-                  <span className="text-blue-400 font-semibold">{userStats.approvedMappings} sample{userStats.approvedMappings !== 1 ? 's' : ''}</span>
+                <div className="flex justify-between items-center">
+                  <span className={`${getSubtextClass()}`}>Approved & Used</span>
+                  <span className="text-blue-400 font-semibold">{userStats.approvedMappings}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>Community Help</span>
-                  <span className="text-purple-400 font-semibold">{userStats.approvedMappings > 0 ? '1 user' : '0 users'}</span>
+                <div className="flex justify-between items-center">
+                  <span className={`${getSubtextClass()}`}>Pending Review</span>
+                  <span className="text-yellow-400 font-semibold">{userStats.pendingMappings}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={`${getSubtextClass()}`}>Points Earned</span>
+                  <span className="text-purple-400 font-semibold">{userStats.pointsEarned}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={`${getSubtextClass()}`}>Current Rank</span>
+                  <span className="text-orange-400 font-semibold">#{userStats.rank || 5} of {userStats.totalUsers || 8}</span>
                 </div>
               </div>
             </div>
 
             <div className={`${getCardClass()} rounded-xl p-6 border`}>
-              <h3 className={`text-xl font-semibold ${getTextClass()} mb-4`}>System Performance</h3>
+              <h3 className={`text-xl font-semibold ${getTextClass()} mb-4`}>AI System Stats</h3>
               <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>Overall Accuracy</span>
-                  <span className="text-green-400 font-semibold">{userStats.accuracyRate ? userStats.accuracyRate.toFixed(2) : 0}%</span>
+                <div className="flex justify-between items-center">
+                  <span className={`${getSubtextClass()}`}>Total Mappings in DB</span>
+                  <span className="text-green-400 font-semibold">{isDemoMode ? '12,847' : userStats.totalMappings}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>Auto-Mapping Rate</span>
-                  <span className="text-blue-400 font-semibold">{userStats.approvedMappings > 0 ? '100%' : '0%'}</span>
+                <div className="flex justify-between items-center">
+                  <span className={`${getSubtextClass()}`}>Unique Merchants</span>
+                  <span className="text-blue-400 font-semibold">{isDemoMode ? '3,421' : 'N/A'}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>User Satisfaction</span>
-                  <span className="text-yellow-400 font-semibold">{userStats.approvedMappings > 0 ? '100%' : 'No Data'}</span>
+                <div className="flex justify-between items-center">
+                  <span className={`${getSubtextClass()}`}>Model Version</span>
+                  <span className="text-purple-400 font-semibold">v2.4.1</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={`${getSubtextClass()}`}>Last Trained</span>
+                  <span className="text-gray-400 font-semibold">{isDemoMode ? '2 hours ago' : 'N/A'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={`${getSubtextClass()}`}>Processing Speed</span>
+                  <span className="text-cyan-400 font-semibold">{isDemoMode ? '~150ms' : 'N/A'}</span>
                 </div>
               </div>
             </div>

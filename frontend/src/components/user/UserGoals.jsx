@@ -56,10 +56,10 @@ const UserGoals = () => {
 
   const getGoalTypeIcon = (type) => {
     switch (type) {
-      case 'amount': return <DollarSign className="w-5 h-5" />
-      case 'company': return <TrendingUp className="w-5 h-5" />
-      case 'count': return <BarChart3 className="w-5 h-5" />
-      default: return <Target className="w-5 h-5" />
+      case 'amount': return <DollarSign className="w-5 h-5 text-white" />
+      case 'company': return <TrendingUp className="w-5 h-5 text-white" />
+      case 'count': return <BarChart3 className="w-5 h-5 text-white" />
+      default: return <Target className="w-5 h-5 text-white" />
     }
   }
 
