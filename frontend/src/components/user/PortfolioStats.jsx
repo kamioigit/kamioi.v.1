@@ -50,6 +50,17 @@ const PortfolioStats = () => {
     return map
   }, {})
 
+  // Helper to format date from YYYY-MM-DD to MM/DD/YYYY
+  const formatDate = (dateStr) => {
+    if (!dateStr) return ''
+    // Handle both YYYY-MM-DD and other formats
+    const parts = dateStr.split('-')
+    if (parts.length === 3) {
+      return `${parts[1]}/${parts[2]}/${parts[0]}`
+    }
+    return dateStr
+  }
+
   const transactionHistory = safeTransactions
     .filter(t => t.status === 'completed' && t.ticker)
     .map((t, index) => {
@@ -59,10 +70,11 @@ const PortfolioStats = () => {
 
       return {
         id: t.id || index,
-        date: t.date,
+        date: formatDate(t.date),
         ticker: t.ticker,
         action: 'Buy',
         shares: shares,
+        price: avgCost,
         amount: t.roundUp || t.value || 0,
         status: 'completed',
         reason: `Round-up from ${t.merchant || 'purchase'}`
@@ -450,6 +462,7 @@ const PortfolioStats = () => {
                     <th className="text-left py-3 px-4 text-gray-400">Date</th>
                     <th className="text-left py-3 px-4 text-gray-400">Stock</th>
                     <th className="text-left py-3 px-4 text-gray-400">Action</th>
+                    <th className="text-right py-3 px-4 text-gray-400">Price</th>
                     <th className="text-center py-3 px-4 text-gray-400">Shares</th>
                     <th className="text-right py-3 px-4 text-gray-400">Amount</th>
                     <th className="text-center py-3 px-4 text-gray-400">Status</th>
@@ -469,6 +482,9 @@ const PortfolioStats = () => {
                         </div>
                       </td>
                       <td className="py-3 px-4 text-white">{transaction.action}</td>
+                      <td className="py-3 px-4 text-right text-white">
+                        {formatCurrency(transaction.price || 0)}
+                      </td>
                       <td className="py-3 px-4 text-center text-white">
                         {formatNumber(transaction.shares || 0, 4)}
                       </td>
@@ -487,7 +503,7 @@ const PortfolioStats = () => {
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan="7" className="py-8 text-center text-gray-400">
+                      <td colSpan="8" className="py-8 text-center text-gray-400">
                         No completed investment transactions found
                       </td>
                     </tr>
