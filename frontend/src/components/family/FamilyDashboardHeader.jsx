@@ -1,24 +1,54 @@
-import React, { useState, useEffect } from 'react'
-import { Sun, Moon, Link, Search, DollarSign, Cloud, Bell, Upload, Shield, User } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Sun, Moon, Link, Search, DollarSign, Cloud, Bell, Upload, Shield, User, ChevronDown, Users, Building2, LogOut } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useData } from '../../context/DataContext'
+import { useDemo } from '../../context/DemoContext'
 import { useNotifications } from '../../hooks/useNotifications'
 import { useModal } from '../../context/ModalContext'
 import ProfileAvatar from '../common/ProfileAvatar'
 import MXConnectWidget from '../common/MXConnectWidget'
 import notificationService from '../../services/notificationService'
-import { Link as RouterLink } from 'react-router-dom'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
 
 const FamilyDashboardHeader = ({ user, activeTab }) => {
   const { logoutUser } = useAuth()
   const { isBlackMode, isLightMode, toggleTheme } = useTheme()
+  const { isDemoMode, demoAccountType, setDemoAccountType, disableDemoMode } = useDemo()
   const { unreadCount, addNotification } = useNotifications()
+  const navigate = useNavigate()
   const [roundUpAmount, setRoundUpAmount] = useState(1)
   const [roundUpEnabled, setRoundUpEnabled] = useState(true)
   const [showInput, setShowInput] = useState(false)
   const [currentInputValue, setCurrentInputValue] = useState('')
   const [showMXConnect, setShowMXConnect] = useState(false)
+  const [showDemoDropdown, setShowDemoDropdown] = useState(false)
+  const demoDropdownRef = useRef(null)
+
+  // Close demo dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (demoDropdownRef.current && !demoDropdownRef.current.contains(event.target)) {
+        setShowDemoDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleDemoSwitch = (type) => {
+    setDemoAccountType(type)
+    setShowDemoDropdown(false)
+    if (type === 'individual') navigate('/demo/user')
+    else if (type === 'family') navigate('/demo/family')
+    else if (type === 'business') navigate('/demo/business')
+  }
+
+  const handleExitDemo = () => {
+    disableDemoMode()
+    setShowDemoDropdown(false)
+    navigate('/login')
+  }
 
   const getHeaderClass = () => {
     if (isBlackMode) return 'bg-black/20 backdrop-blur-lg rounded-2xl p-4 mb-6 mx-6 mt-4 border border-gray-800'
@@ -274,8 +304,8 @@ const FamilyDashboardHeader = ({ user, activeTab }) => {
         <div className="flex items-center space-x-4">
           {/* Round Up Amount Card */}
           <div className={`px-4 py-2 rounded-full border flex items-center space-x-2 transition-colors ${
-            isLightMode 
-              ? 'bg-white border-gray-300 text-gray-800' 
+            isLightMode
+              ? 'bg-white border-gray-300 text-gray-800'
               : 'bg-white/10 border-white/20 text-white'
           } ${!roundUpEnabled ? 'opacity-50' : ''}`}>
             <DollarSign className="w-4 h-4" />
@@ -301,6 +331,80 @@ const FamilyDashboardHeader = ({ user, activeTab }) => {
               </span>
             )}
           </div>
+
+          {/* Demo Mode Dropdown - Only visible in demo mode */}
+          {isDemoMode && (
+            <div className="relative" ref={demoDropdownRef}>
+              <button
+                onClick={() => setShowDemoDropdown(!showDemoDropdown)}
+                className={`px-4 py-2 rounded-full border flex items-center space-x-2 transition-colors ${
+                  isLightMode
+                    ? 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200'
+                    : 'bg-amber-500/20 border-amber-500/40 text-amber-400 hover:bg-amber-500/30'
+                }`}
+              >
+                {demoAccountType === 'individual' && <User className="w-4 h-4" />}
+                {demoAccountType === 'family' && <Users className="w-4 h-4" />}
+                {demoAccountType === 'business' && <Building2 className="w-4 h-4" />}
+                <span className="capitalize">{demoAccountType} Demo</span>
+                <ChevronDown className={`w-4 h-4 transition-transform ${showDemoDropdown ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showDemoDropdown && (
+                <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg border z-50 ${
+                  isLightMode
+                    ? 'bg-white border-gray-200'
+                    : 'bg-gray-900 border-white/20'
+                }`}>
+                  <div className="py-1">
+                    <button
+                      onClick={() => handleDemoSwitch('individual')}
+                      className={`w-full px-4 py-2 text-left flex items-center space-x-2 ${
+                        demoAccountType === 'individual'
+                          ? isLightMode ? 'bg-amber-100 text-amber-800' : 'bg-amber-500/20 text-amber-400'
+                          : isLightMode ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-white/10 text-white'
+                      }`}
+                    >
+                      <User className="w-4 h-4" />
+                      <span>Individual</span>
+                    </button>
+                    <button
+                      onClick={() => handleDemoSwitch('family')}
+                      className={`w-full px-4 py-2 text-left flex items-center space-x-2 ${
+                        demoAccountType === 'family'
+                          ? isLightMode ? 'bg-amber-100 text-amber-800' : 'bg-amber-500/20 text-amber-400'
+                          : isLightMode ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-white/10 text-white'
+                      }`}
+                    >
+                      <Users className="w-4 h-4" />
+                      <span>Family</span>
+                    </button>
+                    <button
+                      onClick={() => handleDemoSwitch('business')}
+                      className={`w-full px-4 py-2 text-left flex items-center space-x-2 ${
+                        demoAccountType === 'business'
+                          ? isLightMode ? 'bg-amber-100 text-amber-800' : 'bg-amber-500/20 text-amber-400'
+                          : isLightMode ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-white/10 text-white'
+                      }`}
+                    >
+                      <Building2 className="w-4 h-4" />
+                      <span>Business</span>
+                    </button>
+                    <div className={`border-t my-1 ${isLightMode ? 'border-gray-200' : 'border-white/20'}`} />
+                    <button
+                      onClick={handleExitDemo}
+                      className={`w-full px-4 py-2 text-left flex items-center space-x-2 ${
+                        isLightMode ? 'hover:bg-red-100 text-red-600' : 'hover:bg-red-500/20 text-red-400'
+                      }`}
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Exit Demo</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Upload Bank File removed for family dashboard */}
           
