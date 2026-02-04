@@ -5,6 +5,94 @@ import { getToken, ROLES } from '../services/apiService' // Import getToken and 
 
 const DataContext = createContext()
 
+// Demo data for different account types - matches DemoContext structure
+const DEMO_DATA = {
+  individual: {
+    portfolio: {
+      totalValue: 12547.82,
+      totalGain: 1847.32,
+      gainPercent: 17.24,
+      holdings: [
+        { symbol: 'AAPL', name: 'Apple Inc.', shares: 5.234, value: 934.12, avgCost: 155.00, currentPrice: 178.50, change: 15.4, allocation: 25 },
+        { symbol: 'GOOGL', name: 'Alphabet Inc.', shares: 2.156, value: 334.89, avgCost: 140.00, currentPrice: 155.35, change: 15.6, allocation: 15 },
+        { symbol: 'AMZN', name: 'Amazon.com', shares: 1.892, value: 370.45, avgCost: 175.00, currentPrice: 195.80, change: 16.4, allocation: 20 },
+        { symbol: 'MSFT', name: 'Microsoft', shares: 3.445, value: 1421.34, avgCost: 380.00, currentPrice: 412.50, change: 15.2, allocation: 25 },
+        { symbol: 'NVDA', name: 'NVIDIA', shares: 0.987, value: 863.45, avgCost: 650.00, currentPrice: 874.80, change: 37.2, allocation: 15 }
+      ]
+    },
+    transactions: [
+      { id: 1, merchant: 'Starbucks', description: 'Coffee purchase', amount: 5.75, purchase: 5.75, roundUp: 0.25, round_up: 0.25, ticker: 'SBUX', date: '2024-01-20', status: 'completed', category: 'Food & Drink' },
+      { id: 2, merchant: 'Amazon', description: 'Online shopping', amount: 47.32, purchase: 47.32, roundUp: 0.68, round_up: 0.68, ticker: 'AMZN', date: '2024-01-19', status: 'completed', category: 'Shopping' },
+      { id: 3, merchant: 'Apple Store', description: 'Electronics', amount: 129.00, purchase: 129.00, roundUp: 1.00, round_up: 1.00, ticker: 'AAPL', date: '2024-01-18', status: 'completed', category: 'Technology' },
+      { id: 4, merchant: 'Netflix', description: 'Subscription', amount: 15.99, purchase: 15.99, roundUp: 0.01, round_up: 0.01, ticker: 'NFLX', date: '2024-01-17', status: 'completed', category: 'Entertainment' },
+      { id: 5, merchant: 'Uber', description: 'Ride share', amount: 23.45, purchase: 23.45, roundUp: 0.55, round_up: 0.55, ticker: 'UBER', date: '2024-01-16', status: 'completed', category: 'Transportation' },
+      { id: 6, merchant: 'Target', description: 'General merchandise', amount: 67.89, purchase: 67.89, roundUp: 0.11, round_up: 0.11, ticker: 'TGT', date: '2024-01-15', status: 'completed', category: 'Shopping' },
+      { id: 7, merchant: 'Chipotle', description: 'Restaurant', amount: 12.34, purchase: 12.34, roundUp: 0.66, round_up: 0.66, ticker: 'CMG', date: '2024-01-14', status: 'completed', category: 'Food & Drink' },
+      { id: 8, merchant: 'Nike', description: 'Athletic wear', amount: 89.99, purchase: 89.99, roundUp: 0.01, round_up: 0.01, ticker: 'NKE', date: '2024-01-13', status: 'completed', category: 'Shopping' }
+    ],
+    goals: [
+      { id: 1, name: 'Emergency Fund', target: 10000, current: 6500, progress: 65, category: 'Savings' },
+      { id: 2, name: 'Vacation Fund', target: 5000, current: 2100, progress: 42, category: 'Travel' },
+      { id: 3, name: 'New Car', target: 15000, current: 3200, progress: 21, category: 'Big Purchase' }
+    ],
+    totalRoundUps: 847.32,
+    totalFeesPaid: 42.50
+  },
+  family: {
+    portfolio: {
+      totalValue: 28934.56,
+      totalGain: 4523.12,
+      gainPercent: 18.52,
+      holdings: [
+        { symbol: 'AAPL', name: 'Apple Inc.', shares: 12.345, value: 2205.67, avgCost: 160.00, currentPrice: 178.70, change: 18.6, allocation: 30 },
+        { symbol: 'GOOGL', name: 'Alphabet Inc.', shares: 5.678, value: 881.45, avgCost: 142.00, currentPrice: 155.25, change: 16.3, allocation: 15 },
+        { symbol: 'VTI', name: 'Vanguard Total Stock', shares: 45.234, value: 10234.56, avgCost: 210.00, currentPrice: 226.25, change: 18.1, allocation: 35 },
+        { symbol: 'QQQ', name: 'Invesco QQQ', shares: 15.678, value: 6789.12, avgCost: 400.00, currentPrice: 433.00, change: 17.0, allocation: 20 }
+      ]
+    },
+    transactions: [
+      { id: 1, merchant: 'Costco', description: 'Groceries', amount: 234.56, purchase: 234.56, roundUp: 0.44, round_up: 0.44, ticker: 'COST', date: '2024-01-20', status: 'completed', category: 'Groceries', member: 'Demo Family Admin' },
+      { id: 2, merchant: 'Amazon', description: 'Household items', amount: 89.99, purchase: 89.99, roundUp: 0.01, round_up: 0.01, ticker: 'AMZN', date: '2024-01-19', status: 'completed', category: 'Shopping', member: 'Jane Demo' },
+      { id: 3, merchant: 'Target', description: 'School supplies', amount: 45.67, purchase: 45.67, roundUp: 0.33, round_up: 0.33, ticker: 'TGT', date: '2024-01-18', status: 'completed', category: 'Education', member: 'Tommy Demo' },
+      { id: 4, merchant: 'Disney+', description: 'Family subscription', amount: 13.99, purchase: 13.99, roundUp: 0.01, round_up: 0.01, ticker: 'DIS', date: '2024-01-17', status: 'completed', category: 'Entertainment', member: 'Demo Family Admin' }
+    ],
+    goals: [
+      { id: 1, name: 'Family Vacation', target: 8000, current: 4500, progress: 56, category: 'Travel' },
+      { id: 2, name: 'College Fund', target: 50000, current: 12000, progress: 24, category: 'Education' },
+      { id: 3, name: 'Emergency Fund', target: 20000, current: 15000, progress: 75, category: 'Savings' }
+    ],
+    totalRoundUps: 1892.35,
+    totalFeesPaid: 95.50
+  },
+  business: {
+    portfolio: {
+      totalValue: 156789.34,
+      totalGain: 23456.78,
+      gainPercent: 17.58,
+      holdings: [
+        { symbol: 'SPY', name: 'S&P 500 ETF', shares: 234.567, value: 112345.67, avgCost: 450.00, currentPrice: 478.85, change: 16.2, allocation: 45 },
+        { symbol: 'VTI', name: 'Vanguard Total Stock', shares: 89.123, value: 20123.45, avgCost: 210.00, currentPrice: 225.80, change: 20.7, allocation: 25 },
+        { symbol: 'BND', name: 'Vanguard Bond ETF', shares: 123.456, value: 9876.54, avgCost: 78.00, currentPrice: 80.00, change: 5.8, allocation: 15 },
+        { symbol: 'AAPL', name: 'Apple Inc.', shares: 45.678, value: 8156.78, avgCost: 165.00, currentPrice: 178.55, change: 17.8, allocation: 15 }
+      ]
+    },
+    transactions: [
+      { id: 1, merchant: 'AWS', description: 'Cloud Services', amount: 2345.67, purchase: 2345.67, roundUp: 0.33, round_up: 0.33, ticker: 'AMZN', date: '2024-01-20', status: 'completed', category: 'Cloud Services', employee: 'John Manager' },
+      { id: 2, merchant: 'Adobe', description: 'Software licenses', amount: 599.88, purchase: 599.88, roundUp: 0.12, round_up: 0.12, ticker: 'ADBE', date: '2024-01-19', status: 'completed', category: 'Software', employee: 'Carol Designer' },
+      { id: 3, merchant: 'Office Depot', description: 'Office supplies', amount: 234.56, purchase: 234.56, roundUp: 0.44, round_up: 0.44, ticker: 'ODP', date: '2024-01-18', status: 'completed', category: 'Office Supplies', employee: 'Alice Accountant' },
+      { id: 4, merchant: 'Delta Airlines', description: 'Business travel', amount: 567.89, purchase: 567.89, roundUp: 0.11, round_up: 0.11, ticker: 'DAL', date: '2024-01-17', status: 'completed', category: 'Travel', employee: 'Demo Business' },
+      { id: 5, merchant: 'WeWork', description: 'Office space', amount: 1500.00, purchase: 1500.00, roundUp: 0.00, round_up: 0.00, ticker: null, date: '2024-01-15', status: 'completed', category: 'Office Space', employee: 'Demo Business' }
+    ],
+    goals: [
+      { id: 1, name: 'Q1 Investment Target', target: 50000, current: 35000, progress: 70, category: 'Investment' },
+      { id: 2, name: 'Annual Growth Fund', target: 200000, current: 78000, progress: 39, category: 'Growth' },
+      { id: 3, name: 'Emergency Reserve', target: 100000, current: 85000, progress: 85, category: 'Reserve' }
+    ],
+    totalRoundUps: 12345.67,
+    totalFeesPaid: 625.00
+  }
+}
+
 export const useData = () => {
   const context = useContext(DataContext)
   if (!context) {
@@ -67,6 +155,28 @@ export const DataProvider = ({ children }) => {
     try {
       setIsLoading(true)
       setError(null)
+
+      // Check if in demo mode - use demo data instead of API calls
+      const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+      const demoAccountType = localStorage.getItem('kamioi_demo_account_type') || 'individual'
+
+      if (isDemoMode) {
+        console.log('DataContext - Demo mode detected, using demo data for:', demoAccountType)
+        const demoData = DEMO_DATA[demoAccountType] || DEMO_DATA.individual
+
+        // Set demo data
+        setTransactions(demoData.transactions || [])
+        setHoldings(demoData.portfolio?.holdings || [])
+        setPortfolioValue(demoData.portfolio?.totalValue || 0)
+        setGoals(demoData.goals || [])
+        setTotalRoundUps(demoData.totalRoundUps || 0)
+        setTotalFeesPaid(demoData.totalFeesPaid || 0)
+        setRecommendations([])
+        setNotifications([])
+        setHasLoaded(true)
+        setIsLoading(false)
+        return
+      }
 
       // Check if user is authenticated before making API calls
       const demoToken = localStorage.getItem('kamioi_demo_token')
@@ -346,11 +456,19 @@ export const DataProvider = ({ children }) => {
     }
   }, [])
 
-  // Load data from API when user is authenticated
+  // Load data from API when user is authenticated or in demo mode
   useEffect(() => {
+    const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
     const demoToken = localStorage.getItem('kamioi_demo_token')
     const userToken = getToken(ROLES.USER)
     const adminToken = getToken(ROLES.ADMIN)
+
+    // If in demo mode, load demo data
+    if (isDemoMode) {
+      console.log('DataContext - Demo mode detected, loading demo data')
+      loadDataFromAPI()
+      return
+    }
 
     if (demoToken || userToken || adminToken) {
       console.log('DataContext - User authenticated, loading from API', { demoToken: !!demoToken, userToken: !!userToken, adminToken: !!adminToken })
@@ -379,6 +497,25 @@ export const DataProvider = ({ children }) => {
       if (storedAdminReports) setAdminReports(JSON.parse(storedAdminReports))
     }
   }, [loadDataFromAPI]) // Add loadDataFromAPI to dependencies but ensure it's memoized
+
+  // Listen for demo mode changes to reload data
+  useEffect(() => {
+    const handleDemoModeChange = () => {
+      console.log('DataContext - Demo mode changed, reloading data')
+      loadDataFromAPI()
+    }
+
+    // Listen for storage changes (when demo mode is toggled)
+    window.addEventListener('storage', handleDemoModeChange)
+
+    // Also listen for custom demo mode change event
+    window.addEventListener('demoModeChanged', handleDemoModeChange)
+
+    return () => {
+      window.removeEventListener('storage', handleDemoModeChange)
+      window.removeEventListener('demoModeChanged', handleDemoModeChange)
+    }
+  }, [loadDataFromAPI])
 
   // Listen for user login events to reload data
   useEffect(() => {

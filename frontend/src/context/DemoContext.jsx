@@ -148,11 +148,19 @@ export const DemoProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem('kamioi_demo_account_type', demoAccountType);
-  }, [demoAccountType]);
+    // Dispatch event so DataContext can reload with new account type data
+    if (isDemoMode) {
+      window.dispatchEvent(new CustomEvent('demoModeChanged'));
+    }
+  }, [demoAccountType, isDemoMode]);
 
   const enableDemoMode = (accountType = 'individual') => {
     setDemoAccountType(accountType);
     setIsDemoMode(true);
+    // Dispatch event so DataContext can reload with demo data
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('demoModeChanged'));
+    }, 0);
   };
 
   const disableDemoMode = () => {
