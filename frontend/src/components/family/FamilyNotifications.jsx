@@ -3,10 +3,123 @@ import { CheckCircle, AlertTriangle, Info, Bell, X, Filter } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useNotifications } from '../../hooks/useNotifications'
 
+// Generate demo notifications for demo mode
+const generateDemoNotifications = () => {
+  const now = new Date()
+  return [
+    {
+      id: 'demo-f1',
+      title: 'Family Portfolio Milestone',
+      message: 'Congratulations! Your family portfolio has reached $100,000 in total value. Amazing teamwork!',
+      type: 'success',
+      timestamp: new Date(now - 45 * 60 * 1000), // 45 mins ago
+      read: false,
+      priority: 'high',
+      dashboardType: 'family'
+    },
+    {
+      id: 'demo-f2',
+      title: 'New Family Member Added',
+      message: 'Emma has joined the family investment account. Welcome to the team!',
+      type: 'success',
+      timestamp: new Date(now - 3 * 60 * 60 * 1000), // 3 hours ago
+      read: false,
+      dashboardType: 'family'
+    },
+    {
+      id: 'demo-f3',
+      title: 'Family Goal Progress',
+      message: 'Your Vacation Fund goal is now 75% complete! Just $2,500 more to reach your target.',
+      type: 'info',
+      timestamp: new Date(now - 8 * 60 * 60 * 1000), // 8 hours ago
+      read: false,
+      dashboardType: 'family'
+    },
+    {
+      id: 'demo-f4',
+      title: 'Combined Round-Up Summary',
+      message: 'This week, your family invested $48 through round-ups across 42 transactions. Keep it up!',
+      type: 'success',
+      timestamp: new Date(now - 24 * 60 * 60 * 1000), // 1 day ago
+      read: true,
+      dashboardType: 'family'
+    },
+    {
+      id: 'demo-f5',
+      title: 'Family Meeting Reminder',
+      message: 'Time for your monthly family finance review! Check the Analytics tab to see your progress.',
+      type: 'info',
+      timestamp: new Date(now - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+      read: true,
+      dashboardType: 'family'
+    },
+    {
+      id: 'demo-f6',
+      title: 'Shared Holdings Update',
+      message: 'Your family\'s shared AAPL holdings are up 4.2% this week. Total value: $1,245.',
+      type: 'success',
+      timestamp: new Date(now - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+      read: true,
+      dashboardType: 'family'
+    },
+    {
+      id: 'demo-f7',
+      title: 'New AI Recommendation',
+      message: 'Based on your family\'s spending at Costco, consider learning about COST stock together.',
+      type: 'info',
+      timestamp: new Date(now - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+      read: true,
+      dashboardType: 'family'
+    }
+  ]
+}
+
 const FamilyNotifications = ({ user }) => {
   const { notifications, markAsRead, clearNotification, markAllAsRead } = useNotifications()
   const { isLightMode } = useTheme()
   const [filter, setFilter] = useState('all') // 'all', 'unread', 'read'
+  const [demoNotifications, setDemoNotifications] = useState([])
+
+  // Check if in demo mode
+  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+
+  // Load demo notifications in demo mode
+  useEffect(() => {
+    if (isDemoMode && notifications.length === 0) {
+      console.log('FamilyNotifications - Demo mode detected, loading demo notifications')
+      setDemoNotifications(generateDemoNotifications())
+    }
+  }, [isDemoMode, notifications.length])
+
+  // Use demo notifications if in demo mode and no real notifications
+  const displayNotifications = isDemoMode && notifications.length === 0 ? demoNotifications : notifications
+
+  // Handle demo notification actions
+  const handleDemoMarkAsRead = (id) => {
+    if (isDemoMode && demoNotifications.length > 0) {
+      setDemoNotifications(prev =>
+        prev.map(n => n.id === id ? { ...n, read: true } : n)
+      )
+    } else {
+      markAsRead(id)
+    }
+  }
+
+  const handleDemoDelete = (id) => {
+    if (isDemoMode && demoNotifications.length > 0) {
+      setDemoNotifications(prev => prev.filter(n => n.id !== id))
+    } else {
+      clearNotification(id)
+    }
+  }
+
+  const handleDemoMarkAllAsRead = () => {
+    if (isDemoMode && demoNotifications.length > 0) {
+      setDemoNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    } else {
+      markAllAsRead()
+    }
+  }
 
   const getNotificationIcon = (notification) => {
     // Use custom icon if provided, otherwise use type-based icon
@@ -22,19 +135,7 @@ const FamilyNotifications = ({ user }) => {
     }
   }
 
-  const handleMarkAsRead = (notificationId) => {
-    markAsRead(notificationId)
-  }
-
-  const handleDeleteNotification = (notificationId) => {
-    clearNotification(notificationId)
-  }
-
-  const handleMarkAllAsRead = () => {
-    markAllAsRead()
-  }
-
-  const filteredNotifications = notifications.filter(notification => {
+  const filteredNotifications = displayNotifications.filter(notification => {
     switch (filter) {
       case 'unread': return !notification.read
       case 'read': return notification.read
@@ -101,9 +202,9 @@ const FamilyNotifications = ({ user }) => {
           </select>
           
           {/* Mark All as Read */}
-          {notifications.some(n => !n.read) && (
-            <button 
-              onClick={handleMarkAllAsRead}
+          {displayNotifications.some(n => !n.read) && (
+            <button
+              onClick={handleDemoMarkAllAsRead}
               className="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg px-4 py-2 text-blue-400 flex items-center space-x-2 transition-all"
             >
               <CheckCircle className="w-4 h-4" />
@@ -154,7 +255,7 @@ const FamilyNotifications = ({ user }) => {
                     <div className="flex items-center space-x-2 ml-4">
                       {!notification.read && (
                         <button
-                          onClick={() => handleMarkAsRead(notification.id)}
+                          onClick={() => handleDemoMarkAsRead(notification.id)}
                           className={`${getSubtextClass()} hover:text-blue-400 transition-colors`}
                           title="Mark as read"
                         >
@@ -162,7 +263,7 @@ const FamilyNotifications = ({ user }) => {
                         </button>
                       )}
                       <button
-                        onClick={() => handleDeleteNotification(notification.id)}
+                        onClick={() => handleDemoDelete(notification.id)}
                         className={`${getSubtextClass()} hover:text-red-400 transition-colors`}
                         title="Delete notification"
                       >

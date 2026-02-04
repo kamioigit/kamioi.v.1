@@ -8,17 +8,120 @@ import ProfileAvatar from '../common/ProfileAvatar'
 import notificationService from '../../services/notificationService'
 import MXConnectWidget from '../common/MXConnectWidget'
 
+// Demo data for demo mode
+const DEMO_BANK_CONNECTIONS = [
+  {
+    id: 'demo-bank-1',
+    institution_name: 'Chase',
+    bank_name: 'Chase',
+    account_name: 'Chase Family Checking',
+    account_type: 'checking',
+    last_four: '4523',
+    status: 'active',
+    connected_at: '2024-01-15T10:30:00Z'
+  },
+  {
+    id: 'demo-bank-2',
+    institution_name: 'Bank of America',
+    bank_name: 'Bank of America',
+    account_name: 'Family Savings',
+    account_type: 'savings',
+    last_four: '7891',
+    status: 'active',
+    connected_at: '2024-02-20T14:15:00Z'
+  }
+]
+
+const DEMO_SUBSCRIPTION_PLANS = [
+  {
+    id: 'plan-basic',
+    name: 'Basic Family',
+    price: 4.99,
+    interval: 'month',
+    features: ['Up to 4 family members', 'Basic analytics', 'Email support']
+  },
+  {
+    id: 'plan-premium',
+    name: 'Premium Family',
+    price: 9.99,
+    interval: 'month',
+    features: ['Unlimited family members', 'Advanced analytics', 'Priority support', 'Tax reports']
+  },
+  {
+    id: 'plan-elite',
+    name: 'Elite Family',
+    price: 19.99,
+    interval: 'month',
+    features: ['All Premium features', 'Dedicated advisor', 'Custom goals', 'Family financial planning']
+  }
+]
+
+const DEMO_CURRENT_SUBSCRIPTION = {
+  id: 'sub-demo-1',
+  plan_id: 'plan-premium',
+  plan_name: 'Premium Family',
+  status: 'active',
+  current_period_start: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+  current_period_end: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+  price: 9.99
+}
+
+const DEMO_STATEMENTS = [
+  {
+    id: 1,
+    type: 'monthly',
+    period: 'January 2024',
+    date: '2024-01-31',
+    amount: 28934,
+    status: 'available',
+    format: 'PDF',
+    size: '245 KB',
+    transactions: 87,
+    roundUps: 342,
+    investments: 4523
+  },
+  {
+    id: 2,
+    type: 'monthly',
+    period: 'December 2023',
+    date: '2023-12-31',
+    amount: 26780,
+    status: 'available',
+    format: 'PDF',
+    size: '238 KB',
+    transactions: 92,
+    roundUps: 315,
+    investments: 4180
+  },
+  {
+    id: 3,
+    type: 'annual',
+    period: 'Tax Year 2023',
+    date: '2024-01-15',
+    amount: 156789,
+    status: 'available',
+    format: 'PDF',
+    size: '1.2 MB',
+    transactions: 1024,
+    roundUps: 3842,
+    investments: 52340
+  }
+]
+
 const FamilySettings = ({ user }) => {
   const [activeTab, setActiveTab] = useState('profile')
   const { toggleTheme, theme } = useTheme()
   const { refreshUser } = useAuth()
   const { showSuccessModal, showErrorModal, showConfirmationModal } = useModal()
   const { addNotification } = useNotifications()
-  
+
+  // Check if in demo mode
+  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+
   // Helper function to get the correct auth token (demo token takes precedence)
   const getAuthToken = () => {
-    return localStorage.getItem('kamioi_demo_token') || 
-           localStorage.getItem('kamioi_user_token') || 
+    return localStorage.getItem('kamioi_demo_token') ||
+           localStorage.getItem('kamioi_user_token') ||
            localStorage.getItem('authToken')
   }
   const [notifications, setNotifications] = useState({
@@ -92,10 +195,17 @@ const FamilySettings = ({ user }) => {
 
   const fetchBankConnections = async () => {
     try {
+      // In demo mode, use demo data
+      if (isDemoMode) {
+        console.log('FamilySettings - Demo mode detected, loading demo bank connections')
+        setBankConnections(DEMO_BANK_CONNECTIONS)
+        return
+      }
+
       const token = getAuthToken()
       if (!token) return
-      
-            const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const response = await fetch(`${apiBaseUrl}/api/family/bank-connections`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -111,6 +221,10 @@ const FamilySettings = ({ user }) => {
       }
     } catch (error) {
       console.error('Error fetching bank connections:', error)
+      // Fallback to demo data on error if in demo mode
+      if (isDemoMode) {
+        setBankConnections(DEMO_BANK_CONNECTIONS)
+      }
     }
   }
 
@@ -208,18 +322,32 @@ const FamilySettings = ({ user }) => {
   const fetchPlans = async () => {
     try {
       setLoadingPlans(true)
+
+      // In demo mode, use demo data
+      if (isDemoMode) {
+        console.log('FamilySettings - Demo mode detected, loading demo subscription plans')
+        setPlans(DEMO_SUBSCRIPTION_PLANS)
+        setLoadingPlans(false)
+        return
+      }
+
       const token = getAuthToken()
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-        const response = await fetch(`${apiBaseUrl}/api/family/subscriptions/plans`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        })
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+      const response = await fetch(`${apiBaseUrl}/api/family/subscriptions/plans`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      })
       if (response.ok) {
         const json = await response.json()
         setPlans(Array.isArray(json.data) ? json.data : [])
       }
     } catch (e) {
       console.error('Failed to load plans:', e)
-      setPlans([])
+      // Fallback to demo data on error if in demo mode
+      if (isDemoMode) {
+        setPlans(DEMO_SUBSCRIPTION_PLANS)
+      } else {
+        setPlans([])
+      }
     } finally {
       setLoadingPlans(false)
     }
@@ -228,6 +356,15 @@ const FamilySettings = ({ user }) => {
   const fetchCurrentSubscription = async () => {
     try {
       setLoadingSubscription(true)
+
+      // In demo mode, use demo data
+      if (isDemoMode) {
+        console.log('FamilySettings - Demo mode detected, loading demo subscription')
+        setCurrentSubscription(DEMO_CURRENT_SUBSCRIPTION)
+        setLoadingSubscription(false)
+        return
+      }
+
       const token = getAuthToken()
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const response = await fetch(`${apiBaseUrl}/api/family/subscriptions/current`, {
@@ -239,6 +376,10 @@ const FamilySettings = ({ user }) => {
       }
     } catch (e) {
       console.error('Failed to fetch current subscription:', e)
+      // Fallback to demo data on error if in demo mode
+      if (isDemoMode) {
+        setCurrentSubscription(DEMO_CURRENT_SUBSCRIPTION)
+      }
     } finally {
       setLoadingSubscription(false)
     }
@@ -377,13 +518,49 @@ const FamilySettings = ({ user }) => {
   const fetchFamilySettings = async () => {
     try {
       setLoading(true)
+
+      // In demo mode, use demo profile data
+      if (isDemoMode) {
+        console.log('FamilySettings - Demo mode detected, loading demo profile')
+        const demoProfile = {
+          familyName: 'The Doe Family',
+          guardianEmail: user?.email || 'john.doe@email.com',
+          phone: '(555) 123-4567',
+          familyCode: 'DOE-FAMILY-2024',
+          address: {
+            street: '123 Main Street',
+            city: 'San Francisco',
+            state: 'CA',
+            zip: '94102',
+            country: 'US'
+          },
+          familySize: 4,
+          last4SSN: '',
+          pepStatus: false,
+          roundUpPreference: 1,
+          investmentGoal: 'Build family wealth and save for education',
+          riskPreference: 'moderate',
+          notificationPrefs: {
+            email: true,
+            sms: false,
+            push: true
+          },
+          gamification: true
+        }
+        setProfileData(demoProfile)
+        setRoundUpAmount(1)
+        setRoundUpEnabled(true)
+        setLoading(false)
+        return
+      }
+
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const response = await fetch(`${apiBaseUrl}/api/family/settings`, {
         headers: {
           'Authorization': `Bearer ${getAuthToken()}`
         }
       })
-      
+
       if (response.ok) {
         const result = await response.json()
         if (result.success) {
@@ -405,12 +582,12 @@ const FamilySettings = ({ user }) => {
             pepStatus: false,
             roundUpPreference: data.round_up_preference || 1,
           })
-          
+
           // Also set round-up settings state
           setRoundUpAmount(data.round_up_preference || 1)
           const savedEnabled = localStorage.getItem('kamioi_family_round_up_enabled')
           setRoundUpEnabled(savedEnabled !== 'false') // Default to true
-          
+
           // Update additional profile data
           setProfileData(prev => ({
             ...prev,
@@ -648,6 +825,14 @@ const FamilySettings = ({ user }) => {
   useEffect(() => {
     const fetchStatements = async () => {
       try {
+        // In demo mode, use demo statements
+        if (isDemoMode) {
+          console.log('FamilySettings - Demo mode detected, loading demo statements')
+          setStatements(DEMO_STATEMENTS)
+          setFilteredStatements(DEMO_STATEMENTS)
+          return
+        }
+
         const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
         const response = await fetch(`${apiBaseUrl}/api/family/statements`, {
           headers: {
@@ -663,13 +848,19 @@ const FamilySettings = ({ user }) => {
         }
       } catch (error) {
         console.log('No statements available or error fetching statements:', error)
-        setStatements([]) // New families will have no statements
-        setFilteredStatements([])
+        // Fallback to demo data on error if in demo mode
+        if (isDemoMode) {
+          setStatements(DEMO_STATEMENTS)
+          setFilteredStatements(DEMO_STATEMENTS)
+        } else {
+          setStatements([]) // New families will have no statements
+          setFilteredStatements([])
+        }
       }
     }
 
     fetchStatements()
-  }, [])
+  }, [isDemoMode])
 
   useEffect(() => {
     let filtered = Array.isArray(statements) ? statements : []

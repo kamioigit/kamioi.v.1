@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react'
 import { DollarSign, Users, TrendingUp, PieChart } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import RechartsChart from '../common/RechartsChart'
 import CompanyLogo from '../common/CompanyLogo'
 import TimeOfDay from '../common/TimeOfDay'
 import { useData } from '../../context/DataContext'
 import { useTheme } from '../../context/ThemeContext'
 
+// Demo family members for demo mode
+const DEMO_FAMILY_MEMBERS = [
+  { name: 'John (Dad)', role: 'Family Admin', portfolio: '$45,230', status: 'Active' },
+  { name: 'Sarah (Mom)', role: 'Member', portfolio: '$38,450', status: 'Active' },
+  { name: 'Emma', role: 'Member', portfolio: '$12,890', status: 'Active' },
+  { name: 'Jake', role: 'Member', portfolio: '$8,320', status: 'Active' }
+]
+
 const FamilyOverview = ({ user }) => {
-  const navigate = useNavigate()
 
   // Helper function to get the correct auth token (demo token takes precedence)
   const getAuthToken = () => {
@@ -21,7 +27,17 @@ const FamilyOverview = ({ user }) => {
 
   // Check if in demo mode
   const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
-  
+
+  // Navigate to transactions tab using the parent dashboard's setActiveTab event
+  const goToTransactions = () => {
+    window.dispatchEvent(new CustomEvent('setActiveTab', { detail: 'transactions' }))
+  }
+
+  // Navigate to members tab
+  const goToMembers = () => {
+    window.dispatchEvent(new CustomEvent('setActiveTab', { detail: 'members' }))
+  }
+
   // Family-specific data from API
   const [familyMembers, setFamilyMembers] = useState([])
   const [familyPortfolio, setFamilyPortfolio] = useState({
@@ -41,53 +57,65 @@ const FamilyOverview = ({ user }) => {
   const fetchFamilyData = async () => {
     try {
       setLoading(true)
-      
+
+      // In demo mode, use demo data
+      if (isDemoMode) {
+        console.log('FamilyOverview - Demo mode detected, using demo data')
+        setFamilyMembers(DEMO_FAMILY_MEMBERS)
+        setLoading(false)
+        return
+      }
+
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-      
+
       // Fetch family members
       const membersResponse = await fetch(`${apiBaseUrl}/api/family/members`, {
         headers: {
           'Authorization': `Bearer ${getAuthToken()}`
         }
       })
-      
+
       if (membersResponse.ok) {
         const membersResult = await membersResponse.json()
         if (membersResult.success) {
           setFamilyMembers(membersResult.members || [])
         }
       }
-      
+
       // Fetch family portfolio
       const portfolioResponse = await fetch(`${apiBaseUrl}/api/family/portfolio`, {
         headers: {
           'Authorization': `Bearer ${getAuthToken()}`
         }
       })
-      
+
       if (portfolioResponse.ok) {
         const portfolioResult = await portfolioResponse.json()
         if (portfolioResult.success) {
           setFamilyPortfolio(portfolioResult.portfolio || {})
         }
       }
-      
+
       // Fetch family goals
       const goalsResponse = await fetch(`${apiBaseUrl}/api/family/goals`, {
         headers: {
           'Authorization': `Bearer ${getAuthToken()}`
         }
       })
-      
+
       if (goalsResponse.ok) {
         const goalsResult = await goalsResponse.json()
         if (goalsResult.success) {
           setFamilyGoals(goalsResult.goals || [])
         }
       }
-      
+
     } catch (error) {
       console.error('Error fetching family data:', error)
+      // Fallback to demo data on error
+      if (isDemoMode) {
+        setFamilyMembers(DEMO_FAMILY_MEMBERS)
+      }
     } finally {
       setLoading(false)
     }
@@ -95,7 +123,7 @@ const FamilyOverview = ({ user }) => {
   
   // Safety checks for undefined data
   const safeFamilyPortfolio = familyPortfolio || {}
-  const safeFamilyMembers = Array.isArray(familyMembers) ? familyMembers : []
+  const safeFamilyMembers = isDemoMode && familyMembers.length === 0 ? DEMO_FAMILY_MEMBERS : (Array.isArray(familyMembers) ? familyMembers : [])
   const safeTransactions = Array.isArray(transactions) ? transactions : []
 
   // In demo mode, use context data; otherwise use API data
@@ -199,10 +227,9 @@ const FamilyOverview = ({ user }) => {
         {stats.map((stat, index) => {
           const IconComponent = stat.icon;
           return (
-            <div 
-              key={index} 
-              className={`${getCardClass()} cursor-pointer hover:scale-105 transition-transform`}
-              onClick={() => navigate('/family/transactions')}
+            <div
+              key={index}
+              className={getCardClass()}
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -298,8 +325,8 @@ const FamilyOverview = ({ user }) => {
         <div className={getCardClass()}>
           <div className="flex items-center justify-between mb-4">
             <h3 className={`text-xl font-semibold ${getTextClass()}`}>Recent Family Activity</h3>
-            <button 
-              onClick={() => navigate('/family/transactions')}
+            <button
+              onClick={goToTransactions}
               className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
             >
               View All →
@@ -308,10 +335,10 @@ const FamilyOverview = ({ user }) => {
           {recentActivity.length > 0 ? (
             <div className="space-y-3">
               {recentActivity.map((activity) => (
-                <div 
-                  key={activity.id} 
+                <div
+                  key={activity.id}
                   className={`flex items-center justify-between p-3 ${isLightMode ? 'bg-gray-100' : 'bg-white/5'} rounded-lg cursor-pointer hover:bg-white/10 transition-colors`}
-                  onClick={() => navigate('/family/transactions')}
+                  onClick={goToTransactions}
                 >
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 flex items-center justify-center bg-white/10 backdrop-blur-lg border border-white/20 rounded-lg">

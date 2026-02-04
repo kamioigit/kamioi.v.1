@@ -4,6 +4,58 @@ import { useTheme } from '../../context/ThemeContext'
 import { useModal } from '../../context/ModalContext'
 import { useNotifications } from '../../hooks/useNotifications'
 
+// Demo family members data for demo mode
+const DEMO_FAMILY_MEMBERS = [
+  {
+    id: 'demo-1',
+    name: 'John Doe',
+    email: 'john.doe@email.com',
+    role: 'Parent',
+    status: 'Active',
+    portfolio: '$45,230',
+    portfolioValue: 45230,
+    lastActive: '2 hours ago',
+    joinDate: '2024-01-15',
+    permissions: 'Full Access'
+  },
+  {
+    id: 'demo-2',
+    name: 'Sarah Doe',
+    email: 'sarah.doe@email.com',
+    role: 'Parent',
+    status: 'Active',
+    portfolio: '$38,450',
+    portfolioValue: 38450,
+    lastActive: '5 hours ago',
+    joinDate: '2024-01-15',
+    permissions: 'Full Access'
+  },
+  {
+    id: 'demo-3',
+    name: 'Emma Doe',
+    email: 'emma.doe@email.com',
+    role: 'Child',
+    status: 'Active',
+    portfolio: '$12,890',
+    portfolioValue: 12890,
+    lastActive: '1 day ago',
+    joinDate: '2024-02-20',
+    permissions: 'Limited Access'
+  },
+  {
+    id: 'demo-4',
+    name: 'Jake Doe',
+    email: 'jake.doe@email.com',
+    role: 'Child',
+    status: 'Active',
+    portfolio: '$8,320',
+    portfolioValue: 8320,
+    lastActive: '3 days ago',
+    joinDate: '2024-03-10',
+    permissions: 'View Only'
+  }
+]
+
 const FamilyMembers = ({ user }) => {
   const { showInfoModal, showSuccessModal, showErrorModal } = useModal()
   const { addNotification } = useNotifications()
@@ -19,25 +71,37 @@ const FamilyMembers = ({ user }) => {
     permissions: 'view'
   })
 
-  // Family members data from API
+  // Check if in demo mode
+  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+
+  // Family members data from API or demo data
   const [familyMembers, setFamilyMembers] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Fetch family members on component mount
   useEffect(() => {
     fetchFamilyMembers()
-  }, [])
+  }, [isDemoMode])
 
   const fetchFamilyMembers = async () => {
     try {
       setLoading(true)
-            const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
-        const response = await fetch(`${apiBaseUrl}/api/family/members`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('kamioi_user_token')}`
+
+      // In demo mode, use demo data
+      if (isDemoMode) {
+        console.log('FamilyMembers - Demo mode detected, loading demo family members')
+        setFamilyMembers(DEMO_FAMILY_MEMBERS)
+        setLoading(false)
+        return
+      }
+
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
+      const response = await fetch(`${apiBaseUrl}/api/family/members`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('kamioi_user_token')}`
         }
       })
-      
+
       if (response.ok) {
         const result = await response.json()
         if (result.success) {
@@ -46,6 +110,10 @@ const FamilyMembers = ({ user }) => {
       }
     } catch (error) {
       console.error('Error fetching family members:', error)
+      // Fallback to demo data on error if in demo mode
+      if (isDemoMode) {
+        setFamilyMembers(DEMO_FAMILY_MEMBERS)
+      }
     } finally {
       setLoading(false)
     }
@@ -87,15 +155,15 @@ const FamilyMembers = ({ user }) => {
     let originalText = 'Add Member'
     try {
       // Validate member data
-    if (!newMember.name.trim()) {
-      showErrorModal('Validation Error', 'Please enter the member\'s name')
-      return
-    }
-    if (!newMember.email.trim() || !newMember.email.includes('@')) {
-      showErrorModal('Validation Error', 'Please enter a valid email address')
-      return
-    }
-      
+      if (!newMember.name.trim()) {
+        showErrorModal('Validation Error', 'Please enter the member\'s name')
+        return
+      }
+      if (!newMember.email.trim() || !newMember.email.includes('@')) {
+        showErrorModal('Validation Error', 'Please enter a valid email address')
+        return
+      }
+
       // Show loading state
       if (event && event.target) {
         const submitButton = event.target
@@ -103,19 +171,46 @@ const FamilyMembers = ({ user }) => {
         submitButton.textContent = 'Adding...'
         submitButton.disabled = true
       }
-      
+
       // Create member object
       const memberData = {
-        id: Date.now().toString(),
+        id: `demo-${Date.now()}`,
         name: newMember.name.trim(),
         email: newMember.email.trim(),
-        role: newMember.role,
-        permissions: newMember.permissions,
-        status: 'pending',
+        role: newMember.role === 'parent' ? 'Parent' : 'Child',
+        permissions: newMember.permissions === 'full' ? 'Full Access' : newMember.permissions === 'limited' ? 'Limited Access' : 'View Only',
+        status: 'Pending',
+        portfolio: '$0',
+        portfolioValue: 0,
+        lastActive: 'Just invited',
+        joinDate: new Date().toISOString().split('T')[0],
         invitedAt: new Date().toISOString(),
         joinedAt: null
       }
-      
+
+      // In demo mode, add to local state directly
+      if (isDemoMode) {
+        setFamilyMembers(prev => [...prev, memberData])
+
+        // Reset form and close modal
+        setShowAddMember(false)
+        setNewMember({
+          name: '',
+          email: '',
+          role: 'child',
+          permissions: 'view'
+        })
+
+        showSuccessModal('Success', 'Family member added successfully! An invitation has been sent.')
+        addNotification({
+          type: 'success',
+          title: 'Family Member Added',
+          message: `${memberData.name} has been added to the family.`,
+          timestamp: new Date()
+        })
+        return
+      }
+
       // Call backend to add member
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const response = await fetch(`${apiBaseUrl}/api/family/members`, {
@@ -126,13 +221,13 @@ const FamilyMembers = ({ user }) => {
         },
         body: JSON.stringify(memberData)
       })
-      
+
       if (response.ok) {
         const result = await response.json()
         if (result.success) {
-          // Add to local state (you might need to add this to context)
-          // addFamilyMember(result.data)
-          
+          // Add to local state
+          setFamilyMembers(prev => [...prev, result.data || memberData])
+
           // Reset form and close modal
           setShowAddMember(false)
           setNewMember({
@@ -141,12 +236,12 @@ const FamilyMembers = ({ user }) => {
             role: 'child',
             permissions: 'view'
           })
-          
+
           showSuccessModal('Success', 'Family member added successfully! An invitation has been sent.')
           addNotification({
             type: 'success',
             title: 'Family Member Added',
-            message: `${newMember.name} has been added to the family.`,
+            message: `${memberData.name} has been added to the family.`,
             timestamp: new Date()
           })
         } else {
@@ -155,7 +250,7 @@ const FamilyMembers = ({ user }) => {
       } else {
         throw new Error('Network error')
       }
-      
+
     } catch (error) {
       console.error('Add member failed:', error)
       showErrorModal('Error', 'Failed to add family member. Please try again.')
@@ -183,18 +278,34 @@ const FamilyMembers = ({ user }) => {
   const confirmDeleteMember = async (event) => {
     let originalText = 'Remove Member'
     try {
-    if (!selectedMember) {
-      showErrorModal('Error', 'No member selected')
-      return
-    }
-      
+      if (!selectedMember) {
+        showErrorModal('Error', 'No member selected')
+        return
+      }
+
       // Show loading state
       if (event && event.target) {
         originalText = event.target.textContent
         event.target.textContent = 'Removing...'
         event.target.disabled = true
       }
-      
+
+      // In demo mode, remove from local state directly
+      if (isDemoMode) {
+        setFamilyMembers(prev => prev.filter(m => m.id !== selectedMember.id))
+
+        showSuccessModal('Success', `${selectedMember.name} has been removed from the family.`)
+        addNotification({
+          type: 'info',
+          title: 'Family Member Removed',
+          message: `${selectedMember.name} has been removed from the family.`,
+          timestamp: new Date()
+        })
+        setShowDeleteConfirm(false)
+        setSelectedMember(null)
+        return
+      }
+
       // Call backend to remove member
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const response = await fetch(`${apiBaseUrl}/api/family/members/${selectedMember.id}`, {
@@ -204,13 +315,13 @@ const FamilyMembers = ({ user }) => {
           'Authorization': `Bearer ${localStorage.getItem('kamioi_token')}`
         }
       })
-      
+
       if (response.ok) {
         const result = await response.json()
         if (result.success) {
-          // Remove from local state (you might need to add this to context)
-          // removeFamilyMember(selectedMember.id)
-          
+          // Remove from local state
+          setFamilyMembers(prev => prev.filter(m => m.id !== selectedMember.id))
+
           showSuccessModal('Success', `${selectedMember.name} has been removed from the family.`)
           addNotification({
             type: 'info',
@@ -226,13 +337,13 @@ const FamilyMembers = ({ user }) => {
       } else {
         throw new Error('Network error')
       }
-      
+
     } catch (error) {
       console.error('Remove member failed:', error)
       showErrorModal('Error', 'Failed to remove family member. Please try again.')
     } finally {
       // Reset button state
-      if (event.target) {
+      if (event && event.target) {
         event.target.textContent = originalText
         event.target.disabled = false
       }
@@ -240,17 +351,24 @@ const FamilyMembers = ({ user }) => {
   }
 
   const handleViewMember = (member) => {
+    // Handle both demo data format and API data format
+    const portfolioValue = typeof member.portfolio === 'string'
+      ? member.portfolio
+      : (member.portfolioValue ? `$${member.portfolioValue.toLocaleString()}` : '$0')
+    const statusLower = (member.status || 'active').toLowerCase()
+    const isActive = statusLower === 'active'
+
     const memberDetails = `
       <div class="space-y-4">
         <div class="flex items-center justify-between">
           <h3 class="text-lg font-semibold text-white">${member.name}</h3>
           <span class="px-2 py-1 rounded-full text-xs font-medium ${
-            member.status === 'active' ? 'text-green-400 bg-green-400/20' : 'text-gray-400 bg-gray-400/20'
+            isActive ? 'text-green-400 bg-green-400/20' : 'text-gray-400 bg-gray-400/20'
           }">
-            ${member.status.charAt(0).toUpperCase() + member.status.slice(1)}
+            ${member.status || 'Active'}
           </span>
         </div>
-        
+
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="text-sm text-gray-400">Email</label>
@@ -262,32 +380,32 @@ const FamilyMembers = ({ user }) => {
           </div>
           <div>
             <label class="text-sm text-gray-400">Portfolio Value</label>
-            <p class="text-white font-medium">$${member.portfolio.toLocaleString()}</p>
+            <p class="text-white font-medium">${portfolioValue}</p>
           </div>
           <div>
             <label class="text-sm text-gray-400">Last Active</label>
-            <p class="text-white font-medium">${member.lastActive}</p>
+            <p class="text-white font-medium">${member.lastActive || 'N/A'}</p>
           </div>
           <div>
             <label class="text-sm text-gray-400">Join Date</label>
-            <p class="text-white font-medium">${member.joinDate}</p>
+            <p class="text-white font-medium">${member.joinDate || 'N/A'}</p>
           </div>
           <div>
             <label class="text-sm text-gray-400">Permissions</label>
-            <p class="text-white font-medium">${member.permissions}</p>
+            <p class="text-white font-medium">${member.permissions || 'View Only'}</p>
           </div>
         </div>
-        
+
         <div class="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
           <h4 class="text-blue-400 font-semibold mb-2">Family Member Information</h4>
           <p class="text-gray-300 text-sm">
-            This family member has ${member.role.toLowerCase()} access to the family account. 
-            ${member.status === 'active' ? 'They are currently active and can manage family finances.' : 'They are currently inactive.'}
+            This family member has ${(member.role || 'member').toLowerCase()} access to the family account.
+            ${isActive ? 'They are currently active and can manage family finances.' : 'They are currently inactive.'}
           </p>
         </div>
       </div>
     `
-    
+
     showInfoModal(
       'Family Member Details',
       memberDetails,
@@ -304,14 +422,29 @@ const FamilyMembers = ({ user }) => {
         showErrorModal('Error', 'Member not found')
         return
       }
-      
+
       // Show loading state
       if (event && event.target) {
         originalText = event.target.textContent
         event.target.textContent = 'Sending...'
         event.target.disabled = true
       }
-      
+
+      // In demo mode, simulate success
+      if (isDemoMode) {
+        // Simulate a short delay for realistic feel
+        await new Promise(resolve => setTimeout(resolve, 500))
+
+        showSuccessModal('Success', `Invitation sent successfully to ${member.email}!`)
+        addNotification({
+          type: 'success',
+          title: 'Invitation Sent',
+          message: `Invitation sent to ${member.email}`,
+          timestamp: new Date()
+        })
+        return
+      }
+
       // Call backend to send invite
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const response = await fetch(`${apiBaseUrl}/api/family/members/${memberId}/invite`, {
@@ -326,7 +459,7 @@ const FamilyMembers = ({ user }) => {
           familyName: 'Your Family' // This could come from family context
         })
       })
-      
+
       if (response.ok) {
         const result = await response.json()
         if (result.success) {
@@ -343,7 +476,7 @@ const FamilyMembers = ({ user }) => {
       } else {
         throw new Error('Network error')
       }
-      
+
     } catch (error) {
       console.error('Send invite failed:', error)
       showErrorModal('Error', 'Failed to send invitation. Please try again.')

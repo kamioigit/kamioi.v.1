@@ -1,9 +1,9 @@
-import React, { useState } from 'react'
-import { 
-  Target, 
-  Plus, 
-  TrendingUp, 
-  DollarSign, 
+import React, { useState, useEffect } from 'react'
+import {
+  Target,
+  Plus,
+  TrendingUp,
+  DollarSign,
   Calendar,
   CheckCircle,
   Clock,
@@ -18,6 +18,67 @@ import RechartsChart from '../common/RechartsChart'
 import { useData } from '../../context/DataContext'
 import notificationService from '../../services/notificationService'
 
+// Demo family goals for demo mode
+const DEMO_FAMILY_GOALS = [
+  {
+    id: 'demo-goal-1',
+    title: 'Family Vacation Fund',
+    type: 'amount',
+    target: 5000,
+    current: 3750,
+    progress: 75,
+    timeframe: 12,
+    status: 'active',
+    endDate: new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString(),
+    aiRecommendations: [
+      'Increase round-up amount to $2 to reach goal 2 months faster',
+      'Consider adding Target and Costco purchases for more round-ups'
+    ]
+  },
+  {
+    id: 'demo-goal-2',
+    title: 'College Savings',
+    type: 'amount',
+    target: 25000,
+    current: 8500,
+    progress: 34,
+    timeframe: 36,
+    status: 'active',
+    endDate: new Date(Date.now() + 30 * 30 * 24 * 60 * 60 * 1000).toISOString(),
+    aiRecommendations: [
+      'You\'re on track! Current pace will reach 105% of goal',
+      'Consider diversifying with education-focused ETFs'
+    ]
+  },
+  {
+    id: 'demo-goal-3',
+    title: 'Emergency Fund',
+    type: 'amount',
+    target: 10000,
+    current: 10000,
+    progress: 100,
+    timeframe: 18,
+    status: 'completed',
+    endDate: new Date(Date.now() - 2 * 30 * 24 * 60 * 60 * 1000).toISOString(),
+    aiRecommendations: []
+  },
+  {
+    id: 'demo-goal-4',
+    title: 'Family Round-Up Challenge',
+    type: 'count',
+    target: 500,
+    current: 342,
+    progress: 68,
+    timeframe: 6,
+    status: 'active',
+    endDate: new Date(Date.now() + 3 * 30 * 24 * 60 * 60 * 1000).toISOString(),
+    aiRecommendations: [
+      'Great progress! 158 more transactions to reach your goal',
+      'Family has averaged 57 round-ups per month'
+    ]
+  }
+]
+
 const FamilyGoals = ({ user }) => {
   const [showCreateGoal, setShowCreateGoal] = useState(false)
   const [showEditGoal, setShowEditGoal] = useState(false)
@@ -31,11 +92,22 @@ const FamilyGoals = ({ user }) => {
     description: ''
   })
 
+  // Check if in demo mode
+  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+
   // Goals data from context
   const { setGoals } = useData()
-  
-  // Use clean data from DataContext (no hardcoded family goals)
+
+  // Family goals state - initialize with demo data in demo mode
   const [familyGoals, setFamilyGoals] = useState([])
+
+  // Load demo goals in demo mode
+  useEffect(() => {
+    if (isDemoMode && familyGoals.length === 0) {
+      console.log('FamilyGoals - Demo mode detected, loading demo goals')
+      setFamilyGoals(DEMO_FAMILY_GOALS)
+    }
+  }, [isDemoMode])
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -88,7 +160,7 @@ const FamilyGoals = ({ user }) => {
         })
         return
       }
-      
+
       // Show loading state
       if (event && event.target) {
         const submitButton = event.target
@@ -96,13 +168,13 @@ const FamilyGoals = ({ user }) => {
         submitButton.textContent = 'Creating...'
         submitButton.disabled = true
       }
-      
+
       // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
       // Create goal object
       const goalData = {
-        id: Date.now().toString(),
+        id: `demo-goal-${Date.now()}`,
         title: newGoal.title.trim(),
         type: newGoal.type,
         target: parseFloat(newGoal.target),
@@ -113,14 +185,21 @@ const FamilyGoals = ({ user }) => {
         createdAt: new Date().toISOString(),
         progress: 0,
         endDate: new Date(Date.now() + parseInt(newGoal.timeframe) * 30 * 24 * 60 * 60 * 1000).toISOString(),
-        familyId: user?.family_id || user?.id || null
+        familyId: user?.family_id || user?.id || null,
+        aiRecommendations: [
+          'Set up automatic round-ups to make consistent progress',
+          'Track your spending to find more investment opportunities'
+        ]
       }
-      
-      // Add to local state (simulate successful creation)
+
+      // Add to local familyGoals state
+      setFamilyGoals(prevGoals => [...prevGoals, goalData])
+
+      // Also update context if available
       if (setGoals) {
         setGoals(prevGoals => [...(prevGoals || []), goalData])
       }
-      
+
       // Reset form and close modal
       setShowCreateGoal(false)
       setNewGoal({
@@ -130,14 +209,14 @@ const FamilyGoals = ({ user }) => {
         timeframe: '12',
         description: ''
       })
-      
+
       await notificationService.addNotification({
         type: 'success',
         title: 'Goal Created',
         message: 'Family goal created successfully!',
         timestamp: new Date().toISOString()
       })
-      
+
     } catch (error) {
       console.error('Create goal failed:', error)
       await notificationService.addNotification({
