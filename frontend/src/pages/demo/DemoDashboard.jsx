@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { User, Users, Building2, Shield, LogOut } from 'lucide-react'
+import { User, Users, Building2, LogOut } from 'lucide-react'
 import { useDemo } from '../../context/DemoContext'
 
 const DemoDashboard = () => {
@@ -32,8 +32,7 @@ const DemoDashboard = () => {
   const views = [
     { id: 'user', label: 'Individual', icon: User },
     { id: 'family', label: 'Family', icon: Users },
-    { id: 'business', label: 'Business', icon: Building2 },
-    { id: 'admin', label: 'Admin', icon: Shield }
+    { id: 'business', label: 'Business', icon: Building2 }
   ]
 
   return (

@@ -79,7 +79,6 @@ const DemoDashboard = lazy(() => import('./pages/demo/DemoDashboard'))
 const DemoUserDashboard = lazy(() => import('./pages/demo/DemoUserDashboard'))
 const DemoFamilyDashboard = lazy(() => import('./pages/demo/DemoFamilyDashboard'))
 const DemoBusinessDashboard = lazy(() => import('./pages/demo/DemoBusinessDashboard'))
-const DemoAdminDashboard = lazy(() => import('./pages/demo/DemoAdminDashboard'))
 
 // Loading component
 const LoadingSpinner = () => (
@@ -283,7 +282,6 @@ const AppRoutes = () => {
           <Route path="user" element={<DemoUserDashboard />} />
           <Route path="family" element={<DemoFamilyDashboard />} />
           <Route path="business" element={<DemoBusinessDashboard />} />
-          <Route path="admin" element={<DemoAdminDashboard />} />
         </Route>
 
         {/* App redirect - sends authenticated users to their dashboard */}
