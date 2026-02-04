@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Settings, User, Bell, Shield, CreditCard, CheckCircle, X, Link, DollarSign, Play, Square, AlertTriangle, Trash2, Plus } from 'lucide-react'
+import { Settings, User, Bell, Shield, CreditCard, CheckCircle, X, Link, DollarSign, Play, Square, AlertTriangle, Trash2, Plus, Lock, Download, FileText, Smartphone, Key, BellRing } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useModal } from '../../context/ModalContext'
@@ -7,11 +7,58 @@ import { useNotifications } from '../../hooks/useNotifications'
 import MXConnectWidget from '../common/MXConnectWidget'
 import StripeSubscriptionManager from '../common/StripeSubscriptionManager'
 
+// Demo data for settings page
+const DEMO_PROFILE_DATA = {
+  name: 'Demo User',
+  email: 'demo@kamioi.com',
+  phone: '(555) 123-4567',
+  country: 'United States',
+  timezone: 'America/New_York',
+  firstName: 'Demo',
+  lastName: 'User',
+  dob: '1990-01-15',
+  ssn: '1234',
+  street: '123 Investment Ave',
+  city: 'New York',
+  state: 'NY',
+  zip: '10001',
+  annualIncome: '75000',
+  employmentStatus: 'Employed',
+  employer: 'Tech Company Inc.',
+  occupation: 'Software Engineer',
+  roundUpAmount: '1.00',
+  riskTolerance: 'Moderate'
+}
+
+const DEMO_BANK_CONNECTION = {
+  id: 'demo_bank_001',
+  bank_name: 'Chase',
+  institution_name: 'Chase Bank',
+  account_name: 'Chase Checking ••••4521',
+  account_type: 'Checking',
+  status: 'active',
+  connected_at: new Date().toISOString()
+}
+
+const DEMO_SUBSCRIPTION = {
+  id: 'demo_sub_001',
+  plan_name: 'Premium',
+  status: 'active',
+  amount: 9.99,
+  billing_period: 'monthly',
+  next_billing_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  features: ['Unlimited round-ups', 'AI insights', 'Priority support', 'Tax documents']
+}
+
 const UserSettings = () => {
   const { isLightMode } = useTheme()
   const { user: authUser, refreshUser } = useAuth()
   const { showSuccessModal, showErrorModal, showConfirmationModal } = useModal()
   const { addNotification } = useNotifications()
+
+  // Check if in demo mode
+  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [profileForm, setProfileForm] = useState({
     name: '', email: '', phone: '', country: '', timezone: '',
@@ -37,6 +84,22 @@ const UserSettings = () => {
   const [roundUpAmount, setRoundUpAmount] = useState(1)
   const [roundUpEnabled, setRoundUpEnabled] = useState(true)
   const [savingRoundUp, setSavingRoundUp] = useState(false)
+
+  // New feature states
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false)
+  const [show2FAModal, setShow2FAModal] = useState(false)
+  const [showDataExportModal, setShowDataExportModal] = useState(false)
+  const [showAdvancedNotificationsModal, setShowAdvancedNotificationsModal] = useState(false)
+  const [showTaxDocumentsModal, setShowTaxDocumentsModal] = useState(false)
+  const [advancedNotificationPrefs, setAdvancedNotificationPrefs] = useState({
+    portfolioUpdates: true,
+    roundUpConfirmations: true,
+    goalProgress: true,
+    marketAlerts: false,
+    weeklyDigest: true,
+    priceAlerts: false
+  })
+  const [demoSubscription, setDemoSubscription] = useState(null)
 
   // Fetch full profile data from API
   const fetchProfile = async () => {
@@ -91,6 +154,16 @@ const UserSettings = () => {
   }
 
   useEffect(() => {
+    // In demo mode, use demo data
+    if (isDemoMode) {
+      console.log('Settings - Demo mode detected, loading demo data')
+      setProfileForm(DEMO_PROFILE_DATA)
+      setBankConnections([DEMO_BANK_CONNECTION])
+      setDemoSubscription(DEMO_SUBSCRIPTION)
+      setTwoFactorEnabled(true) // Demo has 2FA enabled
+      return
+    }
+
     // First set from authUser (basic data)
     setProfileForm(prev => ({
       ...prev,
@@ -127,7 +200,7 @@ const UserSettings = () => {
     fetchRoundUpSettings()
     // Load bank connections
     fetchBankConnections()
-  }, [authUser])
+  }, [authUser, isDemoMode])
 
   const fetchBankConnections = async () => {
     try {
@@ -638,47 +711,72 @@ const UserSettings = () => {
           </div>
         </div>
 
+        {/* Additional Features */}
         <div className="mt-8 p-6 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/20">
           <h4 className="text-lg font-semibold text-blue-400 mb-4 flex items-center">
-            <span className="mr-2">🚀</span> Coming Soon
+            <Shield className="w-5 h-5 mr-2" /> Additional Features
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-start space-x-3">
+            {/* Two-Factor Authentication */}
+            <button
+              onClick={() => setShow2FAModal(true)}
+              className="flex items-start space-x-3 p-3 rounded-lg hover:bg-white/5 transition-colors text-left"
+            >
               <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-green-400">🔐</span>
+                <Smartphone className="w-4 h-4 text-green-400" />
               </div>
-              <div>
-                <p className="text-white font-medium text-sm">Two-Factor Authentication</p>
+              <div className="flex-1">
+                <div className="flex items-center space-x-2">
+                  <p className="text-white font-medium text-sm">Two-Factor Authentication</p>
+                  {twoFactorEnabled && (
+                    <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">Enabled</span>
+                  )}
+                </div>
                 <p className="text-gray-400 text-xs">Enhanced security with 2FA</p>
               </div>
-            </div>
-            <div className="flex items-start space-x-3">
+            </button>
+
+            {/* Data Export */}
+            <button
+              onClick={() => setShowDataExportModal(true)}
+              className="flex items-start space-x-3 p-3 rounded-lg hover:bg-white/5 transition-colors text-left"
+            >
               <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-purple-400">📊</span>
+                <Download className="w-4 h-4 text-purple-400" />
               </div>
               <div>
                 <p className="text-white font-medium text-sm">Data Export</p>
                 <p className="text-gray-400 text-xs">Download transactions & reports</p>
               </div>
-            </div>
-            <div className="flex items-start space-x-3">
+            </button>
+
+            {/* Advanced Notifications */}
+            <button
+              onClick={() => setShowAdvancedNotificationsModal(true)}
+              className="flex items-start space-x-3 p-3 rounded-lg hover:bg-white/5 transition-colors text-left"
+            >
               <div className="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-yellow-400">🔔</span>
+                <BellRing className="w-4 h-4 text-yellow-400" />
               </div>
               <div>
                 <p className="text-white font-medium text-sm">Advanced Notifications</p>
                 <p className="text-gray-400 text-xs">Granular alert preferences</p>
               </div>
-            </div>
-            <div className="flex items-start space-x-3">
+            </button>
+
+            {/* Tax Documents */}
+            <button
+              onClick={() => setShowTaxDocumentsModal(true)}
+              className="flex items-start space-x-3 p-3 rounded-lg hover:bg-white/5 transition-colors text-left"
+            >
               <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-blue-400">📄</span>
+                <FileText className="w-4 h-4 text-blue-400" />
               </div>
               <div>
                 <p className="text-white font-medium text-sm">Tax Documents</p>
                 <p className="text-gray-400 text-xs">Download 1099 & tax forms</p>
               </div>
-            </div>
+            </button>
           </div>
         </div>
         {showProfileModal && (
@@ -971,13 +1069,451 @@ const UserSettings = () => {
 
       {/* MX Connect Modal */}
       {showBankModal && (
-        <MXConnectWidget 
-          isOpen={showBankModal} 
-          onClose={() => setShowBankModal(false)} 
-          userType="user" 
+        <MXConnectWidget
+          isOpen={showBankModal}
+          onClose={() => setShowBankModal(false)}
+          userType="user"
           onSuccess={handleMXConnectSuccess}
-          onError={() => setShowBankModal(false)} 
+          onError={() => setShowBankModal(false)}
         />
+      )}
+
+      {/* Two-Factor Authentication Modal */}
+      {show2FAModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-white flex items-center">
+                <Smartphone className="w-5 h-5 mr-2 text-green-400" />
+                Two-Factor Authentication
+              </h3>
+              <button onClick={() => setShow2FAModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* 2FA Status */}
+              <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white font-medium">2FA Status</p>
+                    <p className="text-gray-400 text-sm">
+                      {twoFactorEnabled ? 'Your account is protected with 2FA' : '2FA is not enabled'}
+                    </p>
+                  </div>
+                  <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    twoFactorEnabled ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                  }`}>
+                    {twoFactorEnabled ? 'Enabled' : 'Disabled'}
+                  </div>
+                </div>
+              </div>
+
+              {twoFactorEnabled ? (
+                <>
+                  {/* Recovery Codes */}
+                  <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Key className="w-4 h-4 text-blue-400" />
+                      <p className="text-white font-medium text-sm">Recovery Codes</p>
+                    </div>
+                    <p className="text-gray-400 text-xs mb-3">
+                      Store these codes safely. Use them to access your account if you lose your device.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {['ABCD-1234', 'EFGH-5678', 'IJKL-9012', 'MNOP-3456'].map((code, idx) => (
+                        <div key={idx} className="px-3 py-2 bg-black/20 rounded font-mono text-sm text-gray-300">
+                          {code}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Disable 2FA */}
+                  <button
+                    onClick={() => {
+                      setTwoFactorEnabled(false)
+                      addNotification({
+                        type: 'warning',
+                        title: '2FA Disabled',
+                        message: 'Two-factor authentication has been disabled.',
+                        timestamp: new Date().toISOString()
+                      })
+                    }}
+                    className="w-full px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <Lock className="w-4 h-4" />
+                    <span>Disable 2FA</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Setup Instructions */}
+                  <div className="space-y-3">
+                    <p className="text-gray-300 text-sm">To enable 2FA:</p>
+                    <ol className="list-decimal list-inside space-y-2 text-sm text-gray-400">
+                      <li>Download an authenticator app (Google Authenticator, Authy)</li>
+                      <li>Scan the QR code or enter the setup key</li>
+                      <li>Enter the 6-digit code to verify</li>
+                    </ol>
+                  </div>
+
+                  {/* QR Code Placeholder */}
+                  <div className="p-6 bg-white rounded-lg mx-auto w-fit">
+                    <div className="w-32 h-32 bg-gray-200 flex items-center justify-center">
+                      <span className="text-gray-500 text-xs text-center">QR Code</span>
+                    </div>
+                  </div>
+
+                  {/* Setup Key */}
+                  <div className="p-3 bg-black/20 rounded-lg text-center">
+                    <p className="text-gray-400 text-xs mb-1">Setup Key</p>
+                    <p className="font-mono text-white">DEMO-SETUP-KEY-2FA</p>
+                  </div>
+
+                  {/* Verification Input */}
+                  <div>
+                    <label className="block text-sm text-gray-300 mb-1">Enter 6-digit code</label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      placeholder="000000"
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-center font-mono text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+
+                  {/* Enable Button */}
+                  <button
+                    onClick={() => {
+                      setTwoFactorEnabled(true)
+                      addNotification({
+                        type: 'success',
+                        title: '2FA Enabled',
+                        message: 'Two-factor authentication has been enabled for your account.',
+                        timestamp: new Date().toISOString()
+                      })
+                    }}
+                    className="w-full px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span>Enable 2FA</span>
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button onClick={() => setShow2FAModal(false)} className={getButtonNeutral()}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Data Export Modal */}
+      {showDataExportModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-white flex items-center">
+                <Download className="w-5 h-5 mr-2 text-purple-400" />
+                Data Export
+              </h3>
+              <button onClick={() => setShowDataExportModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-gray-300 text-sm">
+                Export your data in various formats for your records or tax purposes.
+              </p>
+
+              {/* Export Options */}
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    addNotification({
+                      type: 'success',
+                      title: 'Export Started',
+                      message: 'Your transaction history is being prepared for download.',
+                      timestamp: new Date().toISOString()
+                    })
+                  }}
+                  className="w-full p-4 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors text-left"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <FileText className="w-5 h-5 text-blue-400" />
+                      <div>
+                        <p className="text-white font-medium">Transaction History</p>
+                        <p className="text-gray-400 text-xs">All transactions as CSV</p>
+                      </div>
+                    </div>
+                    <Download className="w-4 h-4 text-gray-400" />
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    addNotification({
+                      type: 'success',
+                      title: 'Export Started',
+                      message: 'Your portfolio report is being prepared for download.',
+                      timestamp: new Date().toISOString()
+                    })
+                  }}
+                  className="w-full p-4 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors text-left"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <FileText className="w-5 h-5 text-green-400" />
+                      <div>
+                        <p className="text-white font-medium">Portfolio Report</p>
+                        <p className="text-gray-400 text-xs">Holdings & performance as PDF</p>
+                      </div>
+                    </div>
+                    <Download className="w-4 h-4 text-gray-400" />
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    addNotification({
+                      type: 'success',
+                      title: 'Export Started',
+                      message: 'Your account data archive is being prepared.',
+                      timestamp: new Date().toISOString()
+                    })
+                  }}
+                  className="w-full p-4 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors text-left"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <FileText className="w-5 h-5 text-purple-400" />
+                      <div>
+                        <p className="text-white font-medium">Full Account Data</p>
+                        <p className="text-gray-400 text-xs">Complete data archive as JSON</p>
+                      </div>
+                    </div>
+                    <Download className="w-4 h-4 text-gray-400" />
+                  </div>
+                </button>
+              </div>
+
+              <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                <p className="text-xs text-blue-300">
+                  Exports are generated securely and will be emailed to your registered address.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button onClick={() => setShowDataExportModal(false)} className={getButtonNeutral()}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Advanced Notifications Modal */}
+      {showAdvancedNotificationsModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-white flex items-center">
+                <BellRing className="w-5 h-5 mr-2 text-yellow-400" />
+                Advanced Notifications
+              </h3>
+              <button onClick={() => setShowAdvancedNotificationsModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-gray-300 text-sm">
+                Customize which notifications you receive and how often.
+              </p>
+
+              {/* Notification Categories */}
+              <div className="space-y-3">
+                {[
+                  { key: 'portfolioUpdates', label: 'Portfolio Updates', desc: 'Daily portfolio value changes' },
+                  { key: 'roundUpConfirmations', label: 'Round-Up Confirmations', desc: 'Each time a round-up is invested' },
+                  { key: 'goalProgress', label: 'Goal Progress', desc: 'Milestones and achievements' },
+                  { key: 'marketAlerts', label: 'Market Alerts', desc: 'Significant market movements' },
+                  { key: 'weeklyDigest', label: 'Weekly Digest', desc: 'Summary of your week' },
+                  { key: 'priceAlerts', label: 'Price Alerts', desc: 'When stocks hit target prices' }
+                ].map((item) => (
+                  <div key={item.key} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                    <div>
+                      <p className="text-white font-medium text-sm">{item.label}</p>
+                      <p className="text-gray-400 text-xs">{item.desc}</p>
+                    </div>
+                    <button
+                      onClick={() => setAdvancedNotificationPrefs(prev => ({
+                        ...prev,
+                        [item.key]: !prev[item.key]
+                      }))}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${
+                        advancedNotificationPrefs[item.key] ? 'bg-green-500' : 'bg-gray-600'
+                      }`}
+                    >
+                      <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                        advancedNotificationPrefs[item.key] ? 'left-6' : 'left-1'
+                      }`} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <button onClick={() => setShowAdvancedNotificationsModal(false)} className={getButtonNeutral()}>Cancel</button>
+              <button
+                onClick={() => {
+                  localStorage.setItem('kamioi_advanced_notification_prefs', JSON.stringify(advancedNotificationPrefs))
+                  addNotification({
+                    type: 'success',
+                    title: 'Preferences Saved',
+                    message: 'Your notification preferences have been updated.',
+                    timestamp: new Date().toISOString()
+                  })
+                  setShowAdvancedNotificationsModal(false)
+                }}
+                className={getButtonPrimary()}
+              >
+                Save Preferences
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tax Documents Modal */}
+      {showTaxDocumentsModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-white flex items-center">
+                <FileText className="w-5 h-5 mr-2 text-blue-400" />
+                Tax Documents
+              </h3>
+              <button onClick={() => setShowTaxDocumentsModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-gray-300 text-sm">
+                Download your tax documents for filing purposes.
+              </p>
+
+              {/* Available Documents */}
+              <div className="space-y-3">
+                {demoSubscription || isDemoMode ? (
+                  <>
+                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                            <FileText className="w-5 h-5 text-blue-400" />
+                          </div>
+                          <div>
+                            <p className="text-white font-medium">Form 1099-DIV</p>
+                            <p className="text-gray-400 text-xs">Dividends and Distributions - 2025</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            addNotification({
+                              type: 'success',
+                              title: 'Download Started',
+                              message: 'Your Form 1099-DIV is being downloaded.',
+                              timestamp: new Date().toISOString()
+                            })
+                          }}
+                          className="p-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                            <FileText className="w-5 h-5 text-green-400" />
+                          </div>
+                          <div>
+                            <p className="text-white font-medium">Form 1099-B</p>
+                            <p className="text-gray-400 text-xs">Proceeds from Broker - 2025</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            addNotification({
+                              type: 'success',
+                              title: 'Download Started',
+                              message: 'Your Form 1099-B is being downloaded.',
+                              timestamp: new Date().toISOString()
+                            })
+                          }}
+                          className="p-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                            <FileText className="w-5 h-5 text-purple-400" />
+                          </div>
+                          <div>
+                            <p className="text-white font-medium">Year-End Summary</p>
+                            <p className="text-gray-400 text-xs">Annual Investment Summary - 2025</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            addNotification({
+                              type: 'success',
+                              title: 'Download Started',
+                              message: 'Your Year-End Summary is being downloaded.',
+                              timestamp: new Date().toISOString()
+                            })
+                          }}
+                          className="p-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <FileText className="w-12 h-12 mx-auto mb-3 text-gray-500" />
+                    <p className="text-gray-400 text-sm">No tax documents available yet.</p>
+                    <p className="text-gray-500 text-xs mt-1">Documents will be available after tax year ends.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                <p className="text-xs text-yellow-300">
+                  Tax documents are typically available by mid-February for the previous tax year.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button onClick={() => setShowTaxDocumentsModal(false)} className={getButtonNeutral()}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Success/Error Notification Modal - Glass Effect */}

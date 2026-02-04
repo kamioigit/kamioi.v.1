@@ -21,7 +21,7 @@ import { useData } from '../../context/DataContext'
 
 const UserAnalytics = ({ onBack }) => {
   const { addNotification } = useNotifications()
-  const { portfolioValue, totalRoundUps, transactions, holdings } = useData()
+  const { portfolioValue, totalRoundUps, transactions, holdings, goals } = useData()
   const { isLightMode } = useTheme()
   const { showExportModal } = useModal()
   const [selectedTimeframe, setSelectedTimeframe] = useState('3m')
@@ -318,14 +318,190 @@ const UserAnalytics = ({ onBack }) => {
         {/* Goals Tab */}
         {activeTab === 'goals' && (
           <div className="space-y-8">
-            <div className={getCardClass()}>
-              <h3 className={`text-xl font-semibold ${getTextClass()} mb-4`}>Investment Goals Progress</h3>
-              <div className="text-center py-12">
-                <Target className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h4 className={`text-lg font-medium ${getTextClass()} mb-2`}>Goals & Progress</h4>
-                <p className={`${getSubtextClass()}`}>Your investment goals and progress will appear here</p>
+            {/* Goals Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className={getCardClass()}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-blue-500/20 rounded-lg">
+                    <Target className="w-6 h-6 text-blue-400" />
+                  </div>
+                  <span className="text-sm text-gray-400">Active Goals</span>
+                </div>
+                <div className="space-y-1">
+                  <p className={`text-2xl font-bold ${getTextClass()}`}>
+                    {goals.filter(g => g.status === 'active').length}
+                  </p>
+                  <p className={`text-sm ${getSubtextClass()}`}>In progress</p>
+                </div>
+              </div>
+
+              <div className={getCardClass()}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-green-500/20 rounded-lg">
+                    <TrendingUp className="w-6 h-6 text-green-400" />
+                  </div>
+                  <span className="text-sm text-gray-400">Total Saved</span>
+                </div>
+                <div className="space-y-1">
+                  <p className={`text-2xl font-bold ${getTextClass()}`}>
+                    ${goals.reduce((sum, g) => sum + (g.current || 0), 0).toLocaleString()}
+                  </p>
+                  <p className={`text-sm ${getSubtextClass()}`}>Across all goals</p>
+                </div>
+              </div>
+
+              <div className={getCardClass()}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-purple-500/20 rounded-lg">
+                    <Award className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <span className="text-sm text-gray-400">Total Target</span>
+                </div>
+                <div className="space-y-1">
+                  <p className={`text-2xl font-bold ${getTextClass()}`}>
+                    ${goals.reduce((sum, g) => sum + (g.target || 0), 0).toLocaleString()}
+                  </p>
+                  <p className={`text-sm ${getSubtextClass()}`}>Combined targets</p>
+                </div>
+              </div>
+
+              <div className={getCardClass()}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-orange-500/20 rounded-lg">
+                    <PieChart className="w-6 h-6 text-orange-400" />
+                  </div>
+                  <span className="text-sm text-gray-400">Avg Progress</span>
+                </div>
+                <div className="space-y-1">
+                  <p className={`text-2xl font-bold ${getTextClass()}`}>
+                    {goals.length > 0
+                      ? Math.round(goals.reduce((sum, g) => sum + ((g.current / g.target) * 100 || 0), 0) / goals.length)
+                      : 0}%
+                  </p>
+                  <p className={`text-sm ${getSubtextClass()}`}>Overall completion</p>
+                </div>
               </div>
             </div>
+
+            {/* Goals List */}
+            <div className={getCardClass()}>
+              <h3 className={`text-xl font-semibold ${getTextClass()} mb-6`}>Investment Goals Progress</h3>
+              {goals.length > 0 ? (
+                <div className="space-y-6">
+                  {goals.map((goal) => {
+                    const progress = goal.target > 0 ? Math.min(100, Math.round((goal.current / goal.target) * 100)) : 0
+                    const remaining = Math.max(0, goal.target - goal.current)
+
+                    return (
+                      <div key={goal.id} className="p-4 bg-white/5 rounded-xl border border-white/10">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center space-x-3">
+                            <div className={`p-2 rounded-lg ${
+                              goal.category === 'Savings' ? 'bg-green-500/20' :
+                              goal.category === 'Travel' ? 'bg-blue-500/20' :
+                              goal.category === 'Big Purchase' ? 'bg-purple-500/20' :
+                              'bg-orange-500/20'
+                            }`}>
+                              <Target className={`w-5 h-5 ${
+                                goal.category === 'Savings' ? 'text-green-400' :
+                                goal.category === 'Travel' ? 'text-blue-400' :
+                                goal.category === 'Big Purchase' ? 'text-purple-400' :
+                                'text-orange-400'
+                              }`} />
+                            </div>
+                            <div>
+                              <h4 className={`font-semibold ${getTextClass()}`}>{goal.title || goal.name}</h4>
+                              <p className={`text-sm ${getSubtextClass()}`}>{goal.category}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className={`font-bold ${getTextClass()}`}>${goal.current?.toLocaleString() || 0}</p>
+                            <p className={`text-sm ${getSubtextClass()}`}>of ${goal.target?.toLocaleString() || 0}</p>
+                          </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="mb-3">
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className={getSubtextClass()}>{progress}% complete</span>
+                            <span className={getSubtextClass()}>${remaining.toLocaleString()} remaining</span>
+                          </div>
+                          <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                progress >= 75 ? 'bg-green-500' :
+                                progress >= 50 ? 'bg-blue-500' :
+                                progress >= 25 ? 'bg-yellow-500' :
+                                'bg-orange-500'
+                              }`}
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Goal Details */}
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center space-x-4">
+                            <span className={getSubtextClass()}>
+                              Timeframe: {goal.timeframe} months
+                            </span>
+                            {goal.endDate && (
+                              <span className={getSubtextClass()}>
+                                Target: {new Date(goal.endDate).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            goal.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                            goal.status === 'completed' ? 'bg-blue-500/20 text-blue-400' :
+                            'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {goal.status?.charAt(0).toUpperCase() + goal.status?.slice(1) || 'Active'}
+                          </span>
+                        </div>
+
+                        {/* AI Recommendations */}
+                        {goal.aiRecommendations && goal.aiRecommendations.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-white/10">
+                            <div className="flex items-start space-x-2">
+                              <Lightbulb className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                              <p className={`text-sm ${getSubtextClass()}`}>
+                                {goal.aiRecommendations[0]}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Target className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h4 className={`text-lg font-medium ${getTextClass()} mb-2`}>No Goals Set Yet</h4>
+                  <p className={`${getSubtextClass()}`}>Create investment goals to track your financial progress</p>
+                </div>
+              )}
+            </div>
+
+            {/* Goals Distribution Chart */}
+            {goals.length > 0 && (
+              <div className={getCardClass()}>
+                <h3 className={`text-xl font-semibold ${getTextClass()} mb-4`}>Goals Distribution by Category</h3>
+                <RechartsChart
+                  type="donut"
+                  height={300}
+                  data={Object.entries(goals.reduce((acc, g) => {
+                    const category = g.category || 'Other'
+                    acc[category] = (acc[category] || 0) + (g.target || 0)
+                    return acc
+                  }, {})).map(([category, amount]) => ({
+                    name: category,
+                    value: amount
+                  }))}
+                />
+              </div>
+            )}
           </div>
         )}
 

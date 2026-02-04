@@ -4,24 +4,121 @@ import { useTheme } from '../../context/ThemeContext'
 import { useNotifications } from '../../hooks/useNotifications'
 import { fixNotifications } from '../../utils/fixNotifications'
 
+// Generate demo notifications for demo mode
+const generateDemoNotifications = () => {
+  const now = new Date()
+  return [
+    {
+      id: 'demo-1',
+      title: 'Portfolio Milestone Reached',
+      message: 'Congratulations! Your portfolio has grown by 8.5% this month. Keep up the great investing habits!',
+      type: 'success',
+      timestamp: new Date(now - 30 * 60 * 1000), // 30 mins ago
+      read: false,
+      priority: 'high',
+      dashboardType: 'user'
+    },
+    {
+      id: 'demo-2',
+      title: 'New Round-Up Investment',
+      message: 'Your $1.00 round-up from Starbucks has been invested in SBUX. You now own 0.0102 shares.',
+      type: 'success',
+      timestamp: new Date(now - 2 * 60 * 60 * 1000), // 2 hours ago
+      read: false,
+      dashboardType: 'user'
+    },
+    {
+      id: 'demo-3',
+      title: 'Goal Progress Update',
+      message: 'You\'re 65% of the way to your Emergency Fund goal! At this rate, you\'ll reach it in 4 months.',
+      type: 'info',
+      timestamp: new Date(now - 5 * 60 * 60 * 1000), // 5 hours ago
+      read: false,
+      dashboardType: 'user'
+    },
+    {
+      id: 'demo-4',
+      title: 'AI Recommendation',
+      message: 'Based on your spending at Amazon, consider learning about AMZN stock. You could be investing in brands you already use!',
+      type: 'info',
+      timestamp: new Date(now - 24 * 60 * 60 * 1000), // 1 day ago
+      read: true,
+      dashboardType: 'user'
+    },
+    {
+      id: 'demo-5',
+      title: 'Market Update',
+      message: 'The S&P 500 is up 1.2% today. Your diversified portfolio is benefiting from the market rally.',
+      type: 'info',
+      timestamp: new Date(now - 26 * 60 * 60 * 1000), // 26 hours ago
+      read: true,
+      dashboardType: 'user'
+    },
+    {
+      id: 'demo-6',
+      title: 'Weekly Summary Available',
+      message: 'Your weekly investment summary is ready. You invested $12.00 through round-ups this week across 12 transactions.',
+      type: 'success',
+      timestamp: new Date(now - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+      read: true,
+      dashboardType: 'user'
+    },
+    {
+      id: 'demo-7',
+      title: 'Stock Alert: AAPL',
+      message: 'Apple (AAPL) is up 3.5% today after strong earnings report. Your holding is now worth $18.42.',
+      type: 'success',
+      timestamp: new Date(now - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+      read: true,
+      dashboardType: 'user'
+    },
+    {
+      id: 'demo-8',
+      title: 'New Feature: AI Insights',
+      message: 'Check out the new AI Insights page for personalized investment recommendations based on your spending habits.',
+      type: 'info',
+      timestamp: new Date(now - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+      read: true,
+      dashboardType: 'user'
+    }
+  ]
+}
+
 const UserNotifications = () => {
   const { notifications, markAsRead, clearNotification, markAllAsRead } = useNotifications()
   const { isLightMode } = useTheme()
   const [filter, setFilter] = useState('all') // 'all', 'unread', 'read'
+  const [demoNotifications, setDemoNotifications] = useState([])
 
-  // Fix corrupted notifications on component mount
+  // Check if in demo mode
+  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+
+  // Load demo notifications in demo mode
   useEffect(() => {
+    if (isDemoMode && notifications.length === 0) {
+      console.log('UserNotifications - Demo mode detected, loading demo notifications')
+      setDemoNotifications(generateDemoNotifications())
+    }
+  }, [isDemoMode, notifications.length])
+
+  // Fix corrupted notifications on component mount (non-demo mode)
+  useEffect(() => {
+    if (isDemoMode) return // Skip for demo mode
+
     // Check if notifications are corrupted (empty titles/messages)
-    const hasCorruptedNotifications = notifications.some(n => 
+    const hasCorruptedNotifications = notifications.some(n =>
       !n.title || !n.message || n.title.trim() === '' || n.message.trim() === ''
     )
-    
-    if (hasCorruptedNotifications || notifications.length === 0) {
+
+    if (hasCorruptedNotifications) {
       console.log('Fixing corrupted notifications...')
       fixNotifications()
       // Don't reload the page - just let the notifications update naturally
     }
-  }, [notifications])
+  }, [notifications, isDemoMode])
+
+  // Use demo notifications if in demo mode and no real notifications
+  const displayNotifications = isDemoMode && notifications.length === 0 ? demoNotifications : notifications
 
   const getNotificationIcon = (notification) => {
     // Use custom icon if provided, otherwise use type-based icon
@@ -37,25 +134,40 @@ const UserNotifications = () => {
     }
   }
 
-  const handleMarkAsRead = (notificationId) => {
-    markAsRead(notificationId)
-  }
-
-  const handleDeleteNotification = (notificationId) => {
-    clearNotification(notificationId)
-  }
-
-  const handleMarkAllAsRead = () => {
-    markAllAsRead()
-  }
-
-  const filteredNotifications = notifications.filter(notification => {
+  const filteredNotifications = displayNotifications.filter(notification => {
     switch (filter) {
       case 'unread': return !notification.read
       case 'read': return notification.read
       default: return true
     }
   })
+
+  // Handle demo notification actions
+  const handleDemoMarkAsRead = (id) => {
+    if (isDemoMode && demoNotifications.length > 0) {
+      setDemoNotifications(prev =>
+        prev.map(n => n.id === id ? { ...n, read: true } : n)
+      )
+    } else {
+      markAsRead(id)
+    }
+  }
+
+  const handleDemoDelete = (id) => {
+    if (isDemoMode && demoNotifications.length > 0) {
+      setDemoNotifications(prev => prev.filter(n => n.id !== id))
+    } else {
+      clearNotification(id)
+    }
+  }
+
+  const handleDemoMarkAllAsRead = () => {
+    if (isDemoMode && demoNotifications.length > 0) {
+      setDemoNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    } else {
+      markAllAsRead()
+    }
+  }
 
   const formatTime = (timestamp) => {
     const date = new Date(timestamp)
@@ -116,9 +228,9 @@ const UserNotifications = () => {
           </select>
           
           {/* Mark All as Read */}
-          {notifications.some(n => !n.read) && (
-            <button 
-              onClick={handleMarkAllAsRead}
+          {displayNotifications.some(n => !n.read) && (
+            <button
+              onClick={handleDemoMarkAllAsRead}
               className="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg px-4 py-2 text-blue-400 flex items-center space-x-2 transition-all"
             >
               <CheckCircle className="w-4 h-4" />
@@ -169,7 +281,7 @@ const UserNotifications = () => {
                     <div className="flex items-center space-x-2 ml-4">
                       {!notification.read && (
                         <button
-                          onClick={() => handleMarkAsRead(notification.id)}
+                          onClick={() => handleDemoMarkAsRead(notification.id)}
                           className={`${getSubtextClass()} hover:text-blue-400 transition-colors`}
                           title="Mark as read"
                         >
@@ -177,7 +289,7 @@ const UserNotifications = () => {
                         </button>
                       )}
                       <button
-                        onClick={() => handleDeleteNotification(notification.id)}
+                        onClick={() => handleDemoDelete(notification.id)}
                         className={`${getSubtextClass()} hover:text-red-400 transition-colors`}
                         title="Delete notification"
                       >

@@ -19,7 +19,7 @@ import { useModal } from '../../context/ModalContext'
 import { useNotifications } from '../../hooks/useNotifications'
 
 const PortfolioStats = () => {
-  const { portfolioValue, holdings, transactions } = useData()
+  const { portfolioValue, holdings, transactions, portfolioStats } = useData()
   const { isLightMode } = useTheme()
   const { addNotification } = useNotifications()
   const { showExportModal } = useModal()
@@ -27,30 +27,47 @@ const PortfolioStats = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
-  // Use clean data from DataContext instead of hardcoded values
+  // Safe holdings array
+  const safeHoldings = Array.isArray(holdings) ? holdings : []
+
+  // Use clean data from DataContext with portfolioStats for correct calculations
   const portfolioData = {
     totalValue: portfolioValue || 0,
-    totalShares: holdings.reduce((sum, holding) => sum + (holding.shares || 0), 0),
-    totalInvested: holdings.reduce((sum, holding) => sum + (holding.value || 0), 0), // Use value as invested amount
-    totalGains: (portfolioValue || 0) - holdings.reduce((sum, holding) => sum + (holding.value || 0), 0),
-    gainPercentage: holdings.reduce((sum, holding) => sum + (holding.value || 0), 0) > 0 
-      ? (((portfolioValue || 0) - holdings.reduce((sum, holding) => sum + (holding.value || 0), 0)) / holdings.reduce((sum, holding) => sum + (holding.value || 0), 0)) * 100 
-      : 0,
-    stocks: holdings || []
+    totalShares: safeHoldings.reduce((sum, holding) => sum + (holding.shares || 0), 0),
+    totalInvested: portfolioStats?.totalCost || safeHoldings.reduce((sum, holding) => sum + (holding.totalCost || 0), 0),
+    totalGains: portfolioStats?.totalGain || 0,
+    gainPercentage: portfolioStats?.gainPercentage || 0,
+    stocks: safeHoldings
   }
 
   // Use clean data from DataContext for transaction history
+  // Map completed transactions with tickers to show investment history
   const safeTransactions = Array.isArray(transactions) ? transactions : []
-  const transactionHistory = safeTransactions.filter(t => t.status === 'completed' && t.ticker && t.shares).map(t => ({
-    id: t.id,
-    date: t.date,
-    stock: t.ticker,
-    action: 'Buy',
-    shares: t.shares,
-    amount: t.value || (t.shares * t.stock_price),
-    status: 'Completed',
-    reason: 'Round-up Investment'
-  }))
+
+  // Create a lookup map of avgCost by ticker from holdings for accurate shares calculation
+  const holdingsAvgCostMap = safeHoldings.reduce((map, h) => {
+    map[h.symbol] = h.avgCost || 100
+    return map
+  }, {})
+
+  const transactionHistory = safeTransactions
+    .filter(t => t.status === 'completed' && t.ticker)
+    .map((t, index) => {
+      // Calculate shares using the avgCost from holdings (consistent with holdings calculation)
+      const avgCost = holdingsAvgCostMap[t.ticker] || 100
+      const shares = (t.roundUp || 0) / avgCost
+
+      return {
+        id: t.id || index,
+        date: t.date,
+        ticker: t.ticker,
+        action: 'Buy',
+        shares: shares,
+        amount: t.roundUp || t.value || 0,
+        status: 'completed',
+        reason: `Round-up from ${t.merchant || 'purchase'}`
+      }
+    })
 
   const getTextClass = () => isLightMode ? 'text-gray-800' : 'text-white'
   const getSubtextClass = () => isLightMode ? 'text-gray-600' : 'text-gray-400'
@@ -101,16 +118,22 @@ const PortfolioStats = () => {
     { id: 'performance', label: 'Performance', icon: TrendingUp }
   ]
 
+  // Filter stocks by search term and name
   const filteredStocks = portfolioData.stocks.filter(stock => {
     const matchesSearch = (stock.symbol?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                         (stock.symbol?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || stock.status === statusFilter
+                         (stock.name?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+    // For stocks, filter by gain/loss status if not 'all'
+    const matchesStatus = statusFilter === 'all' ||
+                          (statusFilter === 'gain' && (stock.change || 0) > 0) ||
+                          (statusFilter === 'loss' && (stock.change || 0) < 0)
     return matchesSearch && matchesStatus
   })
 
+  // Filter transactions by search and status
   const filteredTransactions = transactionHistory.filter(transaction => {
     const matchesSearch = (transaction.ticker?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || transaction.status === statusFilter
+    const matchesStatus = statusFilter === 'all' ||
+                          transaction.status?.toLowerCase() === statusFilter.toLowerCase()
     return matchesSearch && matchesStatus
   })
 
@@ -312,16 +335,14 @@ const PortfolioStats = () => {
                   className="w-full bg-white/10 border border-white/20 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
                 />
               </div>
-              <select 
+              <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">All Status</option>
-                <option value="purchased">Purchased</option>
-                <option value="pending">Pending</option>
-                <option value="staged">Staged</option>
-                <option value="rejected">Rejected</option>
+                <option value="all">All Holdings</option>
+                <option value="gain">Gaining</option>
+                <option value="loss">Losing</option>
               </select>
             </div>
           </div>
@@ -334,15 +355,15 @@ const PortfolioStats = () => {
                   <tr className="border-b border-white/10">
                     <th className="text-left py-3 px-4 text-gray-400">Stock</th>
                     <th className="text-center py-3 px-4 text-gray-400">Shares</th>
-                    <th className="text-right py-3 px-4 text-gray-400">Invested</th>
-                    <th className="text-right py-3 px-4 text-gray-400">Current Value</th>
+                    <th className="text-right py-3 px-4 text-gray-400">Avg Cost</th>
+                    <th className="text-right py-3 px-4 text-gray-400">Current Price</th>
+                    <th className="text-right py-3 px-4 text-gray-400">Value</th>
                     <th className="text-right py-3 px-4 text-gray-400">Gain/Loss</th>
-                    <th className="text-center py-3 px-4 text-gray-400">Status</th>
-                    <th className="text-left py-3 px-4 text-gray-400">Date</th>
+                    <th className="text-right py-3 px-4 text-gray-400">Allocation</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredStocks.map((stock) => (
+                  {filteredStocks.length > 0 ? filteredStocks.map((stock) => (
                     <tr key={stock.symbol} className="border-b border-white/5 hover:bg-white/5">
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-3">
@@ -351,7 +372,7 @@ const PortfolioStats = () => {
                           </div>
                           <div>
                             <div className="text-white font-medium">{stock.symbol}</div>
-                            <div className="text-sm text-gray-400">${stock.currentPrice || 0}</div>
+                            <div className="text-sm text-gray-400">{stock.name}</div>
                           </div>
                         </div>
                       </td>
@@ -359,30 +380,30 @@ const PortfolioStats = () => {
                         {formatNumber(stock.shares || 0, 4)}
                       </td>
                       <td className="py-3 px-4 text-right text-white">
-                        {formatCurrency((stock.shares || 0) * (stock.avgCost || 0))}
+                        {formatCurrency(stock.avgCost || 0)}
+                      </td>
+                      <td className="py-3 px-4 text-right text-white">
+                        {formatCurrency(stock.currentPrice || 0)}
                       </td>
                       <td className="py-3 px-4 text-right text-white">
                         {formatCurrency(stock.value || 0)}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className={`font-semibold ${(stock.change || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {(stock.change || 0) >= 0 ? '+' : ''}{formatCurrency(stock.change || 0)}
-                        </div>
-                        <div className={`text-sm ${(stock.change || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {(stock.change || 0) >= 0 ? '+' : ''}{((stock.shares || 0) * (stock.avgCost || 0)) > 0 ? ((stock.change || 0) / ((stock.shares || 0) * (stock.avgCost || 0)) * 100).toFixed(2) : '0.00'}%
+                          {(stock.change || 0) >= 0 ? '+' : ''}{(stock.change || 0).toFixed(2)}%
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`px-2 py-1 rounded-full text-xs flex items-center justify-center space-x-1 ${getStatusColor(stock.status)}`}>
-                          {getStatusIcon(stock.status)}
-                          <span className="capitalize">{stock.status}</span>
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-gray-400 text-sm">
-                        {stock.purchaseDate}
+                      <td className="py-3 px-4 text-right text-white">
+                        {(stock.allocation || 0).toFixed(1)}%
                       </td>
                     </tr>
-                  ))}
+                  )) : (
+                    <tr>
+                      <td colSpan="7" className="py-8 text-center text-gray-400">
+                        No stock holdings found
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -436,7 +457,7 @@ const PortfolioStats = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTransactions.map((transaction) => (
+                  {filteredTransactions.length > 0 ? filteredTransactions.map((transaction) => (
                     <tr key={transaction.id} className="border-b border-white/5 hover:bg-white/5">
                       <td className="py-3 px-4 text-white">{transaction.date}</td>
                       <td className="py-3 px-4">
@@ -449,10 +470,10 @@ const PortfolioStats = () => {
                       </td>
                       <td className="py-3 px-4 text-white">{transaction.action}</td>
                       <td className="py-3 px-4 text-center text-white">
-                        {formatNumber(transaction.shares, 4)}
+                        {formatNumber(transaction.shares || 0, 4)}
                       </td>
                       <td className="py-3 px-4 text-right text-white">
-                        {formatCurrency(transaction.amount)}
+                        {formatCurrency(transaction.amount || 0)}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <span className={`px-2 py-1 rounded-full text-xs flex items-center justify-center space-x-1 ${getStatusColor(transaction.status)}`}>
@@ -464,7 +485,13 @@ const PortfolioStats = () => {
                         {transaction.reason}
                       </td>
                     </tr>
-                  ))}
+                  )) : (
+                    <tr>
+                      <td colSpan="7" className="py-8 text-center text-gray-400">
+                        No completed investment transactions found
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -479,46 +506,163 @@ const PortfolioStats = () => {
             <div className={`${getCardClass()} rounded-xl p-6 border`}>
               <h3 className={`text-xl font-semibold ${getTextClass()} mb-4`}>Performance Metrics</h3>
               <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>Total Return</span>
-                  <span className={`font-semibold ${portfolioData.totalGains >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {portfolioData.totalGains >= 0 ? '+' : ''}{portfolioData.gainPercentage.toFixed(2)}%
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>Best Day</span>
-                  <span className="text-gray-400 font-semibold">No Data</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>Worst Day</span>
-                  <span className="text-gray-400 font-semibold">No Data</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>Volatility</span>
-                  <span className="text-gray-400 font-semibold">No Data</span>
-                </div>
+                {(() => {
+                  if (portfolioData.stocks.length === 0) {
+                    return (
+                      <>
+                        <div className="flex justify-between">
+                          <span className={`${getSubtextClass()}`}>Total Return</span>
+                          <span className="text-gray-400 font-semibold">0.00%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className={`${getSubtextClass()}`}>Best Performer</span>
+                          <span className="text-gray-400 font-semibold">No Holdings</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className={`${getSubtextClass()}`}>Worst Performer</span>
+                          <span className="text-gray-400 font-semibold">No Holdings</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className={`${getSubtextClass()}`}>Avg Stock Gain</span>
+                          <span className="text-gray-400 font-semibold">0.00%</span>
+                        </div>
+                      </>
+                    )
+                  }
+
+                  // Calculate performance metrics from holdings
+                  const stockChanges = portfolioData.stocks.map(s => s.change || 0)
+                  const avgStockGain = stockChanges.reduce((sum, c) => sum + c, 0) / stockChanges.length
+
+                  const bestStock = portfolioData.stocks.reduce((best, stock) =>
+                    (stock.change || 0) > (best.change || 0) ? stock : best
+                  )
+                  const worstStock = portfolioData.stocks.reduce((worst, stock) =>
+                    (stock.change || 0) < (worst.change || 0) ? stock : worst
+                  )
+
+                  return (
+                    <>
+                      <div className="flex justify-between">
+                        <span className={`${getSubtextClass()}`}>Total Return</span>
+                        <span className={`font-semibold ${portfolioData.gainPercentage >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {portfolioData.gainPercentage >= 0 ? '+' : ''}{portfolioData.gainPercentage.toFixed(2)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={`${getSubtextClass()}`}>Best Performer</span>
+                        <span className="text-green-400 font-semibold">
+                          {bestStock.symbol} (+{(bestStock.change || 0).toFixed(2)}%)
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={`${getSubtextClass()}`}>Worst Performer</span>
+                        <span className={`font-semibold ${(worstStock.change || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {worstStock.symbol} ({(worstStock.change || 0) >= 0 ? '+' : ''}{(worstStock.change || 0).toFixed(2)}%)
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={`${getSubtextClass()}`}>Avg Stock Gain</span>
+                        <span className={`font-semibold ${avgStockGain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {avgStockGain >= 0 ? '+' : ''}{avgStockGain.toFixed(2)}%
+                        </span>
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             </div>
 
             <div className={`${getCardClass()} rounded-xl p-6 border`}>
               <h3 className={`text-xl font-semibold ${getTextClass()} mb-4`}>Risk Analysis</h3>
               <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>Risk Level</span>
-                  <span className="text-gray-400 font-semibold">No Data</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>Diversification</span>
-                  <span className="text-gray-400 font-semibold">No Data</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>Concentration Risk</span>
-                  <span className="text-gray-400 font-semibold">No Data</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className={`${getSubtextClass()}`}>Liquidity</span>
-                  <span className="text-gray-400 font-semibold">No Data</span>
-                </div>
+                {(() => {
+                  if (portfolioData.stocks.length === 0) {
+                    return (
+                      <>
+                        <div className="flex justify-between">
+                          <span className={`${getSubtextClass()}`}>Risk Level</span>
+                          <span className="text-gray-400 font-semibold">No Holdings</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className={`${getSubtextClass()}`}>Diversification</span>
+                          <span className="text-gray-400 font-semibold">No Holdings</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className={`${getSubtextClass()}`}>Concentration Risk</span>
+                          <span className="text-gray-400 font-semibold">No Holdings</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className={`${getSubtextClass()}`}>Liquidity</span>
+                          <span className="text-gray-400 font-semibold">No Holdings</span>
+                        </div>
+                      </>
+                    )
+                  }
+
+                  // Calculate risk metrics from holdings
+                  const stockCount = portfolioData.stocks.length
+                  const maxAllocation = Math.max(...portfolioData.stocks.map(s => s.allocation || 0))
+
+                  // Risk level based on diversification
+                  let riskLevel = 'Low'
+                  let riskColor = 'text-green-400'
+                  if (stockCount < 3 || maxAllocation > 50) {
+                    riskLevel = 'High'
+                    riskColor = 'text-red-400'
+                  } else if (stockCount < 5 || maxAllocation > 30) {
+                    riskLevel = 'Medium'
+                    riskColor = 'text-yellow-400'
+                  }
+
+                  // Diversification score (1-10)
+                  const diversificationScore = Math.min(10, stockCount + (10 - maxAllocation / 10))
+                  let diversificationLabel = 'Excellent'
+                  let diversificationColor = 'text-green-400'
+                  if (diversificationScore < 4) {
+                    diversificationLabel = 'Poor'
+                    diversificationColor = 'text-red-400'
+                  } else if (diversificationScore < 7) {
+                    diversificationLabel = 'Good'
+                    diversificationColor = 'text-yellow-400'
+                  }
+
+                  // Concentration risk
+                  let concentrationRisk = 'Low'
+                  let concentrationColor = 'text-green-400'
+                  if (maxAllocation > 40) {
+                    concentrationRisk = 'High'
+                    concentrationColor = 'text-red-400'
+                  } else if (maxAllocation > 25) {
+                    concentrationRisk = 'Medium'
+                    concentrationColor = 'text-yellow-400'
+                  }
+
+                  return (
+                    <>
+                      <div className="flex justify-between">
+                        <span className={`${getSubtextClass()}`}>Risk Level</span>
+                        <span className={`font-semibold ${riskColor}`}>{riskLevel}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={`${getSubtextClass()}`}>Diversification</span>
+                        <span className={`font-semibold ${diversificationColor}`}>
+                          {diversificationLabel} ({stockCount} stocks)
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={`${getSubtextClass()}`}>Concentration Risk</span>
+                        <span className={`font-semibold ${concentrationColor}`}>
+                          {concentrationRisk} ({maxAllocation.toFixed(0)}% max)
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={`${getSubtextClass()}`}>Liquidity</span>
+                        <span className="text-green-400 font-semibold">High (Public Stocks)</span>
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             </div>
           </div>
