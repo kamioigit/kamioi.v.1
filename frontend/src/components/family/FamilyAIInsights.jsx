@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Brain, TrendingUp, Award, CheckCircle, XCircle, Clock, Star, Target, BarChart3, Trophy, Users, Zap, ShoppingBag, Home, Upload, X } from 'lucide-react'
+import { Brain, TrendingUp, Award, CheckCircle, XCircle, Clock, Star, Target, BarChart3, Trophy, Users, Zap, ShoppingBag, Home, Upload, X, Building2, DollarSign, BookOpen, Lightbulb } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useData } from '../../context/DataContext'
 import CompanyLogo from '../common/CompanyLogo'
@@ -548,7 +548,9 @@ const FamilyAIInsights = ({ user }) => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'approved': return 'bg-green-500/20 text-green-400'
+      case 'auto-approved': return 'bg-blue-500/20 text-blue-400'
       case 'pending': return 'bg-yellow-500/20 text-yellow-400'
+      case 'pending-approval': return 'bg-yellow-500/20 text-yellow-400'
       case 'rejected': return 'bg-red-500/20 text-red-400'
       default: return 'bg-gray-500/20 text-gray-400'
     }
@@ -557,7 +559,9 @@ const FamilyAIInsights = ({ user }) => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'approved': return <CheckCircle className="w-4 h-4" />
+      case 'auto-approved': return <Clock className="w-4 h-4" />
       case 'pending': return <Clock className="w-4 h-4" />
+      case 'pending-approval': return <Clock className="w-4 h-4" />
       case 'rejected': return <XCircle className="w-4 h-4" />
       default: return <Clock className="w-4 h-4" />
     }
@@ -803,13 +807,13 @@ const FamilyAIInsights = ({ user }) => {
                 {aiRecommendations.recommendations.map((rec, index) => {
                   const getTypeIcon = () => {
                     switch(rec.type) {
-                      case 'brand_education': return '🏢'
-                      case 'roundup_nudge': return '💰'
-                      case 'category_education': return '📊'
-                      case 'goal_progress': return '🎯'
-                      case 'market_education': return '📈'
-                      case 'content_suggestion': return '📚'
-                      default: return '💡'
+                      case 'brand_education': return <Building2 className="w-6 h-6 text-blue-400" />
+                      case 'roundup_nudge': return <DollarSign className="w-6 h-6 text-green-400" />
+                      case 'category_education': return <BarChart3 className="w-6 h-6 text-purple-400" />
+                      case 'goal_progress': return <Target className="w-6 h-6 text-orange-400" />
+                      case 'market_education': return <TrendingUp className="w-6 h-6 text-cyan-400" />
+                      case 'content_suggestion': return <BookOpen className="w-6 h-6 text-pink-400" />
+                      default: return <Lightbulb className="w-6 h-6 text-yellow-400" />
                     }
                   }
                   
@@ -829,7 +833,7 @@ const FamilyAIInsights = ({ user }) => {
                     <div key={index} className={`p-4 rounded-lg border ${isLightMode ? 'bg-gray-50' : 'bg-white/5'} hover:bg-white/10 transition-colors`}>
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center space-x-2">
-                          <span className="text-2xl">{getTypeIcon()}</span>
+                          {getTypeIcon()}
                           <div>
                             <h4 className={`font-semibold ${getTextClass()}`}>{rec.title || `Insight ${index + 1}`}</h4>
                             <span className={`text-xs ${getSubtextClass()}`}>{getTypeLabel()}</span>
@@ -902,10 +906,10 @@ const FamilyAIInsights = ({ user }) => {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-white/10">
-                    <th className="text-left py-3 px-4 text-gray-400">Transaction</th>
-                    <th className="text-left py-3 px-4 text-gray-400">Description</th>
+                    <th className="text-left py-3 px-4 text-gray-400">Merchant</th>
+                    <th className="text-left py-3 px-4 text-gray-400">Company</th>
                     <th className="text-left py-3 px-4 text-gray-400">Stock</th>
-                    <th className="text-left py-3 px-4 text-gray-400">Amount</th>
+                    <th className="text-left py-3 px-4 text-gray-400">Confidence</th>
                     <th className="text-left py-3 px-4 text-gray-400">Status</th>
                     <th className="text-left py-3 px-4 text-gray-400">Points</th>
                     <th className="text-left py-3 px-4 text-gray-400">Date</th>
@@ -913,33 +917,33 @@ const FamilyAIInsights = ({ user }) => {
                 </thead>
                 <tbody>
                   {mappingHistory.map((mapping) => (
-                    <tr 
-                      key={mapping.id} 
+                    <tr
+                      key={mapping.id}
                       className="border-b border-white/5 hover:bg-white/5 cursor-pointer"
                       onClick={() => {
                         setSelectedTransaction(mapping)
                         setShowTransactionModal(true)
                       }}
                     >
-                      <td className="py-3 px-4 text-white font-medium text-sm">{mapping.transaction}</td>
-                      <td className="py-3 px-4 text-gray-300 text-sm">{mapping.transaction}</td>
+                      <td className="py-3 px-4 text-white font-medium text-sm">{mapping.merchant_name || mapping.transaction || 'N/A'}</td>
+                      <td className="py-3 px-4 text-gray-300 text-sm">{mapping.company_name || mapping.category || 'N/A'}</td>
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-2">
                           <div className="w-6 h-6 flex items-center justify-center">
-                            <CompanyLogo symbol={mapping.mappedTo} size="sm" />
+                            <CompanyLogo symbol={mapping.ticker || mapping.mappedTo} size="sm" />
                           </div>
-                          <span className="text-blue-400 font-semibold text-sm">{mapping.mappedTo}</span>
+                          <span className="text-blue-400 font-semibold text-sm">{mapping.ticker || mapping.mappedTo || 'N/A'}</span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-white font-semibold">${mapping.amount}</td>
+                      <td className="py-3 px-4 text-white font-semibold">{mapping.confidence ? `${Math.round(mapping.confidence * 100)}%` : (mapping.amount ? `$${mapping.amount}` : 'N/A')}</td>
                       <td className="py-3 px-4">
                         <span className={`px-2 py-1 rounded-full text-xs flex items-center justify-center space-x-1 w-fit ${getStatusColor(mapping.status)}`}>
                           {getStatusIcon(mapping.status)}
                           <span className="capitalize font-medium">{mapping.status}</span>
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-green-400 font-semibold">+{mapping.points}</td>
-                      <td className="py-3 px-4 text-gray-400 text-sm">{new Date(mapping.timestamp).toLocaleDateString()}</td>
+                      <td className="py-3 px-4 text-green-400 font-semibold">+{mapping.points || 5}</td>
+                      <td className="py-3 px-4 text-gray-400 text-sm">{mapping.created_at || mapping.timestamp ? new Date(mapping.created_at || mapping.timestamp).toLocaleDateString() : 'N/A'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -976,30 +980,47 @@ const FamilyAIInsights = ({ user }) => {
               </div>
             </div>
 
-            {rewards.map((reward) => (
-              <div key={reward.id} className="flex items-start space-x-4 p-4 bg-white/5 rounded-lg">
-                <div className={`w-8 h-8 ${reward.unlocked ? 'bg-green-500/20' : 'bg-blue-500/20'} rounded-full flex items-center justify-center`}>
-                  <div className="text-lg">{reward.icon}</div>
-                </div>
-                <div className="flex-1">
-                  <h4 className={`font-medium ${getTextClass()}`}>{reward.name}</h4>
-                  <p className={`text-sm ${getSubtextClass()} mt-1`}>
-                    {reward.description}. {reward.unlocked ? 
-                      'This reward has been unlocked and is now available in your profile.' : 
-                      `Progress: ${reward.progress}% complete. Keep mapping transactions to unlock this reward.`
-                    }
-                  </p>
-                  <div className="flex items-center space-x-4 mt-2">
-                    <span className={`text-sm font-medium ${reward.unlocked ? 'text-green-400' : 'text-blue-400'}`}>
-                      {reward.unlocked ? 'Unlocked' : 'In Progress'}
-                    </span>
-                    <span className="text-blue-400 text-sm">
-                      {reward.unlocked ? 'Completed' : `${reward.progress}%`}
-                    </span>
+            {rewards.map((reward) => {
+              // Convert icon string to Lucide icon component
+              const getRewardIcon = () => {
+                switch (reward.icon) {
+                  case 'trophy': return <Trophy className="w-4 h-4 text-yellow-400" />
+                  case 'target': return <Target className="w-4 h-4 text-orange-400" />
+                  case 'zap': return <Zap className="w-4 h-4 text-purple-400" />
+                  case 'star': return <Star className="w-4 h-4 text-yellow-400" />
+                  case 'award': return <Award className="w-4 h-4 text-green-400" />
+                  default: return <Award className="w-4 h-4 text-blue-400" />
+                }
+              }
+
+              // Check if reward is earned (has earned_at date)
+              const isEarned = !!reward.earned_at || reward.unlocked
+
+              return (
+                <div key={reward.id} className="flex items-start space-x-4 p-4 bg-white/5 rounded-lg">
+                  <div className={`w-8 h-8 ${isEarned ? 'bg-green-500/20' : 'bg-blue-500/20'} rounded-full flex items-center justify-center`}>
+                    {getRewardIcon()}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className={`font-medium ${getTextClass()}`}>{reward.title || reward.name}</h4>
+                    <p className={`text-sm ${getSubtextClass()} mt-1`}>
+                      {reward.description}. {isEarned
+                        ? 'This reward has been unlocked and is now available in your profile.'
+                        : `Progress: ${reward.progress || 0}% complete. Keep mapping transactions to unlock this reward.`
+                      }
+                    </p>
+                    <div className="flex items-center space-x-4 mt-2">
+                      <span className={`text-sm font-medium ${isEarned ? 'text-green-400' : 'text-blue-400'}`}>
+                        {isEarned ? 'Unlocked' : 'In Progress'}
+                      </span>
+                      <span className="text-green-400 text-sm">
+                        {isEarned ? `+${reward.points} points` : `${reward.progress || 0}%`}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

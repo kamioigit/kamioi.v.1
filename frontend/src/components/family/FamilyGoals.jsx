@@ -131,10 +131,10 @@ const FamilyGoals = ({ user }) => {
 
   const getGoalTypeIcon = (type) => {
     switch (type) {
-      case 'amount': return <DollarSign className="w-5 h-5" />
-      case 'company': return <TrendingUp className="w-5 h-5" />
-      case 'count': return <BarChart3 className="w-5 h-5" />
-      default: return <Target className="w-5 h-5" />
+      case 'amount': return <DollarSign className="w-5 h-5 text-white" />
+      case 'company': return <TrendingUp className="w-5 h-5 text-white" />
+      case 'count': return <BarChart3 className="w-5 h-5 text-white" />
+      default: return <Target className="w-5 h-5 text-white" />
     }
   }
 
@@ -535,36 +535,40 @@ const FamilyGoals = ({ user }) => {
       <div className="glass-card p-6">
         <h3 className="text-xl font-semibold text-white mb-4">Family Goal Progress Over Time</h3>
         {familyGoals.length > 0 ? (
-          <RechartsChart 
-            type="line" 
+          <RechartsChart
+            type="line"
             height={300}
             data={(() => {
-              // Generate chart data dynamically from actual goals
-              // This should ideally come from API with historical progress data
+              // Generate chart data showing total family progress over time
               const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+              const currentMonth = new Date().getMonth()
+
+              // Calculate total current value across all goals
+              const totalCurrent = familyGoals.reduce((sum, goal) => sum + (goal.current || 0), 0)
+              const totalTarget = familyGoals.reduce((sum, goal) => sum + (goal.target || 0), 0)
+
               const chartData = months.map((month, index) => {
-                const dataPoint = { month }
-                familyGoals.forEach(goal => {
-                  if (goal.title) {
-                    // Calculate progress based on goal's current value and timeline
-                    const progressRatio = goal.current && goal.target ? (goal.current / goal.target) : 0
-                    const monthsSinceStart = index + 1
-                    const totalMonths = goal.timeframe || 12
-                    const expectedProgress = Math.min(progressRatio, monthsSinceStart / totalMonths)
-                    dataPoint[goal.title] = goal.target ? Math.round(goal.target * expectedProgress) : 0
-                  }
-                })
-                return dataPoint
+                // Show progress up to current month, then project future
+                let value = 0
+                if (index <= currentMonth) {
+                  // Past months: show gradual increase to current total
+                  const progressRatio = (index + 1) / (currentMonth + 1)
+                  value = Math.round(totalCurrent * progressRatio)
+                } else {
+                  // Future months: project based on current pace
+                  const monthlyRate = totalCurrent / (currentMonth + 1)
+                  value = Math.round(totalCurrent + monthlyRate * (index - currentMonth))
+                }
+                return { name: month, value }
               })
               return chartData
             })()}
-            xAxisKey="month"
-            yAxisKey="value"
+            xAxisKey="name"
             lineKey="value"
             showTooltip={true}
             showGrid={true}
             showLegend={true}
-            colors={['#10B981', '#3B82F6', '#F59E0B']}
+            colors={['#10B981']}
           />
         ) : (
           <div className="flex items-center justify-center h-64">
