@@ -37,11 +37,13 @@ const ReviewStep = () => {
   }
 
   // Helper function to get dashboard path based on account type
-  const getDashboardPath = () => {
-    const userId = formData.userId
-    if (!userId) return '/signup' // Fallback if no userId
+  const getDashboardPath = (userId, accountType) => {
+    if (!userId) {
+      console.error('ReviewStep - No userId available for dashboard redirect')
+      return '/signup' // Fallback if no userId
+    }
 
-    switch (formData.accountType) {
+    switch (accountType) {
       case 'business':
         return `/business/${userId}/`
       case 'family':
@@ -59,6 +61,19 @@ const ReviewStep = () => {
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const token = formData.token || localStorage.getItem('kamioi_user_token')
 
+      // Get userId from formData or try to extract from stored user
+      let userId = formData.userId
+      if (!userId) {
+        try {
+          const storedUser = JSON.parse(localStorage.getItem('kamioi_user') || '{}')
+          userId = storedUser.id || storedUser.userId || storedUser.user_id
+        } catch (e) {
+          console.error('Error parsing stored user:', e)
+        }
+      }
+
+      console.log('ReviewStep - Completing registration with userId:', userId, 'accountType:', formData.accountType)
+
       // Try to mark registration as complete (optional - endpoint may not exist)
       try {
         await fetch(`${apiBaseUrl}/api/user/registration/complete`, {
@@ -68,7 +83,7 @@ const ReviewStep = () => {
             'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({
-            userId: formData.userId,
+            userId: userId,
             completedAt: new Date().toISOString()
           })
         })
@@ -77,21 +92,42 @@ const ReviewStep = () => {
         console.log('Registration complete endpoint not available, continuing...')
       }
 
+      // CRITICAL: Ensure user data is properly stored for AuthContext
+      const userObj = {
+        id: userId,
+        account_number: userId,
+        email: formData.email,
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        accountType: formData.accountType,
+        dashboard: formData.accountType === 'business' ? 'business' : formData.accountType === 'family' ? 'family' : 'user',
+        role: formData.accountType === 'business' ? 'business' : formData.accountType === 'family' ? 'family' : 'user'
+      }
+      localStorage.setItem('kamioi_user', JSON.stringify(userObj))
+
+      // Dispatch userLoggedIn event so AuthContext and DataContext can pick up the new user
+      window.dispatchEvent(new CustomEvent('userLoggedIn', {
+        detail: { token, user: userObj }
+      }))
+
       // Clear signup state
       clearSignup()
 
       // Navigate directly to the appropriate dashboard based on account type
-      // This bypasses ProtectedRoute since the user token is already in localStorage
-      const dashboardPath = getDashboardPath()
+      const dashboardPath = getDashboardPath(userId, formData.accountType)
       console.log('Registration complete, navigating to:', dashboardPath)
       navigate(dashboardPath)
     } catch (error) {
       console.error('Error completing registration:', error)
-      // Even if there's an error, the user data was saved in previous steps
-      // So we can still navigate them to the dashboard
-      clearSignup()
-      const dashboardPath = getDashboardPath()
-      navigate(dashboardPath)
+      // Even if there's an error, try to navigate with available data
+      const userId = formData.userId
+      if (userId) {
+        clearSignup()
+        const dashboardPath = getDashboardPath(userId, formData.accountType)
+        navigate(dashboardPath)
+      } else {
+        setError('Registration could not be completed. Please try again.')
+        setSubmitting(false)
+      }
     } finally {
       setSubmitting(false)
     }

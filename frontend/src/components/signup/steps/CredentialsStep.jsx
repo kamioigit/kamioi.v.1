@@ -108,10 +108,27 @@ const CredentialsStep = () => {
       const data = await response.json()
 
       if (data.success) {
-        // Store auth data
-        const token = data.token || `user_token_${data.userId}`
+        // Extract userId from various possible response formats
+        const userId = data.userId || data.user_id || data.user?.id || data.user?.user_id || data.id
+        const userGuid = data.userGuid || data.user_guid || data.user?.guid || data.user?.user_guid
+        const token = data.token || data.user?.token || `user_token_${userId}`
+
+        console.log('CredentialsStep - Registration success:', { userId, userGuid, token: !!token })
+
+        // Store auth data in localStorage
         localStorage.setItem('kamioi_user_token', token)
-        setAuthData(data.userId, token, data.userGuid)
+
+        // Also store user object for AuthContext to pick up
+        const userObj = {
+          id: userId,
+          email: formData.email,
+          accountType: formData.accountType,
+          token: token
+        }
+        localStorage.setItem('kamioi_user', JSON.stringify(userObj))
+
+        // Update signup context with auth data
+        setAuthData(userId, token, userGuid)
         nextStep()
       } else {
         setErrors({ email: data.error || 'Registration failed. Please try again.' })
