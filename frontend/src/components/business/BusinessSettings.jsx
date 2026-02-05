@@ -67,6 +67,15 @@ const DEMO_CURRENT_SUBSCRIPTION = {
   price: 29.99
 }
 
+// Demo profile data
+const DEMO_PROFILE = {
+  name: 'Demo Business Admin',
+  email: 'demo@democorp.com',
+  company_name: 'Demo Corp Inc.',
+  phone: '(555) 123-4567',
+  address: '123 Business Ave, Suite 100, San Francisco, CA 94102'
+}
+
 const BusinessSettings = ({ user }) => {
   // Check if in demo mode
   const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
@@ -530,6 +539,27 @@ const BusinessSettings = ({ user }) => {
   const loadSettings = async () => {
     setLoading(true)
     try {
+      // In demo mode, use demo data directly
+      if (isDemoMode) {
+        setProfile(DEMO_PROFILE)
+        setBankConnections(DEMO_BANK_CONNECTIONS)
+        setCurrentSubscription(DEMO_CURRENT_SUBSCRIPTION)
+        setSettings({
+          roundup_multiplier: 1.0,
+          auto_invest: true,
+          notifications: true,
+          email_alerts: true,
+          theme: 'dark',
+          business_sharing: false,
+          budget_alerts: true,
+          department_limits: {}
+        })
+        setRoundUpAmount(1)
+        setRoundUpEnabled(true)
+        setLoading(false)
+        return
+      }
+
       const token = localStorage.getItem('kamioi_business_token') || localStorage.getItem('kamioi_user_token') || localStorage.getItem('kamioi_token')
       if (!token) {
         setMessage({ type: 'error', text: 'No authentication token found' })
@@ -1342,18 +1372,73 @@ const BusinessSettings = ({ user }) => {
           Manage your subscription with Stripe
         </p>
         
-        {/* Current Subscription - Use Stripe Subscription Manager */}
+        {/* Current Subscription - Use Stripe Subscription Manager or Demo Display */}
         {currentSubscription ? (
-          <StripeSubscriptionManager
-            onSubscriptionUpdate={(action) => {
-              if (action === 'subscribe') {
-                fetchCurrentSubscription()
-                fetchPlans()
-              } else {
-                fetchCurrentSubscription()
-              }
-            }}
-          />
+          isDemoMode ? (
+            // Demo mode subscription display
+            <div className="space-y-4">
+              <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-green-400 font-semibold text-lg">{currentSubscription.plan_name}</div>
+                    <div className="text-gray-400 text-sm">Active subscription</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-white font-bold text-xl">${currentSubscription.price}</div>
+                    <div className="text-gray-400 text-sm">/{currentSubscription.billing_cycle}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-white/5 rounded-lg">
+                  <div className="text-gray-400 text-sm">Status</div>
+                  <div className="text-green-400 font-medium capitalize">{currentSubscription.status}</div>
+                </div>
+                <div className="p-3 bg-white/5 rounded-lg">
+                  <div className="text-gray-400 text-sm">Next Billing Date</div>
+                  <div className="text-white font-medium">
+                    {new Date(currentSubscription.current_period_end).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    addNotification({
+                      type: 'info',
+                      title: 'Demo Mode',
+                      message: 'Plan changes are simulated in demo mode'
+                    })
+                  }}
+                  className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
+                >
+                  Change Plan
+                </button>
+                <button
+                  onClick={cancelSubscription}
+                  disabled={cancelling}
+                  className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                >
+                  {cancelling ? 'Cancelling...' : 'Cancel Subscription'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <StripeSubscriptionManager
+              onSubscriptionUpdate={(action) => {
+                if (action === 'subscribe') {
+                  fetchCurrentSubscription()
+                  fetchPlans()
+                } else {
+                  fetchCurrentSubscription()
+                }
+              }}
+            />
+          )
         ) : (
           <div className="space-y-4">
             {/* No subscription - Show plans to subscribe */}
@@ -1688,8 +1773,8 @@ const BusinessSettings = ({ user }) => {
                     </div>
       </div>
 
-      {/* Message */}
-      {message.text && (
+      {/* Message - Hide authentication errors in demo mode */}
+      {message.text && !(isDemoMode && message.text === 'No authentication token found') && (
         <div className={`p-4 rounded-lg border ${
           message.type === 'success' ? 'bg-green-500/20 border-green-500/50 text-green-400' :
           message.type === 'error' ? 'bg-red-500/20 border-red-500/50 text-red-400' :
