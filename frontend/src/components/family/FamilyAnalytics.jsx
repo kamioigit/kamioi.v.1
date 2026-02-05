@@ -15,7 +15,9 @@ import {
   Award,
   Lightbulb,
   UserCheck,
-  UserX
+  UserX,
+  Shield,
+  Trophy
 } from 'lucide-react'
 import RechartsChart from '../common/RechartsChart'
 import { useData } from '../../context/DataContext'
@@ -163,28 +165,28 @@ const FamilyAnalytics = ({ user, onBack }) => {
         description: `Your family has maintained steady round-up contributions, averaging $${avgRoundUp.toFixed(2)} per transaction.`,
         confidence: 92,
         impact: '+12% efficiency',
-        icon: '📊'
+        icon: 'chart'
       },
       {
         title: 'Top Contributor Recognition',
         description: `${topMember} leads family contributions this period with exceptional consistency.`,
         confidence: 88,
         impact: 'Role model behavior',
-        icon: '🏆'
+        icon: 'trophy'
       },
       {
         title: 'Portfolio Diversification',
         description: `Family investments are spread across ${holdingsCount} different positions, providing good diversification.`,
         confidence: 85,
         impact: 'Reduced risk',
-        icon: '🛡️'
+        icon: 'shield'
       },
       {
         title: 'Optimal Round-Up Strategy',
         description: 'Based on spending patterns, increasing round-ups by $0.25 could boost monthly investments by 15%.',
         confidence: 78,
         impact: '+$45/month potential',
-        icon: '💡'
+        icon: 'lightbulb'
       }
     ]
   }, [familyRoundUpImpact, holdings])
@@ -202,6 +204,18 @@ const FamilyAnalytics = ({ user, onBack }) => {
   const getCardClass = () => {
     if (isLightMode) return 'bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-gray-200'
     return 'bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20'
+  }
+
+  // Helper function to render insight icons
+  const getInsightIcon = (iconType) => {
+    const iconClass = `w-5 h-5 ${isLightMode ? 'text-blue-600' : 'text-blue-400'}`
+    switch (iconType) {
+      case 'chart': return <BarChart3 className={iconClass} />
+      case 'trophy': return <Trophy className="w-5 h-5 text-yellow-500" />
+      case 'shield': return <Shield className="w-5 h-5 text-cyan-400" />
+      case 'lightbulb': return <Lightbulb className="w-5 h-5 text-yellow-400" />
+      default: return <Brain className={iconClass} />
+    }
   }
 
   const exportData = async (format) => {
@@ -622,7 +636,7 @@ const FamilyAnalytics = ({ user, onBack }) => {
             >
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center space-x-2">
-                  <span className="text-xl">{insight.icon}</span>
+                  {getInsightIcon(insight.icon)}
                   <h4 className={`${getTextClass()} font-medium`}>{insight.title}</h4>
                 </div>
                 <span className={`text-sm px-2 py-1 rounded-full ${isLightMode ? 'bg-blue-100 text-blue-700' : 'bg-blue-500/20 text-blue-400'}`}>

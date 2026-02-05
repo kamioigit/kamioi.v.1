@@ -1153,32 +1153,36 @@ const FamilyAIInsights = ({ user }) => {
             <h3 className={`text-lg font-semibold ${getTextClass()} mb-4`}>Transaction Details</h3>
             <div className="space-y-3">
               <div>
-                <span className={`text-sm ${getSubtextClass()}`}>Transaction ID:</span>
-                <span className={`ml-2 font-mono ${getTextClass()}`}>{selectedTransaction.transactionId}</span>
+                <span className={`text-sm ${getSubtextClass()}`}>Merchant:</span>
+                <span className={`ml-2 ${getTextClass()}`}>{selectedTransaction.merchant_name || selectedTransaction.merchant || 'N/A'}</span>
+              </div>
+              <div>
+                <span className={`text-sm ${getSubtextClass()}`}>Company:</span>
+                <span className={`ml-2 ${getTextClass()}`}>{selectedTransaction.company_name || 'N/A'}</span>
               </div>
               <div>
                 <span className={`text-sm ${getSubtextClass()}`}>Status:</span>
-                <span className={`ml-2 ${getTextClass()}`}>{selectedTransaction.status}</span>
-              </div>
-              <div>
-                <span className={`text-sm ${getSubtextClass()}`}>Merchant:</span>
-                <span className={`ml-2 ${getTextClass()}`}>{selectedTransaction.merchant}</span>
+                <span className={`ml-2 ${getTextClass()} capitalize`}>{selectedTransaction.status || 'N/A'}</span>
               </div>
               <div>
                 <span className={`text-sm ${getSubtextClass()}`}>Ticker:</span>
-                <span className={`ml-2 font-mono ${getTextClass()}`}>{selectedTransaction.ticker}</span>
+                <span className={`ml-2 font-mono ${getTextClass()}`}>{selectedTransaction.ticker || selectedTransaction.mappedTo || 'N/A'}</span>
               </div>
               <div>
                 <span className={`text-sm ${getSubtextClass()}`}>Category:</span>
-                <span className={`ml-2 ${getTextClass()}`}>{selectedTransaction.category}</span>
+                <span className={`ml-2 ${getTextClass()}`}>{selectedTransaction.category || 'N/A'}</span>
               </div>
               <div>
-                <span className={`text-sm ${getSubtextClass()}`}>Submitted Date:</span>
-                <span className={`ml-2 ${getTextClass()}`}>{selectedTransaction.date}</span>
+                <span className={`text-sm ${getSubtextClass()}`}>Confidence:</span>
+                <span className={`ml-2 ${getTextClass()}`}>{selectedTransaction.confidence ? `${Math.round(selectedTransaction.confidence * 100)}%` : 'N/A'}</span>
+              </div>
+              <div>
+                <span className={`text-sm ${getSubtextClass()}`}>Date:</span>
+                <span className={`ml-2 ${getTextClass()}`}>{selectedTransaction.created_at || selectedTransaction.date ? new Date(selectedTransaction.created_at || selectedTransaction.date).toLocaleDateString() : 'N/A'}</span>
               </div>
               <div>
                 <span className={`text-sm ${getSubtextClass()}`}>Points Earned:</span>
-                <span className={`ml-2 text-green-400`}>+{selectedTransaction.points}</span>
+                <span className={`ml-2 text-green-400`}>+{selectedTransaction.points || 5}</span>
               </div>
             </div>
             <div className="flex justify-end mt-6">
