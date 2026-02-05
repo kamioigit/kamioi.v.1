@@ -4624,6 +4624,11 @@ def admin_login():
             # Check if stored password is hashed (werkzeug hashes start with method prefix)
             if stored_password and (stored_password.startswith('pbkdf2:') or stored_password.startswith('scrypt:')):
                 password_valid = check_password_hash(stored_password, password)
+            elif stored_password and len(stored_password) == 64:
+                # SHA256 hash (used by app_clean.py) - 64 character hex string
+                import hashlib
+                password_hash = hashlib.sha256(password.encode()).hexdigest()
+                password_valid = (stored_password == password_hash)
             else:
                 # Legacy plaintext password - check directly
                 password_valid = (stored_password == password)
