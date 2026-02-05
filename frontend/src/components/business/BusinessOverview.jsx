@@ -17,6 +17,7 @@ import TimeOfDay from '../common/TimeOfDay'
 import { useTheme } from '../../context/ThemeContext'
 import { useAuth } from '../../context/AuthContext'
 import { useData } from '../../context/DataContext'
+import { useDemo } from '../../context/DemoContext'
 
 const BusinessOverview = ({ user, onNavigate }) => {
   const navigate = useNavigate()
@@ -31,9 +32,7 @@ const BusinessOverview = ({ user, onNavigate }) => {
   }
   const { isBlackMode, isLightMode } = useTheme()
   const { transactions, totalRoundUps, portfolioValue, portfolioStats, holdings } = useData()
-
-  // Check if in demo mode
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+  const { isDemoMode } = useDemo()
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [isLoading, setIsLoading] = useState(false)
   const [businessData, setBusinessData] = useState({

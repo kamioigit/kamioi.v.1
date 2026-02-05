@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { useAuth } from '../../context/AuthContext'
 import { useModal } from '../../context/ModalContext'
 import { useNotifications } from '../../hooks/useNotifications'
+import { useDemo } from '../../context/DemoContext'
 
 // Demo team members for demo mode
 const DEMO_TEAM_MEMBERS = [
@@ -50,9 +51,7 @@ const BusinessTeam = ({ user }) => {
   const { isBlackMode, isLightMode } = useTheme()
   const { showSuccessModal, showErrorModal, showConfirmationModal } = useModal()
   const { addNotification } = useNotifications()
-
-  // Check if in demo mode
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+  const { isDemoMode } = useDemo()
 
   const [teamMembers, setTeamMembers] = useState([])
   const [loading, setLoading] = useState(true)

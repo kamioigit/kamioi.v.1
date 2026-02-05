@@ -5,6 +5,7 @@ import CompanyLogo from '../common/CompanyLogo'
 import TimeOfDay from '../common/TimeOfDay'
 import { useData } from '../../context/DataContext'
 import { useTheme } from '../../context/ThemeContext'
+import { useDemo } from '../../context/DemoContext'
 
 // Demo family members for demo mode
 const DEMO_FAMILY_MEMBERS = [
@@ -24,9 +25,7 @@ const FamilyOverview = ({ user }) => {
   }
   const { portfolioValue, portfolioStats, totalRoundUps, transactions, holdings: contextHoldings } = useData()
   const { isLightMode } = useTheme()
-
-  // Check if in demo mode
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+  const { isDemoMode } = useDemo()
 
   // Navigate to transactions tab using the parent dashboard's setActiveTab event
   const goToTransactions = () => {

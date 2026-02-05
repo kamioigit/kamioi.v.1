@@ -5,6 +5,7 @@ import FamilyAnalytics from './FamilyAnalytics'
 import CompanyLogo from '../common/CompanyLogo'
 import { useData } from '../../context/DataContext'
 import { useTheme } from '../../context/ThemeContext'
+import { useDemo } from '../../context/DemoContext'
 
 const FamilyPortfolio = ({ user }) => {
   const [timeRange, setTimeRange] = useState('1m')
@@ -14,10 +15,8 @@ const FamilyPortfolio = ({ user }) => {
   const [showAllHoldings, setShowAllHoldings] = useState(false)
   const { portfolioValue, holdings: contextHoldings, portfolioStats } = useData()
   const { isLightMode } = useTheme()
+  const { isDemoMode } = useDemo()
   const [familyMembers, setFamilyMembers] = useState([])
-
-  // Check if in demo mode
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
 
   // Use clean data from DataContext (no hardcoded values)
   const [apiHoldings, setApiHoldings] = useState([])

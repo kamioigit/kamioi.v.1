@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { useData } from '../../context/DataContext'
 import { useModal } from '../../context/ModalContext'
 import { useNotifications } from '../../hooks/useNotifications'
+import { useDemo } from '../../context/DemoContext'
 
 const AIInsights = ({ user }) => {
   const { isLightMode } = useTheme()
@@ -28,9 +29,7 @@ const AIInsights = ({ user }) => {
     rank: 0,
     totalUsers: 0
   })
-
-  // Check if in demo mode
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+  const { isDemoMode } = useDemo()
 
   // Calculate tier based on points
   const calculateTier = (points) => {

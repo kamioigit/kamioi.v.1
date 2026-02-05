@@ -3,6 +3,7 @@ import { FileText, Download, Loader2, Clock } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useModal } from '../../context/ModalContext'
 import { useNotifications } from '../../hooks/useNotifications'
+import { useDemo } from '../../context/DemoContext'
 
 // Demo reports for demo mode
 const DEMO_REPORTS = [
@@ -36,9 +37,7 @@ const BusinessReports = ({ user }) => {
   const { isBlackMode, isLightMode } = useTheme()
   const { showSuccessModal, showErrorModal } = useModal()
   const { addNotification } = useNotifications()
-
-  // Check if in demo mode
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+  const { isDemoMode } = useDemo()
 
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)

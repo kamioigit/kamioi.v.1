@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { AlertCircle, Users, MessageSquare, Bell, HelpCircle, X, Send, UserPlus, CheckCircle, AlertTriangle, User } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
+import { useDemo } from '../../context/DemoContext'
 import messagingService from '../../services/messagingService'
 
 // Demo channels for demo mode
@@ -128,6 +129,7 @@ const DEMO_MESSAGES = {
 const CommunicationHub = ({ isOpen, onClose }) => {
   const { user } = useAuth()
   const { isLightMode } = useTheme()
+  const { isDemoMode } = useDemo()
   const [messages, setMessages] = useState([])
   const [newMessage, setNewMessage] = useState('')
   const [activeChannel, setActiveChannel] = useState('general')
@@ -135,9 +137,6 @@ const CommunicationHub = ({ isOpen, onClose }) => {
   const [isConnected, setIsConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [dashboardType, setDashboardType] = useState('v1')
-
-  // Check if in demo mode
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
   
   // User connection form state
   const [showConnectionForm, setShowConnectionForm] = useState(false)

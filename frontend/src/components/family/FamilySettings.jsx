@@ -4,6 +4,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { useAuth } from '../../context/AuthContext'
 import { useModal } from '../../context/ModalContext'
 import { useNotifications } from '../../hooks/useNotifications'
+import { useDemo } from '../../context/DemoContext'
 import ProfileAvatar from '../common/ProfileAvatar'
 import notificationService from '../../services/notificationService'
 import MXConnectWidget from '../common/MXConnectWidget'
@@ -114,9 +115,7 @@ const FamilySettings = ({ user }) => {
   const { refreshUser } = useAuth()
   const { showSuccessModal, showErrorModal, showConfirmationModal } = useModal()
   const { addNotification } = useNotifications()
-
-  // Check if in demo mode
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+  const { isDemoMode } = useDemo()
 
   // Helper function to get the correct auth token (demo token takes precedence)
   const getAuthToken = () => {

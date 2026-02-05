@@ -4,6 +4,7 @@ import RechartsChart from '../common/RechartsChart'
 import CompanyLogo from '../common/CompanyLogo'
 import { useData } from '../../context/DataContext'
 import { useTheme } from '../../context/ThemeContext'
+import { useDemo } from '../../context/DemoContext'
 
 const BusinessPortfolio = ({ user }) => {
   const [timeRange, setTimeRange] = useState('1m')
@@ -11,9 +12,7 @@ const BusinessPortfolio = ({ user }) => {
   const itemsPerPage = 10
   const { portfolioValue, holdings: contextHoldings, portfolioStats, transactions } = useData()
   const { isBlackMode, isLightMode } = useTheme()
-
-  // Check if in demo mode
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+  const { isDemoMode } = useDemo()
 
   // API-fetched holdings (for non-demo mode)
   const [apiHoldings, setApiHoldings] = useState([])

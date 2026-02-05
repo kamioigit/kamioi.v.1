@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Bell, CheckCircle, AlertTriangle, Info, X } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useNotifications } from '../../hooks/useNotifications'
+import { useDemo } from '../../context/DemoContext'
 import { fixNotifications } from '../../utils/fixNotifications'
 
 // Generate demo notifications for demo mode
@@ -87,11 +88,9 @@ const generateDemoNotifications = () => {
 const UserNotifications = () => {
   const { notifications, markAsRead, clearNotification, markAllAsRead } = useNotifications()
   const { isLightMode } = useTheme()
+  const { isDemoMode } = useDemo()
   const [filter, setFilter] = useState('all') // 'all', 'unread', 'read'
   const [demoNotifications, setDemoNotifications] = useState([])
-
-  // Check if in demo mode
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
 
   // Load demo notifications in demo mode
   useEffect(() => {

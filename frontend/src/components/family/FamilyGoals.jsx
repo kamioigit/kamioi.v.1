@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import RechartsChart from '../common/RechartsChart'
 import { useData } from '../../context/DataContext'
+import { useDemo } from '../../context/DemoContext'
 import notificationService from '../../services/notificationService'
 
 // Demo family goals for demo mode
@@ -91,9 +92,7 @@ const FamilyGoals = ({ user }) => {
     timeframe: '12',
     description: ''
   })
-
-  // Check if in demo mode
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+  const { isDemoMode } = useDemo()
 
   // Goals data from context
   const { setGoals } = useData()

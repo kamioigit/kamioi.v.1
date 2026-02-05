@@ -4,6 +4,7 @@ import { Plus, CheckCircle, TrendingUp, Clock, Target, Calendar, Edit, Trash2, X
 import { useTheme } from '../../context/ThemeContext'
 import { useModal } from '../../context/ModalContext'
 import { useNotifications } from '../../hooks/useNotifications'
+import { useDemo } from '../../context/DemoContext'
 
 // Demo business goals for demo mode
 const DEMO_BUSINESS_GOALS = [
@@ -53,9 +54,7 @@ const BusinessGoals = ({ user }) => {
   const { isBlackMode, isLightMode } = useTheme()
   const { showSuccessModal, showErrorModal, showConfirmationModal } = useModal()
   const { addNotification } = useNotifications()
-
-  // Check if in demo mode
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+  const { isDemoMode } = useDemo()
 
   const [goals, setGoals] = useState([])
   const [loading, setLoading] = useState(true)

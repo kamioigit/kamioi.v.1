@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Mail, Eye, X } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useModal } from '../../context/ModalContext'
 import { useNotifications } from '../../hooks/useNotifications'
+import { useDemo } from '../../context/DemoContext'
 
 // Demo family members data for demo mode
 const DEMO_FAMILY_MEMBERS = [
@@ -70,9 +71,7 @@ const FamilyMembers = ({ user }) => {
     role: 'child',
     permissions: 'view'
   })
-
-  // Check if in demo mode
-  const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+  const { isDemoMode } = useDemo()
 
   // Family members data from API or demo data
   const [familyMembers, setFamilyMembers] = useState([])
