@@ -25259,8 +25259,8 @@ def submit_demo_request():
 
         # Insert the demo request
         cursor.execute("""
-            INSERT INTO demo_requests (name, email, phone, address, interest_type, heard_from, experience_level, memo)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO demo_requests (name, email, phone, address, interest_type, heard_from, experience_level, memo, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
             RETURNING id
         """, (name, email, phone, address, interest_type, heard_from, experience_level, memo))
 
@@ -25412,6 +25412,64 @@ def update_demo_request(request_id):
 
     except Exception as e:
         print(f"Error updating demo request: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/demo-requests/<int:request_id>/send-code', methods=['POST'])
+def send_demo_code(request_id):
+    """Generate and send a demo code for a request (admin only)"""
+    import random
+    import string
+
+    try:
+        conn = get_db_connection()
+        cursor = get_db_cursor(conn, dict_cursor=True)
+
+        # Get the demo request
+        cursor.execute("SELECT * FROM demo_requests WHERE id = %s", (request_id,))
+        demo_request = cursor.fetchone()
+
+        if not demo_request:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Demo request not found'}), 404
+
+        # Generate a random demo code (e.g., KAMIOI-XXXX-XXXX)
+        code_part1 = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+        code_part2 = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+        demo_code = f"KAMIOI-{code_part1}-{code_part2}"
+
+        # Create the demo code in demo_codes table
+        cursor.execute("""
+            INSERT INTO demo_codes (code, dashboard_type, is_active, expires_at)
+            VALUES (%s, 'all', TRUE, CURRENT_TIMESTAMP + INTERVAL '30 days')
+            ON CONFLICT (code) DO NOTHING
+        """, (demo_code,))
+
+        # Update the demo request with the code and change status
+        cursor.execute("""
+            UPDATE demo_requests
+            SET demo_code = %s, status = 'code_sent', updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (demo_code, request_id))
+
+        conn.commit()
+        conn.close()
+
+        # Note: Email sending would go here if configured
+        # For now, just return the code so admin can share it manually
+
+        return jsonify({
+            'success': True,
+            'message': f'Demo code generated successfully',
+            'data': {
+                'demo_code': demo_code,
+                'email': demo_request.get('email'),
+                'name': demo_request.get('name')
+            }
+        })
+
+    except Exception as e:
+        print(f"Error sending demo code: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
