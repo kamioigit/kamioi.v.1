@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Brain, CheckCircle, XCircle, BarChart3, Eye, Clock, ShoppingBag, Target, TrendingUp, Award, Users, Zap, RefreshCw, Filter, Upload, User } from 'lucide-react'
+import { Brain, CheckCircle, XCircle, BarChart3, Eye, Clock, ShoppingBag, Target, TrendingUp, Award, Users, Zap, RefreshCw, Filter, Upload, User, Building2, DollarSign, BookOpen, Lightbulb, Trophy, Star, Gift, Medal } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useData } from '../../context/DataContext'
 import CompanyLogo from '../common/CompanyLogo'
@@ -39,6 +39,81 @@ const DEMO_AI_RECOMMENDATIONS = {
   ],
   disclaimer: "Kamioi's insights are for educational purposes only and are not financial advice or recommendations."
 }
+
+// Demo mapping history for Mapping History tab
+const DEMO_MAPPING_HISTORY = [
+  {
+    id: 'demo-hist-1',
+    mapping_id: 'AIM-001',
+    transaction_id: 'TXN-12345',
+    merchant_name: 'Starbucks Coffee',
+    ticker_symbol: 'SBUX',
+    category: 'Food & Beverage',
+    status: 'approved',
+    admin_approved: 1,
+    points: 10,
+    confidence: 0.95,
+    submitted_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
+  },
+  {
+    id: 'demo-hist-2',
+    mapping_id: 'AIM-002',
+    transaction_id: 'TXN-12346',
+    merchant_name: 'Amazon Web Services',
+    ticker_symbol: 'AMZN',
+    category: 'Technology',
+    status: 'approved',
+    admin_approved: 1,
+    points: 10,
+    confidence: 0.98,
+    submitted_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+  },
+  {
+    id: 'demo-hist-3',
+    mapping_id: 'AIM-003',
+    transaction_id: 'TXN-12347',
+    merchant_name: 'Microsoft Office',
+    ticker_symbol: 'MSFT',
+    category: 'Software',
+    status: 'pending',
+    admin_approved: 0,
+    points: 0,
+    confidence: 0.88,
+    submitted_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+  }
+]
+
+// Demo rewards data
+const DEMO_REWARDS = [
+  {
+    id: 'reward-1',
+    name: 'Earn 2% cashback on coffee purchases',
+    description: 'Map 5 coffee transactions',
+    icon: 'gift',
+    points: 50,
+    unlocked: false
+  },
+  {
+    id: 'reward-2',
+    name: 'Extra $2.50 for your next round-up',
+    description: 'Complete 10 mappings',
+    icon: 'star',
+    points: 100,
+    unlocked: false
+  }
+]
+
+// Demo leaderboard data
+const DEMO_LEADERBOARD = [
+  { rank: 1, name: 'Sarah M.', points: 2450, tier: 'AI Master', mappings: 245 },
+  { rank: 2, name: 'John D.', points: 1820, tier: 'AI Expert', mappings: 182 },
+  { rank: 3, name: 'Demo User', points: 100, tier: 'AI Helper', mappings: 12, isCurrentUser: true },
+  { rank: 4, name: 'Alex K.', points: 890, tier: 'AI Trainer', mappings: 89 },
+  { rank: 5, name: 'Maria L.', points: 650, tier: 'AI Helper', mappings: 65 }
+]
 
 // Demo receipt mappings
 const DEMO_RECEIPT_MAPPINGS = [
@@ -169,7 +244,8 @@ const BusinessAIInsights = ({ user }) => {
 
       // Use demo data in demo mode
       if (isDemoMode) {
-        setMappingHistory([])
+        setMappingHistory(DEMO_MAPPING_HISTORY)
+        setRewards(DEMO_REWARDS)
         setUserStats({
           totalMappings: 12,
           approvedMappings: 10,
@@ -1304,16 +1380,16 @@ const BusinessAIInsights = ({ user }) => {
                   {aiRecommendations.recommendations.map((rec, index) => {
                     const getTypeIcon = () => {
                       switch(rec.type) {
-                        case 'brand_education': return '🏢'
-                        case 'roundup_nudge': return '💰'
-                        case 'category_education': return '📊'
-                        case 'goal_progress': return '🎯'
-                        case 'market_education': return '📈'
-                        case 'content_suggestion': return '📚'
-                        default: return '💡'
+                        case 'brand_education': return <Building2 className="w-6 h-6 text-blue-400" />
+                        case 'roundup_nudge': return <DollarSign className="w-6 h-6 text-green-400" />
+                        case 'category_education': return <BarChart3 className="w-6 h-6 text-purple-400" />
+                        case 'goal_progress': return <Target className="w-6 h-6 text-orange-400" />
+                        case 'market_education': return <TrendingUp className="w-6 h-6 text-cyan-400" />
+                        case 'content_suggestion': return <BookOpen className="w-6 h-6 text-pink-400" />
+                        default: return <Lightbulb className="w-6 h-6 text-yellow-400" />
                       }
                     }
-                    
+
                     const getTypeLabel = () => {
                       switch(rec.type) {
                         case 'brand_education': return 'Brand Learning'
@@ -1325,12 +1401,12 @@ const BusinessAIInsights = ({ user }) => {
                         default: return 'Insight'
                       }
                     }
-                    
+
                     return (
                       <div key={index} className={`p-4 rounded-lg border ${isLightMode ? 'bg-gray-50' : 'bg-white/5'} hover:bg-white/10 transition-colors`}>
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center space-x-2">
-                            <span className="text-2xl">{getTypeIcon()}</span>
+                            {getTypeIcon()}
                             <div>
                               <h4 className={`font-semibold ${getTextClass()}`}>{rec.title || `Insight ${index + 1}`}</h4>
                               <span className={`text-xs ${getSubtextClass()}`}>{getTypeLabel()}</span>
@@ -1387,7 +1463,7 @@ const BusinessAIInsights = ({ user }) => {
                 <ul className="space-y-3">
                   {aiRecommendations.insights.map((insight, index) => (
                     <li key={index} className={`flex items-start space-x-3 ${getSubtextClass()}`}>
-                      <span className="text-blue-400 mt-1">💡</span>
+                      <Lightbulb className="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" />
                       <span>{insight}</span>
                     </li>
                   ))}
@@ -1607,23 +1683,39 @@ const BusinessAIInsights = ({ user }) => {
 
             {/* Rewards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {(rewards || []).map((reward) => (
-                <div key={reward.id} className={`${getCardClass()} rounded-xl p-4 border ${reward.unlocked ? 'ring-2 ring-green-500/50' : ''}`}>
-                  <div className="text-center">
-                    <div className="text-4xl mb-2">{reward.icon}</div>
-                    <h4 className={`font-semibold ${getTextClass()} mb-1`}>{reward.name}</h4>
-                    <p className={`text-sm ${getSubtextClass()} mb-3`}>{reward.description}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-green-400 font-semibold">+{reward.points} pts</span>
-                      {reward.unlocked ? (
-                        <span className="text-green-400 text-sm">Unlocked</span>
-                      ) : (
-                        <span className="text-gray-400 text-sm">Locked</span>
-                      )}
+              {(rewards || []).map((reward) => {
+                // Convert icon string to Lucide icon component
+                const getRewardIcon = () => {
+                  switch (reward.icon) {
+                    case 'trophy': return <Trophy className="w-8 h-8 text-yellow-400" />
+                    case 'star': return <Star className="w-8 h-8 text-yellow-400" />
+                    case 'gift': return <Gift className="w-8 h-8 text-pink-400" />
+                    case 'medal': return <Medal className="w-8 h-8 text-orange-400" />
+                    case 'award': return <Award className="w-8 h-8 text-green-400" />
+                    case 'target': return <Target className="w-8 h-8 text-blue-400" />
+                    case 'zap': return <Zap className="w-8 h-8 text-purple-400" />
+                    default: return <Award className="w-8 h-8 text-blue-400" />
+                  }
+                }
+
+                return (
+                  <div key={reward.id} className={`${getCardClass()} rounded-xl p-4 border ${reward.unlocked ? 'ring-2 ring-green-500/50' : ''}`}>
+                    <div className="text-center">
+                      <div className="flex justify-center mb-2">{getRewardIcon()}</div>
+                      <h4 className={`font-semibold ${getTextClass()} mb-1`}>{reward.name}</h4>
+                      <p className={`text-sm ${getSubtextClass()} mb-3`}>{reward.description}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-green-400 font-semibold">+{reward.points || 0} pts</span>
+                        {reward.unlocked ? (
+                          <span className="text-green-400 text-sm">Unlocked</span>
+                        ) : (
+                          <span className="text-gray-400 text-sm">Locked</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
@@ -1633,15 +1725,69 @@ const BusinessAIInsights = ({ user }) => {
           <div className="space-y-6">
             <div className={`${getCardClass()} rounded-xl p-6 border`}>
               <h3 className={`text-xl font-semibold ${getTextClass()} mb-4`}>Top Contributors</h3>
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Users className="w-8 h-8 text-blue-400" />
+              {isDemoMode ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left py-3 px-4 text-gray-400">Rank</th>
+                        <th className="text-left py-3 px-4 text-gray-400">User</th>
+                        <th className="text-left py-3 px-4 text-gray-400">Tier</th>
+                        <th className="text-center py-3 px-4 text-gray-400">Mappings</th>
+                        <th className="text-center py-3 px-4 text-gray-400">Points</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {DEMO_LEADERBOARD.map((user) => (
+                        <tr
+                          key={user.rank}
+                          className={`border-b border-white/5 ${user.isCurrentUser ? 'bg-blue-500/10' : 'hover:bg-white/5'}`}
+                        >
+                          <td className="py-3 px-4">
+                            <div className="flex items-center">
+                              {user.rank === 1 && <Trophy className="w-5 h-5 text-yellow-400 mr-2" />}
+                              {user.rank === 2 && <Medal className="w-5 h-5 text-gray-300 mr-2" />}
+                              {user.rank === 3 && <Medal className="w-5 h-5 text-orange-400 mr-2" />}
+                              <span className={`font-semibold ${user.rank <= 3 ? 'text-white' : 'text-gray-400'}`}>
+                                #{user.rank}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={`font-medium ${user.isCurrentUser ? 'text-blue-400' : 'text-white'}`}>
+                              {user.name} {user.isCurrentUser && '(You)'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              user.tier === 'AI Master' ? 'bg-purple-500/20 text-purple-400' :
+                              user.tier === 'AI Expert' ? 'bg-blue-500/20 text-blue-400' :
+                              user.tier === 'AI Trainer' ? 'bg-green-500/20 text-green-400' :
+                              'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {user.tier}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center text-gray-300">{user.mappings}</td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="text-green-400 font-semibold">{user.points.toLocaleString()}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <h4 className={`text-lg font-medium ${getTextClass()} mb-2`}>No Leaderboard Data Yet</h4>
-                <p className={`${getSubtextClass()} mb-4`}>
-                  Submit more mappings to see your ranking among other users
-                </p>
-              </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Users className="w-8 h-8 text-blue-400" />
+                  </div>
+                  <h4 className={`text-lg font-medium ${getTextClass()} mb-2`}>No Leaderboard Data Yet</h4>
+                  <p className={`${getSubtextClass()} mb-4`}>
+                    Submit more mappings to see your ranking among other users
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1749,32 +1895,64 @@ const BusinessAIInsights = ({ user }) => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Confidence</label>
-                    <p className="text-white">{selectedTransaction.confidence_status || 'N/A'}</p>
+                    <p className={`font-medium ${getConfidenceColor(selectedTransaction.confidence, isLightMode)}`}>
+                      {selectedTransaction.confidence
+                        ? `${Math.round(selectedTransaction.confidence * 100)}%`
+                        : 'N/A'}
+                    </p>
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">Submitted Date</label>
-                  <p className="text-white">{selectedTransaction.submitted_at || selectedTransaction.created_at || 'N/A'}</p>
+                  <p className="text-white">
+                    {(() => {
+                      const dateStr = selectedTransaction.submitted_at || selectedTransaction.created_at
+                      if (!dateStr) return 'N/A'
+                      try {
+                        const date = new Date(dateStr)
+                        return isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })
+                      } catch {
+                        return 'N/A'
+                      }
+                    })()}
+                  </p>
                 </div>
-                
+
                 {selectedTransaction.processed_at && (
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Reviewed Date</label>
-                    <p className="text-white">{selectedTransaction.processed_at}</p>
+                    <p className="text-white">
+                      {(() => {
+                        try {
+                          const date = new Date(selectedTransaction.processed_at)
+                          return isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })
+                        } catch {
+                          return 'N/A'
+                        }
+                      })()}
+                    </p>
                   </div>
                 )}
-                
+
                 {selectedTransaction.notes && (
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Notes</label>
                     <p className="text-white">{selectedTransaction.notes}</p>
                   </div>
                 )}
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">Points Earned</label>
-                  <p className="text-green-400 font-semibold">+{selectedTransaction.admin_approved ? 10 : 0}</p>
+                  <p className="text-green-400 font-semibold">+{selectedTransaction.points || (selectedTransaction.admin_approved ? 10 : 0)}</p>
                 </div>
               </div>
               
