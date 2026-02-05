@@ -4601,18 +4601,18 @@ def admin_login():
         if db_manager._use_postgresql:
             from sqlalchemy import text
             result = conn.execute(text('''
-                SELECT id, email, password, name, role 
-                FROM admins 
-                WHERE LOWER(email) = LOWER(:email) AND is_active = true
+                SELECT id, email, password, name, role
+                FROM admins
+                WHERE LOWER(email) = LOWER(:email)
             '''), {'email': email})
             row = result.fetchone()
             db_manager.release_connection(conn)
-            
+
             if row:
                 row = (row[0], row[1], row[2], row[3], row[4])
         else:
             cur = conn.cursor()
-            cur.execute("SELECT id, email, password, name, role FROM admins WHERE email = ? AND is_active = 1", (email,))
+            cur.execute("SELECT id, email, password, name, role FROM admins WHERE email = ?", (email,))
             row = cur.fetchone()
             conn.close()
         
