@@ -36,6 +36,21 @@ const ReviewStep = () => {
     })
   }
 
+  // Helper function to get dashboard path based on account type
+  const getDashboardPath = () => {
+    const userId = formData.userId
+    if (!userId) return '/signup' // Fallback if no userId
+
+    switch (formData.accountType) {
+      case 'business':
+        return `/business/${userId}/`
+      case 'family':
+        return `/family/${userId}/`
+      default:
+        return `/dashboard/${userId}/`
+    }
+  }
+
   const handleComplete = async () => {
     setSubmitting(true)
     setError(null)
@@ -44,33 +59,39 @@ const ReviewStep = () => {
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5111'
       const token = formData.token || localStorage.getItem('kamioi_user_token')
 
-      // Mark registration as complete
-      const response = await fetch(`${apiBaseUrl}/api/user/registration/complete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          userId: formData.userId,
-          completedAt: new Date().toISOString()
+      // Try to mark registration as complete (optional - endpoint may not exist)
+      try {
+        await fetch(`${apiBaseUrl}/api/user/registration/complete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            userId: formData.userId,
+            completedAt: new Date().toISOString()
+          })
         })
-      })
-
-      // Even if this endpoint doesn't exist yet, continue
-      // The important data was already saved in previous steps
+      } catch (e) {
+        // Endpoint doesn't exist yet - that's okay, continue
+        console.log('Registration complete endpoint not available, continuing...')
+      }
 
       // Clear signup state
       clearSignup()
 
-      // Navigate to dashboard or login
-      navigate('/app')
+      // Navigate directly to the appropriate dashboard based on account type
+      // This bypasses ProtectedRoute since the user token is already in localStorage
+      const dashboardPath = getDashboardPath()
+      console.log('Registration complete, navigating to:', dashboardPath)
+      navigate(dashboardPath)
     } catch (error) {
       console.error('Error completing registration:', error)
       // Even if there's an error, the user data was saved in previous steps
-      // So we can still navigate them to the app
+      // So we can still navigate them to the dashboard
       clearSignup()
-      navigate('/app')
+      const dashboardPath = getDashboardPath()
+      navigate(dashboardPath)
     } finally {
       setSubmitting(false)
     }

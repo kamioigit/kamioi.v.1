@@ -196,7 +196,7 @@ const PersonalInfoStep = () => {
             value={formData.phone}
             onChange={handlePhoneChange}
             placeholder="(555) 555-5555"
-            className={`w-full pl-12 pr-4 py-3 bg-white/10 border rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
+            className={`w-full pl-12 pr-4 py-3 bg-white/10 border rounded-xl text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
               formData.errors?.phone ? 'border-red-500' : 'border-white/20'
             }`}
           />
@@ -241,9 +241,9 @@ const PersonalInfoStep = () => {
             inputMode="numeric"
             value={formData.ssnLast4}
             onChange={handleSSNChange}
-            placeholder="••••"
+            placeholder="1234"
             maxLength={4}
-            className={`w-full pl-12 pr-4 py-3 bg-white/10 border rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
+            className={`w-full pl-12 pr-4 py-3 bg-white/10 border rounded-xl text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
               formData.errors?.ssnLast4 ? 'border-red-500' : 'border-white/20'
             }`}
           />
