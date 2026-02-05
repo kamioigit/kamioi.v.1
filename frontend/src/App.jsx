@@ -115,10 +115,10 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
     return <LoadingSpinner />
   }
 
-  // Redirect to login if not authenticated
+  // Redirect to signup if not authenticated
   if (!user) {
-    console.log('?? ProtectedRoute - No user, redirecting to login')
-    return <Navigate to="/login" replace />
+    console.log('?? ProtectedRoute - No user, redirecting to signup')
+    return <Navigate to="/signup" replace />
   }
   
   // Handle role-based access
@@ -183,8 +183,8 @@ const getUserDashboardPath = (user) => {
   console.log('?? getUserDashboardPath - User Dashboard:', user?.dashboard)
   
   if (!user || !user.id) {
-    console.log('?? getUserDashboardPath - No valid user or user ID, redirecting to login')
-    return '/login'
+    console.log('?? getUserDashboardPath - No valid user or user ID, redirecting to signup')
+    return '/signup'
   }
   
   // Use dashboard field if available, otherwise fall back to role
@@ -217,8 +217,8 @@ const getUserDashboardPath = (user) => {
       return userPath
     }
     default:
-      console.log('?? getUserDashboardPath - Unknown dashboard type:', dashboard, 'redirecting to login')
-      return '/login'
+      console.log('?? getUserDashboardPath - Unknown dashboard type:', dashboard, 'redirecting to signup')
+      return '/signup'
   }
 }
 
@@ -273,7 +273,7 @@ const AppRoutes = () => {
         <Route path="/v5" element={<HomePageV5 />} />
         <Route path="/home-v5" element={<HomePageV5 />} />
         <Route path="/business-registration" element={<BusinessRegistration />} />
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<Navigate to="/signup" replace />} />
         <Route path="/signup" element={<SignupWizard />} />
         <Route path="/register" element={<SignupWizard />} />
         <Route path="/admin-login" element={<AdminLogin />} />
@@ -330,10 +330,10 @@ const AppRoutes = () => {
         />
         
         {/* Legacy route redirects for backward compatibility */}
-        <Route path="/dashboard/" element={<Navigate to="/login" replace />} />
-        <Route path="/family/" element={<Navigate to="/login" replace />} />
-        <Route path="/business/" element={<Navigate to="/login" replace />} />
-        <Route path="/admin/" element={<Navigate to="/login" replace />} />
+        <Route path="/dashboard/" element={<Navigate to="/signup" replace />} />
+        <Route path="/family/" element={<Navigate to="/signup" replace />} />
+        <Route path="/business/" element={<Navigate to="/signup" replace />} />
+        <Route path="/admin/" element={<Navigate to="/signup" replace />} />
         <Route 
           path="/family/:userId/*" 
           element={
@@ -392,9 +392,9 @@ const AppRoutes = () => {
         />
         
         {/* Catch-all route to prevent unknown dashboard access */}
-        <Route path="/dashboard/unknown/*" element={<Navigate to="/login" replace />} />
-        <Route path="/dashboard/unknown" element={<Navigate to="/login" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="/dashboard/unknown/*" element={<Navigate to="/signup" replace />} />
+        <Route path="/dashboard/unknown" element={<Navigate to="/signup" replace />} />
+        <Route path="*" element={<Navigate to="/signup" replace />} />
         <Route path="/tx-test" element={<TransactionsTest />} />
       </Routes>
     </div>
