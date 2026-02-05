@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { LayoutDashboard, DollarSign, FileText, Brain, Users, Settings, Bell, Award, Megaphone, Globe, CreditCard, Zap, MessageSquare, Database, LogOut, Home, Building2, UserCog, TrendingUp, Cog, GripVertical, BookOpen, Activity, User, Bug } from 'lucide-react'
+import { LayoutDashboard, DollarSign, FileText, Brain, Users, Settings, Bell, Award, Megaphone, Globe, CreditCard, Zap, MessageSquare, Database, LogOut, Home, Building2, UserCog, TrendingUp, Cog, GripVertical, BookOpen, Activity, User, Bug, UserPlus } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import prefetchRegistry from '../../services/prefetchRegistry'
 
@@ -11,6 +11,7 @@ const AdminSidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
     { id: 'overview', label: 'Platform Overview', icon: LayoutDashboard },
     { id: 'transactions', label: 'Transactions', icon: FileText },
     { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
+    { id: 'demo-requests', label: 'Demo Requests', icon: UserPlus },
     { id: 'investments', label: 'Investment Summary', icon: TrendingUp },
     { id: 'investment-processing', label: 'Investment Processing', icon: Cog },
     { id: 'llm', label: 'LLM Center', icon: Brain },

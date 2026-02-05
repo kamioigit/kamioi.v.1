@@ -32,6 +32,7 @@ import LoadingReport from '../components/admin/LoadingReport'
 import APITrackingDashboard from '../components/admin/APITrackingDashboard'
 import AdminDatabaseManagement from './AdminDatabaseManagement'
 import ErrorTracking from '../components/admin/ErrorTracking'
+import DemoRequests from '../components/admin/DemoRequests'
 
 const AdminDashboard = () => {
   const navigate = useNavigate()
@@ -301,6 +302,8 @@ const AdminDashboard = () => {
         return <ContentManagement user={effectiveUser} />
       case 'subscriptions':
         return <Subscriptions />
+      case 'demo-requests':
+        return <DemoRequests />
       case 'settings':
         return <SystemSettings />
       case 'sop':

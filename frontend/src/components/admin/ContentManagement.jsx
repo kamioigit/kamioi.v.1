@@ -38,12 +38,12 @@ const ContentManagement = ({ user }) => {
   const [editingSection, setEditingSection] = useState(null)
 
   const [seoSettings, setSeoSettings] = useState({
-    siteTitle: 'Kamioi - Smart Investment Platform',
-    siteDescription: 'Invest your spare change automatically with AI-powered insights. Build wealth effortlessly with round-up investments.',
-    siteKeywords: 'investing, round-ups, AI, wealth building, family investing',
+    siteTitle: 'Kamioi - Automatic Investing App | AI-Powered Round-Up Investing',
+    siteDescription: 'Turn everyday purchases into stock ownership with Kamioi\'s AI-powered automatic investing platform. Fractional shares, zero minimums, bank-level security.',
+    siteKeywords: 'automatic investing, round-up investing, fractional shares, AI investing, fintech app, passive investing',
     ogImage: '',
     twitterHandle: '@kamioi',
-    googleAnalytics: '353505238',
+    googleAnalytics: '',
     facebookPixel: ''
   })
 
@@ -143,12 +143,16 @@ const ContentManagement = ({ user }) => {
       const currentContentResponse = await fetch(`${apiBaseUrl}/api/frontend-content`, { signal: signal }).catch(() => null)
       
       // Try to fetch from admin endpoints (may not exist yet)
-      const [blogsResponse, frontendResponse] = await Promise.all([
+      const [blogsResponse, frontendResponse, seoResponse] = await Promise.all([
         fetch(`${apiBaseUrl}/api/admin/blog/posts?limit=1000`, {
           headers: { 'Authorization': `Bearer ${adminToken}` },
           signal: signal
         }).catch(() => ({ ok: false })),
         fetch(`${apiBaseUrl}/api/admin/frontend-content`, {
+          headers: { 'Authorization': `Bearer ${adminToken}` },
+          signal: signal
+        }).catch(() => ({ ok: false })),
+        fetch(`${apiBaseUrl}/api/admin/seo-settings`, {
           headers: { 'Authorization': `Bearer ${adminToken}` },
           signal: signal
         }).catch(() => ({ ok: false }))
@@ -195,7 +199,16 @@ const ContentManagement = ({ user }) => {
         console.log('📋 ContentManagement - Admin frontend-content endpoint not available (404)')
         setFrontendContent([])
       }
-      
+
+      // Load SEO settings from database
+      if (seoResponse?.ok) {
+        const seoResult = await seoResponse.json()
+        if (seoResult.success && seoResult.data) {
+          console.log('📋 ContentManagement - Loaded SEO settings from database')
+          setSeoSettings(seoResult.data)
+        }
+      }
+
       // Also fetch from public endpoint to see what's currently active (for reference)
       if (currentContentResponse?.ok) {
         const currentContentResult = await currentContentResponse.json()

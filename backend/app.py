@@ -16196,24 +16196,541 @@ def admin_delete_content(content_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # SEO Settings
-@app.route('/api/admin/seo-settings', methods=['PUT'])
-def admin_update_seo_settings():
-    """Update SEO settings"""
+def _ensure_seo_settings_table(conn, use_postgresql):
+    """Create seo_settings table if it doesn't exist"""
+    if use_postgresql:
+        from sqlalchemy import text
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS seo_settings (
+                id SERIAL PRIMARY KEY,
+                setting_key VARCHAR(255) UNIQUE NOT NULL,
+                setting_value TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.commit()
+    else:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS seo_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                setting_key TEXT UNIQUE NOT NULL,
+                setting_value TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+
+@app.route('/api/seo-settings', methods=['GET'])
+def get_public_seo_settings():
+    """Get SEO settings (public endpoint for frontend)"""
+    try:
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+        _ensure_seo_settings_table(conn, use_postgresql)
+
+        # Default settings
+        settings = {
+            'siteTitle': 'Kamioi - Automatic Investing App | AI-Powered Round-Up Investing',
+            'siteDescription': 'Turn everyday purchases into stock ownership with Kamioi\'s AI-powered automatic investing platform. Fractional shares, zero minimums, bank-level security.',
+            'siteKeywords': 'automatic investing, round-up investing, fractional shares, AI investing, fintech app, passive investing',
+            'ogImage': '',
+            'twitterHandle': '@kamioi'
+        }
+
+        if use_postgresql:
+            from sqlalchemy import text
+            result = conn.execute(text("SELECT setting_key, setting_value FROM seo_settings"))
+            rows = result.fetchall()
+            db_manager.release_connection(conn)
+        else:
+            cursor = conn.cursor()
+            cursor.execute("SELECT setting_key, setting_value FROM seo_settings")
+            rows = cursor.fetchall()
+            conn.close()
+
+        # Override defaults with saved values
+        for row in rows:
+            settings[row[0]] = row[1]
+
+        return jsonify({
+            'success': True,
+            'data': settings
+        })
+    except Exception as e:
+        return jsonify({
+            'success': True,
+            'data': {
+                'siteTitle': 'Kamioi - Automatic Investing App | AI-Powered Round-Up Investing',
+                'siteDescription': 'Turn everyday purchases into stock ownership with Kamioi\'s AI-powered automatic investing platform.',
+                'siteKeywords': 'automatic investing, round-up investing, fractional shares, AI investing',
+                'ogImage': '',
+                'twitterHandle': '@kamioi'
+            }
+        })
+
+@app.route('/api/admin/seo-settings', methods=['GET'])
+def admin_get_seo_settings():
+    """Get SEO settings for admin dashboard"""
     ok, res = require_role('admin')
     if ok is False:
         return res
-    
+
     try:
-        data = request.get_json()
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+        _ensure_seo_settings_table(conn, use_postgresql)
+
+        # Default settings
+        settings = {
+            'siteTitle': 'Kamioi - Automatic Investing App | AI-Powered Round-Up Investing',
+            'siteDescription': 'Turn everyday purchases into stock ownership with Kamioi\'s AI-powered automatic investing platform. Fractional shares, zero minimums, bank-level security.',
+            'siteKeywords': 'automatic investing, round-up investing, fractional shares, AI investing, fintech app, passive investing',
+            'ogImage': '',
+            'twitterHandle': '@kamioi',
+            'googleAnalytics': '',
+            'facebookPixel': ''
+        }
+
+        if use_postgresql:
+            from sqlalchemy import text
+            result = conn.execute(text("SELECT setting_key, setting_value FROM seo_settings"))
+            rows = result.fetchall()
+            db_manager.release_connection(conn)
+        else:
+            cursor = conn.cursor()
+            cursor.execute("SELECT setting_key, setting_value FROM seo_settings")
+            rows = cursor.fetchall()
+            conn.close()
+
+        # Override defaults with saved values
+        for row in rows:
+            settings[row[0]] = row[1]
+
         return jsonify({
             'success': True,
-            'message': 'SEO settings updated successfully',
+            'data': settings
+        })
+    except Exception as e:
+        import traceback
+        sys.stdout.write(f"[ERROR] Get SEO settings error: {str(e)}\n")
+        sys.stdout.flush()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/seo-settings', methods=['PUT'])
+def admin_update_seo_settings():
+    """Update SEO settings - persist to database"""
+    ok, res = require_role('admin')
+    if ok is False:
+        return res
+
+    try:
+        data = request.get_json()
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+        _ensure_seo_settings_table(conn, use_postgresql)
+
+        # Settings to save
+        settings_to_save = [
+            ('siteTitle', data.get('siteTitle', '')),
+            ('siteDescription', data.get('siteDescription', '')),
+            ('siteKeywords', data.get('siteKeywords', '')),
+            ('ogImage', data.get('ogImage', '')),
+            ('twitterHandle', data.get('twitterHandle', '')),
+            ('googleAnalytics', data.get('googleAnalytics', '')),
+            ('facebookPixel', data.get('facebookPixel', ''))
+        ]
+
+        if use_postgresql:
+            from sqlalchemy import text
+            for key, value in settings_to_save:
+                conn.execute(text("""
+                    INSERT INTO seo_settings (setting_key, setting_value, updated_at)
+                    VALUES (:key, :value, CURRENT_TIMESTAMP)
+                    ON CONFLICT (setting_key)
+                    DO UPDATE SET setting_value = :value, updated_at = CURRENT_TIMESTAMP
+                """), {'key': key, 'value': value})
+            conn.commit()
+            db_manager.release_connection(conn)
+        else:
+            cursor = conn.cursor()
+            for key, value in settings_to_save:
+                cursor.execute("""
+                    INSERT INTO seo_settings (setting_key, setting_value, updated_at)
+                    VALUES (?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(setting_key)
+                    DO UPDATE SET setting_value = ?, updated_at = CURRENT_TIMESTAMP
+                """, (key, value, value))
+            conn.commit()
+            conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'SEO settings saved successfully',
+            'data': data
+        })
+    except Exception as e:
+        import traceback
+        sys.stdout.write(f"[ERROR] Update SEO settings error: {str(e)}\n")
+        sys.stdout.flush()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Demo Requests Management
+def _ensure_demo_requests_table(conn, use_postgresql):
+    """Create demo_requests table if it doesn't exist"""
+    if use_postgresql:
+        from sqlalchemy import text
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS demo_requests (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                email VARCHAR(255) NOT NULL,
+                phone VARCHAR(50),
+                address TEXT,
+                interest_type VARCHAR(100),
+                heard_from VARCHAR(100),
+                experience_level VARCHAR(100),
+                memo TEXT,
+                status VARCHAR(50) DEFAULT 'pending',
+                demo_code VARCHAR(100),
+                admin_notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.commit()
+    else:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS demo_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                phone TEXT,
+                address TEXT,
+                interest_type TEXT,
+                heard_from TEXT,
+                experience_level TEXT,
+                memo TEXT,
+                status TEXT DEFAULT 'pending',
+                demo_code TEXT,
+                admin_notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+
+@app.route('/api/demo-requests', methods=['POST'])
+def submit_demo_request():
+    """Submit a new demo request (public endpoint)"""
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        if not data.get('name') or not data.get('email'):
+            return jsonify({'success': False, 'error': 'Name and email are required'}), 400
+
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+        _ensure_demo_requests_table(conn, use_postgresql)
+
+        if use_postgresql:
+            from sqlalchemy import text
+            result = conn.execute(text("""
+                INSERT INTO demo_requests (name, email, phone, address, interest_type, heard_from, experience_level, memo, status, created_at, updated_at)
+                VALUES (:name, :email, :phone, :address, :interest_type, :heard_from, :experience_level, :memo, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                RETURNING id
+            """), {
+                'name': data.get('name'),
+                'email': data.get('email'),
+                'phone': data.get('phone', ''),
+                'address': data.get('address', ''),
+                'interest_type': data.get('interest_type', ''),
+                'heard_from': data.get('heard_from', ''),
+                'experience_level': data.get('experience_level', ''),
+                'memo': data.get('memo', '')
+            })
+            new_id = result.fetchone()[0]
+            conn.commit()
+            db_manager.release_connection(conn)
+        else:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO demo_requests (name, email, phone, address, interest_type, heard_from, experience_level, memo, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """, (
+                data.get('name'),
+                data.get('email'),
+                data.get('phone', ''),
+                data.get('address', ''),
+                data.get('interest_type', ''),
+                data.get('heard_from', ''),
+                data.get('experience_level', ''),
+                data.get('memo', '')
+            ))
+            new_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'Demo request submitted successfully! We will contact you soon.',
+            'data': {'id': new_id}
+        })
+    except Exception as e:
+        sys.stdout.write(f"[ERROR] Submit demo request error: {str(e)}\n")
+        sys.stdout.flush()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/demo-requests', methods=['GET'])
+def admin_get_demo_requests():
+    """Get all demo requests (admin only)"""
+    ok, res = require_role('admin')
+    if ok is False:
+        return res
+
+    try:
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+        _ensure_demo_requests_table(conn, use_postgresql)
+
+        # Get filter parameters
+        status_filter = request.args.get('status', '')
+
+        if use_postgresql:
+            from sqlalchemy import text
+            if status_filter:
+                result = conn.execute(text("""
+                    SELECT id, name, email, phone, address, interest_type, heard_from, experience_level, memo, status, demo_code, admin_notes, created_at, updated_at
+                    FROM demo_requests
+                    WHERE status = :status
+                    ORDER BY created_at DESC
+                """), {'status': status_filter})
+            else:
+                result = conn.execute(text("""
+                    SELECT id, name, email, phone, address, interest_type, heard_from, experience_level, memo, status, demo_code, admin_notes, created_at, updated_at
+                    FROM demo_requests
+                    ORDER BY created_at DESC
+                """))
+            rows = result.fetchall()
+            db_manager.release_connection(conn)
+        else:
+            cursor = conn.cursor()
+            if status_filter:
+                cursor.execute("""
+                    SELECT id, name, email, phone, address, interest_type, heard_from, experience_level, memo, status, demo_code, admin_notes, created_at, updated_at
+                    FROM demo_requests
+                    WHERE status = ?
+                    ORDER BY created_at DESC
+                """, (status_filter,))
+            else:
+                cursor.execute("""
+                    SELECT id, name, email, phone, address, interest_type, heard_from, experience_level, memo, status, demo_code, admin_notes, created_at, updated_at
+                    FROM demo_requests
+                    ORDER BY created_at DESC
+                """)
+            rows = cursor.fetchall()
+            conn.close()
+
+        requests_list = []
+        for row in rows:
+            requests_list.append({
+                'id': row[0],
+                'name': row[1],
+                'email': row[2],
+                'phone': row[3],
+                'address': row[4],
+                'interest_type': row[5],
+                'heard_from': row[6],
+                'experience_level': row[7],
+                'memo': row[8],
+                'status': row[9],
+                'demo_code': row[10],
+                'admin_notes': row[11],
+                'created_at': row[12].isoformat() if hasattr(row[12], 'isoformat') else row[12],
+                'updated_at': row[13].isoformat() if hasattr(row[13], 'isoformat') else row[13]
+            })
+
+        return jsonify({
+            'success': True,
+            'data': requests_list
+        })
+    except Exception as e:
+        sys.stdout.write(f"[ERROR] Get demo requests error: {str(e)}\n")
+        sys.stdout.flush()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/demo-requests/pending-count', methods=['GET'])
+def admin_get_pending_demo_requests_count():
+    """Get count of pending demo requests (for notification badge)"""
+    ok, res = require_role('admin')
+    if ok is False:
+        return res
+
+    try:
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+        _ensure_demo_requests_table(conn, use_postgresql)
+
+        if use_postgresql:
+            from sqlalchemy import text
+            result = conn.execute(text("SELECT COUNT(*) FROM demo_requests WHERE status = 'pending'"))
+            count = result.fetchone()[0]
+            db_manager.release_connection(conn)
+        else:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM demo_requests WHERE status = 'pending'")
+            count = cursor.fetchone()[0]
+            conn.close()
+
+        return jsonify({
+            'success': True,
+            'data': {'count': count}
+        })
+    except Exception as e:
+        return jsonify({'success': True, 'data': {'count': 0}})
+
+@app.route('/api/admin/demo-requests/<int:request_id>', methods=['PUT'])
+def admin_update_demo_request(request_id):
+    """Update a demo request (status, notes, demo code)"""
+    ok, res = require_role('admin')
+    if ok is False:
+        return res
+
+    try:
+        data = request.get_json()
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+
+        if use_postgresql:
+            from sqlalchemy import text
+            conn.execute(text("""
+                UPDATE demo_requests
+                SET status = :status, demo_code = :demo_code, admin_notes = :admin_notes, updated_at = CURRENT_TIMESTAMP
+                WHERE id = :id
+            """), {
+                'status': data.get('status', 'pending'),
+                'demo_code': data.get('demo_code', ''),
+                'admin_notes': data.get('admin_notes', ''),
+                'id': request_id
+            })
+            conn.commit()
+            db_manager.release_connection(conn)
+        else:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE demo_requests
+                SET status = ?, demo_code = ?, admin_notes = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (
+                data.get('status', 'pending'),
+                data.get('demo_code', ''),
+                data.get('admin_notes', ''),
+                request_id
+            ))
+            conn.commit()
+            conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'Demo request updated successfully'
+        })
+    except Exception as e:
+        sys.stdout.write(f"[ERROR] Update demo request error: {str(e)}\n")
+        sys.stdout.flush()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/demo-requests/<int:request_id>/send-code', methods=['POST'])
+def admin_send_demo_code(request_id):
+    """Generate and send demo code to user"""
+    ok, res = require_role('admin')
+    if ok is False:
+        return res
+
+    try:
+        data = request.get_json()
+        demo_code = data.get('demo_code') or f"DEMO-{uuid.uuid4().hex[:8].upper()}"
+
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+
+        # Get the request details
+        if use_postgresql:
+            from sqlalchemy import text
+            result = conn.execute(text("SELECT email, name FROM demo_requests WHERE id = :id"), {'id': request_id})
+            request_row = result.fetchone()
+        else:
+            cursor = conn.cursor()
+            cursor.execute("SELECT email, name FROM demo_requests WHERE id = ?", (request_id,))
+            request_row = cursor.fetchone()
+
+        if not request_row:
+            return jsonify({'success': False, 'error': 'Demo request not found'}), 404
+
+        email = request_row[0]
+        name = request_row[1]
+
+        # Update status and demo code
+        if use_postgresql:
+            conn.execute(text("""
+                UPDATE demo_requests
+                SET status = 'code_sent', demo_code = :demo_code, updated_at = CURRENT_TIMESTAMP
+                WHERE id = :id
+            """), {'demo_code': demo_code, 'id': request_id})
+            conn.commit()
+            db_manager.release_connection(conn)
+        else:
+            cursor.execute("""
+                UPDATE demo_requests
+                SET status = 'code_sent', demo_code = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (demo_code, request_id))
+            conn.commit()
+            conn.close()
+
+        # TODO: Implement actual email sending here
+        # For now, just return success with the code
+
+        return jsonify({
+            'success': True,
+            'message': f'Demo code generated for {name} ({email})',
             'data': {
-                'meta_title': data.get('meta_title', ''),
-                'meta_description': data.get('meta_description', ''),
-                'meta_keywords': data.get('meta_keywords', ''),
-                'updated_at': datetime.now().isoformat()
+                'demo_code': demo_code,
+                'email': email,
+                'name': name
             }
+        })
+    except Exception as e:
+        sys.stdout.write(f"[ERROR] Send demo code error: {str(e)}\n")
+        sys.stdout.flush()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/demo-requests/<int:request_id>', methods=['DELETE'])
+def admin_delete_demo_request(request_id):
+    """Delete a demo request"""
+    ok, res = require_role('admin')
+    if ok is False:
+        return res
+
+    try:
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+
+        if use_postgresql:
+            from sqlalchemy import text
+            conn.execute(text("DELETE FROM demo_requests WHERE id = :id"), {'id': request_id})
+            conn.commit()
+            db_manager.release_connection(conn)
+        else:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM demo_requests WHERE id = ?", (request_id,))
+            conn.commit()
+            conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'Demo request deleted successfully'
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -20288,6 +20805,108 @@ def mx_connect():
         print(f"[ERROR] Failed to initialize MX Connect: {str(e)}")
         print(f"[ERROR] Traceback: {traceback.format_exc()}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+# Dynamic Sitemap Generation
+@app.route('/sitemap.xml', methods=['GET'])
+def dynamic_sitemap():
+    """Generate dynamic sitemap including blog posts"""
+    try:
+        conn = db_manager.get_connection()
+        use_postgresql = getattr(db_manager, '_use_postgresql', False)
+
+        # Get published blog posts
+        if use_postgresql:
+            from sqlalchemy import text
+            result = conn.execute(text("""
+                SELECT slug, updated_at, published_at
+                FROM blog_posts
+                WHERE status = 'published'
+                ORDER BY published_at DESC
+            """))
+            posts = result.fetchall()
+            db_manager.release_connection(conn)
+        else:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT slug, updated_at, published_at
+                FROM blog_posts
+                WHERE status = 'published'
+                ORDER BY published_at DESC
+            """)
+            posts = cursor.fetchall()
+            conn.close()
+
+        # Build XML sitemap
+        base_url = "https://kamioi.com"
+        xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+        xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+
+        # Static pages with SEO-optimized priorities
+        static_pages = [
+            ('/', 'weekly', '1.0'),
+            ('/features', 'monthly', '0.9'),
+            ('/how-it-works', 'monthly', '0.9'),
+            ('/pricing', 'monthly', '0.9'),
+            ('/learn', 'weekly', '0.8'),
+            ('/blog', 'daily', '0.8'),
+            ('/login', 'monthly', '0.5'),
+            ('/register', 'monthly', '0.5'),
+            ('/terms-of-service', 'yearly', '0.3'),
+            ('/privacy-policy', 'yearly', '0.3')
+        ]
+
+        for path, freq, priority in static_pages:
+            xml += f'  <url>\n'
+            xml += f'    <loc>{base_url}{path}</loc>\n'
+            xml += f'    <changefreq>{freq}</changefreq>\n'
+            xml += f'    <priority>{priority}</priority>\n'
+            xml += f'  </url>\n'
+
+        # Add blog posts dynamically
+        for post in posts:
+            slug = post[0]
+            updated_at = post[1]
+            published_at = post[2]
+            lastmod = updated_at or published_at
+            if lastmod:
+                if hasattr(lastmod, 'strftime'):
+                    lastmod_str = lastmod.strftime('%Y-%m-%d')
+                else:
+                    lastmod_str = str(lastmod)[:10]
+                xml += f'  <url>\n'
+                xml += f'    <loc>{base_url}/blog/{slug}</loc>\n'
+                xml += f'    <lastmod>{lastmod_str}</lastmod>\n'
+                xml += f'    <changefreq>monthly</changefreq>\n'
+                xml += f'    <priority>0.6</priority>\n'
+                xml += f'  </url>\n'
+            else:
+                xml += f'  <url>\n'
+                xml += f'    <loc>{base_url}/blog/{slug}</loc>\n'
+                xml += f'    <changefreq>monthly</changefreq>\n'
+                xml += f'    <priority>0.6</priority>\n'
+                xml += f'  </url>\n'
+
+        xml += '</urlset>'
+
+        response = make_response(xml)
+        response.headers['Content-Type'] = 'application/xml'
+        response.headers['Cache-Control'] = 'public, max-age=3600'  # Cache for 1 hour
+        return response
+
+    except Exception as e:
+        # Fallback to basic sitemap if database query fails
+        xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://kamioi.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://kamioi.com/features</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://kamioi.com/how-it-works</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://kamioi.com/pricing</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://kamioi.com/learn</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kamioi.com/blog</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+</urlset>'''
+        response = make_response(xml)
+        response.headers['Content-Type'] = 'application/xml'
+        return response
 
 if __name__ == '__main__':
     print("Starting Kamioi Backend Server (Role-Based Routing)...")

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SectionLayout from '../components/common/SectionLayout'
+import DemoRequestForm from '../components/DemoRequestForm'
 import { 
   ArrowRight, 
   CheckCircle, 
@@ -40,6 +41,7 @@ const HomePageV5 = () => {
   const [selectedTopic, setSelectedTopic] = useState(null)
   const [blogs, setBlogs] = useState([])
   const [blogsLoading, setBlogsLoading] = useState(true)
+  const [showDemoForm, setShowDemoForm] = useState(false)
   const navigate = useNavigate()
   const statsRef = useRef(null)
   const [animatedStats, setAnimatedStats] = useState({
@@ -228,10 +230,10 @@ const HomePageV5 = () => {
     // If API succeeded but stats are missing, they're inactive - return empty array
     // Otherwise use defaults (API call failed)
     return apiCallSucceeded ? [] : [
-      { number: 10000, suffix: "+", label: "Active Investors", icon: <Users className="w-5 h-5" /> },
-      { number: 500000, prefix: "$", suffix: "+", label: "Automatically Invested", icon: <TrendingUp className="w-5 h-5" /> },
-      { number: 4.9, suffix: "/5", label: "Average Rating", icon: <Star className="w-5 h-5" /> },
-      { number: 50, suffix: "+", label: "Top Brands Available", icon: <ShoppingBag className="w-5 h-5" /> }
+      { number: 256, suffix: "-bit", label: "Bank-Level Encryption", icon: <Lock className="w-5 h-5" /> },
+      { number: 0, prefix: "$", label: "Minimum to Start", icon: <TrendingUp className="w-5 h-5" /> },
+      { number: 100, suffix: "%", label: "AI-Powered Automation", icon: <Brain className="w-5 h-5" /> },
+      { number: 500, prefix: "$", suffix: "K", label: "SIPC Protection Ready", icon: <Shield className="w-5 h-5" /> }
     ]
   }, [frontendContent, apiCallSucceeded])
 
@@ -402,38 +404,39 @@ const HomePageV5 = () => {
   ])
 
   // Only use default testimonials if API call failed. If API succeeded but testimonials are missing, they're inactive - don't show them
+  // Default testimonials are now excitement/waitlist focused instead of fake reviews
   const testimonials = (frontendContent && frontendContent.testimonials && Array.isArray(frontendContent.testimonials) && frontendContent.testimonials.length > 0)
     ? frontendContent.testimonials
     : (apiCallSucceeded ? [] : [
     {
-      name: "Sarah M.",
-      role: "Software Engineer",
-      content: "Finally, investing that fits my lifestyle. I've always wanted to invest but never had time to research stocks. Kamioi does everything automatically. I've invested over $200 in three months without thinking about it once.",
+      name: "Early Adopter",
+      role: "Excited to Start",
+      content: "I've been waiting for an investing app that truly understands how I spend. The concept of owning stock in brands I already buy is brilliant. Can't wait to be among the first to try Kamioi!",
       rating: 5,
-      avatar: "SM",
-      age: "24",
-      verified: true,
-      result: "$200+ in 3 months"
+      avatar: "EA",
+      age: "",
+      verified: false,
+      result: "On the Waitlist"
     },
     {
-      name: "Michael T.",
-      role: "Small Business Owner",
-      content: "My whole family uses it now. Started with the Individual plan, loved it so much I upgraded to Family. Now my spouse and teenage kids are all learning about investing through the brands they interact with daily. Brilliant concept.",
+      name: "Future Investor",
+      role: "First-Time Investor",
+      content: "As someone who's always been intimidated by investing, Kamioi's automatic approach is exactly what I need. No research, no complexity—just smart investing that works with my lifestyle.",
       rating: 5,
-      avatar: "MT",
-      age: "42",
-      verified: true,
-      result: "Family Plan User"
+      avatar: "FI",
+      age: "",
+      verified: false,
+      result: "Requested Demo"
     },
     {
-      name: "Linda K.",
-      role: "Retired Teacher",
-      content: "Simplest investing I've ever done. I've been investing for 30 years, and this is the most effortless platform I've used. The AI is impressive, and I love owning more of the companies I already support. Perfect for passive income in retirement.",
+      name: "Tech Enthusiast",
+      role: "AI & Fintech Fan",
+      content: "The AI-powered matching of purchases to stocks is innovative. This is the future of passive investing, and I'm excited to see it launch. Building wealth without lifting a finger!",
       rating: 5,
-      avatar: "LK",
-      age: "58",
-      verified: true,
-      result: "30+ Years Experience"
+      avatar: "TE",
+      age: "",
+      verified: false,
+      result: "Awaiting Launch"
     }
   ])
 
@@ -767,10 +770,10 @@ Passive investing is perfect for busy people who want to build wealth without be
 
   return (
     <>
-      <SEO 
-        title={(frontendContent.homepage_seo && frontendContent.homepage_seo.meta_title) ? frontendContent.homepage_seo.meta_title : "Kamioi: Automatic Investing App - Own What You Buy"}
-        description={(frontendContent.homepage_seo && frontendContent.homepage_seo.meta_description) ? frontendContent.homepage_seo.meta_description : "Turn every purchase into stock ownership with Kamioi's AI-powered automatic investing. Start with $0. No experience needed. Join 10,000+ investors building wealth effortlessly."}
-        keywords="automatic investing app, automatic stock investing, passive investing platform, fractional stock investing, micro investing app, automatically invest when you shop, turn purchases into stocks, set and forget investing, investing for beginners, how to start investing with little money, robo advisor, automated portfolio, round-up investing, investment automation, easy investing"
+      <SEO
+        title={(frontendContent.homepage_seo && frontendContent.homepage_seo.meta_title) ? frontendContent.homepage_seo.meta_title : "Kamioi - Automatic Investing App | AI-Powered Round-Up Investing"}
+        description={(frontendContent.homepage_seo && frontendContent.homepage_seo.meta_description) ? frontendContent.homepage_seo.meta_description : "Turn everyday purchases into stock ownership with Kamioi's AI-powered automatic investing platform. Fractional shares, zero minimums, bank-level security. Request demo access today."}
+        keywords="automatic investing, round-up investing, fractional shares, AI investing app, fintech app, passive investing, automatic stock investing, micro investing, investment automation, investing for beginners, robo advisor, automated portfolio, set and forget investing, turn purchases into stocks"
         structuredData={{
           "@context": "https://schema.org",
           "@graph": [
@@ -779,36 +782,58 @@ Passive investing is perfect for busy people who want to build wealth without be
               "@id": "https://kamioi.com/#organization",
               "name": "Kamioi",
               "url": "https://kamioi.com",
-              "logo": "https://kamioi.com/logo.png",
-              "description": "AI-powered automatic investing platform that turns everyday purchases into stock ownership",
+              "logo": {
+                "@type": "ImageObject",
+                "url": "https://kamioi.com/logo.png",
+                "width": 600,
+                "height": 60
+              },
+              "description": "AI-powered automatic investing fintech platform that turns everyday purchases into stock ownership through fractional shares",
+              "foundingDate": "2024",
               "sameAs": [
                 "https://twitter.com/kamioi",
-                "https://linkedin.com/company/kamioi",
-                "https://facebook.com/kamioi"
+                "https://linkedin.com/company/kamioi"
               ],
               "contactPoint": {
                 "@type": "ContactPoint",
                 "contactType": "customer service",
-                "availableLanguage": "English"
+                "availableLanguage": "English",
+                "email": "support@kamioi.com"
               }
             },
             {
               "@type": "SoftwareApplication",
+              "@id": "https://kamioi.com/#app",
               "name": "Kamioi",
               "applicationCategory": "FinanceApplication",
+              "applicationSubCategory": "Investment App",
               "operatingSystem": "Web, iOS, Android",
+              "description": "Automatic investing app with round-up investing, fractional shares, and AI-powered stock matching for effortless wealth building",
               "offers": {
                 "@type": "Offer",
                 "price": "9.00",
                 "priceCurrency": "USD",
-                "priceValidUntil": "2025-12-31"
+                "priceValidUntil": "2026-12-31",
+                "availability": "https://schema.org/PreOrder"
               },
-              "aggregateRating": {
-                "@type": "AggregateRating",
-                "ratingValue": "4.9",
-                "ratingCount": "10000",
-                "bestRating": "5",
-                "worstRating": "1"
+              "featureList": [
+                "Automatic round-up investing",
+                "Fractional share purchases",
+                "AI-powered stock matching",
+                "Bank-level 256-bit encryption",
+                "SIPC insurance protection ready",
+                "$0 minimum to start"
+              ]
+            },
+            {
+              "@type": "WebSite",
+              "@id": "https://kamioi.com/#website",
+              "name": "Kamioi",
+              "url": "https://kamioi.com",
+              "potentialAction": {
+                "@type": "SearchAction",
+                "target": "https://kamioi.com/search?q={search_term_string}",
+                "query-input": "required name=search_term_string"
               }
             },
             {
@@ -819,26 +844,6 @@ Passive investing is perfect for busy people who want to build wealth without be
                 "acceptedAnswer": {
                   "@type": "Answer",
                   "text": faq.answer
-                }
-              }))
-            },
-            {
-              "@type": "ItemList",
-              "itemListElement": testimonials.map((testimonial, index) => ({
-                "@type": "ListItem",
-                "position": index + 1,
-                "item": {
-                  "@type": "Review",
-                  "author": {
-                    "@type": "Person",
-                    "name": testimonial.name
-                  },
-                  "reviewRating": {
-                    "@type": "Rating",
-                    "ratingValue": testimonial.rating,
-                    "bestRating": "5"
-                  },
-                  "reviewBody": testimonial.content
                 }
               }))
             }
@@ -1005,10 +1010,10 @@ Passive investing is perfect for busy people who want to build wealth without be
                 </div>
 
                 <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight">
-                  {frontendContent.homepage_seo?.h1_headline || heroData.headline || "Automatic Investing That Works While You Live Your Life"}
+                  {frontendContent.homepage_seo?.h1_headline || heroData.headline || "The Future of Automatic Investing Starts Here"}
                 </h1>
                 <p className="text-xl md:text-2xl text-white/90 mb-6 max-w-3xl mx-auto leading-relaxed">
-                  {heroData.subheadline || "Kamioi turns everyday spending into wealth-building opportunities. Our AI-powered platform automatically invests in the brands you love—no research, no complexity, no experience required."}
+                  {heroData.subheadline || "Kamioi is an AI-powered platform that turns your everyday purchases into stock ownership. No research required, no complexity—just connect once and let our technology build your portfolio automatically."}
                 </p>
                 
                 {/* Key Benefits */}
@@ -1030,16 +1035,16 @@ Passive investing is perfect for busy people who want to build wealth without be
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-                  <button 
-                    onClick={() => navigate('/signup')}
+                  <button
+                    onClick={() => setShowDemoForm(true)}
                     className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-300 transform hover:scale-105 flex items-center space-x-3 shadow-lg"
                   >
                     <Rocket className="w-5 h-5" />
-                    <span>{heroData.cta_button_text || "Start Investing Automatically — Free Trial"}</span>
+                    <span>{heroData.cta_button_text || "Request Demo Access"}</span>
                     <ArrowRight className="w-5 h-5" />
                   </button>
-                  <button 
-                    onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+                  <button
+                    onClick={() => navigate('/how-it-works')}
                     className="px-8 py-4 bg-white/10 backdrop-blur-lg border-2 border-white/20 text-white font-semibold rounded-lg hover:bg-white/20 hover:border-white/30 transition-all duration-300 flex items-center space-x-3"
                   >
                     <Play className="w-5 h-5" />
@@ -1052,9 +1057,9 @@ Passive investing is perfect for busy people who want to build wealth without be
                   {((heroData.trust_indicators && Array.isArray(heroData.trust_indicators) && heroData.trust_indicators.length > 0)
                     ? heroData.trust_indicators
                     : [
-                        "🔒 Bank-level security",
-                        "👥 10,000+ investors",
-                        "⭐ 4.9/5 rating"
+                        "Bank-level 256-bit encryption",
+                        "SIPC protection ready",
+                        "AI-powered automation"
                       ]
                   ).map((indicator, index) => (
                     <div key={index} className="flex items-center space-x-2 text-white/80">
@@ -1074,7 +1079,7 @@ Passive investing is perfect for busy people who want to build wealth without be
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-8">
               <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">
-                Join Thousands of People Building Wealth Automatically
+                Built for Secure, Effortless Investing
               </h3>
             </div>
             
@@ -1278,8 +1283,11 @@ Passive investing is perfect for busy people who want to build wealth without be
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-16">
               <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-                What Our Users Are Saying
+                Join the Growing Interest
               </h2>
+              <p className="text-xl text-white/70 max-w-2xl mx-auto">
+                Be among the first to experience the future of automatic investing
+              </p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
@@ -1722,10 +1730,16 @@ Passive investing is perfect for busy people who want to build wealth without be
              </div>
            </div>
          )}
+
+         {/* Demo Request Form Modal */}
+         <DemoRequestForm
+           isOpen={showDemoForm}
+           onClose={() => setShowDemoForm(false)}
+         />
        </div>
      </>
    )
  }
- 
+
  export default HomePageV5
 

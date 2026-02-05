@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SectionLayout from '../components/common/SectionLayout'
+import DemoRequestForm from '../components/DemoRequestForm'
 import { 
   ArrowRight, 
   Menu,
@@ -20,6 +21,7 @@ import SEO from '../components/common/SEO'
 
 const Features = () => {
   const [isMenuOpen, setMenuOpen] = useState(false)
+  const [showDemoForm, setShowDemoForm] = useState(false)
   const navigate = useNavigate()
   const [frontendContent, setFrontendContent] = useState(null)
   const [contentLoaded, setContentLoaded] = useState(false)
@@ -463,16 +465,16 @@ const Features = () => {
                   {getContent('hero_subheading', featuresData.hero_subheading)}
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <button 
-                    onClick={() => navigate('/signup')}
+                  <button
+                    onClick={() => setShowDemoForm(true)}
                     className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg"
                   >
                     <Rocket className="w-5 h-5" />
-                    <span>Start Free 14-Day Trial</span>
+                    <span>Request Demo Access</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
-                  <button 
-                    onClick={() => navigate('/#how-it-works')}
+                  <button
+                    onClick={() => navigate('/how-it-works')}
                     className="px-8 py-4 bg-white/10 backdrop-blur-lg border-2 border-white/20 text-white font-semibold rounded-lg hover:bg-white/20 hover:border-white/30 transition-all duration-300 flex items-center justify-center space-x-2"
                   >
                     <span>See How It Works</span>
@@ -734,6 +736,12 @@ const Features = () => {
             <p>© 2025 Kamioi. Making investing effortless for the next generation.</p>
           </div>
         </footer>
+
+        {/* Demo Request Form Modal */}
+        <DemoRequestForm
+          isOpen={showDemoForm}
+          onClose={() => setShowDemoForm(false)}
+        />
       </div>
     </>
   )

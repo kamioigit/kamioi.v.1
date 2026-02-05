@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SectionLayout from '../components/common/SectionLayout'
+import DemoRequestForm from '../components/DemoRequestForm'
 import { 
   ArrowRight, 
   Menu,
@@ -27,6 +28,7 @@ import SEO from '../components/common/SEO'
 
 const HowItWorks = () => {
   const [isMenuOpen, setMenuOpen] = useState(false)
+  const [showDemoForm, setShowDemoForm] = useState(false)
   const navigate = useNavigate()
   const [frontendContent, setFrontendContent] = useState(null)
   const [contentLoaded, setContentLoaded] = useState(false)
@@ -422,15 +424,12 @@ const HowItWorks = () => {
                     <span>Start Free Trial</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
-                  <button 
-                    onClick={() => {
-                      // Scroll to video section or open modal
-                      document.getElementById('video-demo')?.scrollIntoView({ behavior: 'smooth' })
-                    }}
+                  <button
+                    onClick={() => setShowDemoForm(true)}
                     className="px-8 py-4 bg-white/10 backdrop-blur-lg border-2 border-white/20 text-white font-semibold rounded-lg hover:bg-white/20 hover:border-white/30 transition-all duration-300 flex items-center justify-center space-x-2"
                   >
-                    <PlayCircle className="w-5 h-5" />
-                    <span>Watch Demo Video</span>
+                    <Rocket className="w-5 h-5" />
+                    <span>Request Demo Access</span>
                   </button>
                 </div>
               </div>
@@ -665,6 +664,12 @@ const HowItWorks = () => {
             <p>© 2025 Kamioi. Making investing effortless for the next generation.</p>
           </div>
         </footer>
+
+        {/* Demo Request Form Modal */}
+        <DemoRequestForm
+          isOpen={showDemoForm}
+          onClose={() => setShowDemoForm(false)}
+        />
       </div>
     </>
   )

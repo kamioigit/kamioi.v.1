@@ -1,5 +1,5 @@
-﻿import React, { useState } from 'react'
-import { Sun, Moon, Cloud, Search, Bell, Settings, User } from 'lucide-react'
+﻿import React, { useState, useEffect, useCallback } from 'react'
+import { Sun, Moon, Cloud, Search, Bell, Settings, User, UserPlus } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useNotifications } from '../../hooks/useNotifications'
@@ -9,6 +9,34 @@ const AdminHeader = ({ activeTab }) => {
   const { isBlackMode, toggleTheme, isLightMode, isCloudMode, theme } = useTheme()
   const { unreadCount } = useNotifications()
   const [searchQuery, setSearchQuery] = useState('')
+  const [demoRequestCount, setDemoRequestCount] = useState(0)
+
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5111'
+
+  // Fetch pending demo request count
+  const fetchDemoRequestCount = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('kamioi_admin_token') || localStorage.getItem('authToken') || 'admin_token_3'
+      const response = await fetch(`${apiBaseUrl}/api/admin/demo-requests/pending-count`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      const data = await response.json()
+      if (data.success && data.data) {
+        setDemoRequestCount(data.data.count || 0)
+      }
+    } catch (err) {
+      // Silently fail - don't disrupt the UI
+    }
+  }, [apiBaseUrl])
+
+  useEffect(() => {
+    fetchDemoRequestCount()
+    // Poll every 30 seconds for new demo requests
+    const interval = setInterval(fetchDemoRequestCount, 30000)
+    return () => clearInterval(interval)
+  }, [fetchDemoRequestCount])
 
   const getHeaderClass = () => {
     if (isBlackMode) return 'bg-black/20 backdrop-blur-lg rounded-2xl p-4 mb-6 mx-6 mt-4 border border-gray-800'
@@ -112,8 +140,24 @@ const AdminHeader = ({ activeTab }) => {
              isLightMode ? <Sun className="w-5 h-5" /> : <Cloud className="w-5 h-5" />}
           </button>
 
+          {/* Demo Requests Notification */}
+          <button
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('setActiveTab', { detail: 'demo-requests' }))
+            }}
+            className={`${getIconClass()} relative`}
+            title={`Demo Requests${demoRequestCount > 0 ? ` (${demoRequestCount} pending)` : ''}`}
+          >
+            <UserPlus className="w-5 h-5" />
+            {demoRequestCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-green-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                {demoRequestCount > 99 ? '99+' : demoRequestCount}
+              </span>
+            )}
+          </button>
+
           {/* Notifications */}
-          <button 
+          <button
             onClick={handleNotifications}
             className={`${getIconClass()} relative`}
             title={`View Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
@@ -126,7 +170,6 @@ const AdminHeader = ({ activeTab }) => {
             )}
           </button>
 
-          
           {/* User Profile */}
           <div className="flex items-center space-x-3">
             <span className={getUserNameClass()}>Admin User</span>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SectionLayout from '../components/common/SectionLayout'
+import DemoRequestForm from '../components/DemoRequestForm'
 import { 
   ArrowRight, 
   Menu,
@@ -13,6 +14,7 @@ import SEO from '../components/common/SEO'
 const Pricing = () => {
   const [isMenuOpen, setMenuOpen] = useState(false)
   const [billingCycle, setBillingCycle] = useState('monthly') // 'monthly' or 'annual'
+  const [showDemoForm, setShowDemoForm] = useState(false)
   const navigate = useNavigate()
   const [frontendContent, setFrontendContent] = useState(null)
   const [contentLoaded, setContentLoaded] = useState(false)
@@ -806,16 +808,16 @@ const Pricing = () => {
               Ready to Start Building Wealth Automatically?
             </h2>
             <p className="text-xl text-white/90 mb-8">
-              Join 10,000+ investors on Kamioi. Choose your plan and start your free 14-day trial. No credit card required.
+              Choose your plan and request demo access to experience Kamioi's automatic investing platform.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-              <button 
-                onClick={() => navigate('/signup')}
+              <button
+                onClick={() => setShowDemoForm(true)}
                 className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-300 shadow-lg"
               >
-                Start Free 14-Day Trial
+                Request Demo Access
               </button>
-              <button 
+              <button
                 onClick={() => navigate('/how-it-works')}
                 className="px-8 py-4 bg-white/10 backdrop-blur-lg border-2 border-white/20 text-white font-semibold rounded-lg hover:bg-white/20 hover:border-white/30 transition-all duration-300"
               >
@@ -823,12 +825,12 @@ const Pricing = () => {
               </button>
             </div>
             <div className="flex flex-wrap justify-center gap-6 text-white/70 text-sm">
-              <span>✓ 14-day free trial</span>
+              <span>✓ $0 minimum to start</span>
               <span>✓ No credit card required</span>
               <span>✓ Cancel anytime</span>
               <span>✓ 30-day money-back guarantee</span>
-              <span>✓ SIPC insured</span>
-              <span>✓ 10,000+ active users</span>
+              <span>✓ SIPC protection ready</span>
+              <span>✓ Bank-level encryption</span>
             </div>
           </div>
         </section>
@@ -839,6 +841,12 @@ const Pricing = () => {
             <p>© 2025 Kamioi. Making investing effortless for the next generation.</p>
           </div>
         </footer>
+
+        {/* Demo Request Form Modal */}
+        <DemoRequestForm
+          isOpen={showDemoForm}
+          onClose={() => setShowDemoForm(false)}
+        />
       </div>
     </>
   )
