@@ -543,8 +543,26 @@ export const DataProvider = ({ children }) => {
       setError(null)
 
       // Check if in demo mode - use demo data instead of API calls
-      const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+      let isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
       const demoAccountType = localStorage.getItem('kamioi_demo_account_type') || 'individual'
+
+      // CRITICAL FIX: If user has a real auth token, NEVER load demo data
+      // This prevents demo data from bleeding into real user accounts
+      const realUserToken = localStorage.getItem('kamioi_user_token')
+      const realBusinessToken = localStorage.getItem('kamioi_business_token')
+      const realFamilyToken = localStorage.getItem('kamioi_family_token')
+      const realAdminToken = localStorage.getItem('kamioi_admin_token')
+      const hasRealAuthToken = (realUserToken && realUserToken !== 'null' && realUserToken !== 'undefined') ||
+                               (realBusinessToken && realBusinessToken !== 'null' && realBusinessToken !== 'undefined') ||
+                               (realFamilyToken && realFamilyToken !== 'null' && realFamilyToken !== 'undefined') ||
+                               (realAdminToken && realAdminToken !== 'null' && realAdminToken !== 'undefined')
+
+      if (hasRealAuthToken && isDemoMode) {
+        console.log('DataContext - Real auth token found, forcing demo mode OFF to prevent data bleeding')
+        localStorage.setItem('kamioi_demo_mode', 'false')
+        localStorage.removeItem('kamioi_demo_account_type')
+        isDemoMode = false
+      }
 
       if (isDemoMode) {
         // Prevent concurrent demo data generation
@@ -856,12 +874,30 @@ export const DataProvider = ({ children }) => {
 
   // Load data from API when user is authenticated or in demo mode
   useEffect(() => {
-    const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+    let isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
     const demoToken = localStorage.getItem('kamioi_demo_token')
     const userToken = getToken(ROLES.USER)
     const adminToken = getToken(ROLES.ADMIN)
 
-    // If in demo mode, load demo data
+    // CRITICAL FIX: Check for real auth tokens BEFORE demo mode
+    // Prevents demo data from bleeding into real user accounts
+    const realUserToken = localStorage.getItem('kamioi_user_token')
+    const realBusinessToken = localStorage.getItem('kamioi_business_token')
+    const realFamilyToken = localStorage.getItem('kamioi_family_token')
+    const realAdminToken = localStorage.getItem('kamioi_admin_token')
+    const hasRealAuthToken = (realUserToken && realUserToken !== 'null' && realUserToken !== 'undefined') ||
+                             (realBusinessToken && realBusinessToken !== 'null' && realBusinessToken !== 'undefined') ||
+                             (realFamilyToken && realFamilyToken !== 'null' && realFamilyToken !== 'undefined') ||
+                             (realAdminToken && realAdminToken !== 'null' && realAdminToken !== 'undefined')
+
+    if (hasRealAuthToken && isDemoMode) {
+      console.log('DataContext useEffect - Real auth token found, forcing demo mode OFF')
+      localStorage.setItem('kamioi_demo_mode', 'false')
+      localStorage.removeItem('kamioi_demo_account_type')
+      isDemoMode = false
+    }
+
+    // If in demo mode (and no real auth token), load demo data
     if (isDemoMode) {
       console.log('DataContext - Demo mode detected, loading demo data')
       loadDataFromAPI()
@@ -919,7 +955,24 @@ export const DataProvider = ({ children }) => {
 
     // Listen for round-up settings changes in demo mode
     const handleRoundUpSettingsChange = () => {
-      const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+      let isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+
+      // CRITICAL FIX: Don't process demo mode events if user has real auth token
+      const realUserToken = localStorage.getItem('kamioi_user_token')
+      const realBusinessToken = localStorage.getItem('kamioi_business_token')
+      const realFamilyToken = localStorage.getItem('kamioi_family_token')
+      const realAdminToken = localStorage.getItem('kamioi_admin_token')
+      const hasRealAuthToken = (realUserToken && realUserToken !== 'null' && realUserToken !== 'undefined') ||
+                               (realBusinessToken && realBusinessToken !== 'null' && realBusinessToken !== 'undefined') ||
+                               (realFamilyToken && realFamilyToken !== 'null' && realFamilyToken !== 'undefined') ||
+                               (realAdminToken && realAdminToken !== 'null' && realAdminToken !== 'undefined')
+
+      if (hasRealAuthToken && isDemoMode) {
+        console.log('DataContext handleRoundUpSettingsChange - Real auth token found, ignoring demo mode')
+        localStorage.setItem('kamioi_demo_mode', 'false')
+        isDemoMode = false
+      }
+
       if (isDemoMode) {
         // Also throttle round-up settings changes
         const now = Date.now()

@@ -20,9 +20,20 @@ const UserDashboard = () => {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
   const { isBlackMode, isLightMode, isCloudMode } = useTheme()
-  const { isDemoMode, getDemoUser } = useDemo()
+  const { isDemoMode, getDemoUser, disableDemoMode } = useDemo()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [showCommunication, setShowCommunication] = useState(false)
+
+  // CRITICAL FIX: Clear demo mode when real authenticated user accesses this dashboard
+  // This prevents demo data from bleeding into real user accounts
+  React.useEffect(() => {
+    if (user && user.id && isDemoMode) {
+      console.log('UserDashboard - Real user detected, clearing demo mode')
+      localStorage.setItem('kamioi_demo_mode', 'false')
+      localStorage.removeItem('kamioi_demo_account_type')
+      disableDemoMode()
+    }
+  }, [user, isDemoMode, disableDemoMode])
 
   // Use demo user when in demo mode, otherwise use auth user
   const effectiveUser = isDemoMode ? getDemoUser() : user

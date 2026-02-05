@@ -186,6 +186,9 @@ export const DemoProvider = ({ children }) => {
 
   const disableDemoMode = () => {
     setIsDemoMode(false);
+    // CRITICAL: Also persist to localStorage to prevent demo data leaking into real user dashboards
+    localStorage.setItem('kamioi_demo_mode', 'false');
+    localStorage.removeItem('kamioi_demo_account_type');
   };
 
   const toggleDemoMode = () => {

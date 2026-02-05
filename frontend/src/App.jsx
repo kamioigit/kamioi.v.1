@@ -93,15 +93,28 @@ const LoadingSpinner = () => (
 // Protected Route Component - Simplified and more robust
 const ProtectedRoute = ({ children, requiredRole = null }) => {
   const { isInitialized, user, loading } = useAuth()
-  
+
   console.log('?? ProtectedRoute - User:', user?.id, 'Initialized:', isInitialized, 'Loading:', loading, 'RequiredRole:', requiredRole)
-  
+
+  // CRITICAL FIX: Clear demo mode when authenticated user accesses protected routes
+  // This prevents demo data from bleeding into real user dashboards
+  React.useEffect(() => {
+    if (user && !loading) {
+      const isDemoMode = localStorage.getItem('kamioi_demo_mode') === 'true'
+      if (isDemoMode) {
+        console.log('?? ProtectedRoute - Clearing demo mode for authenticated user')
+        localStorage.setItem('kamioi_demo_mode', 'false')
+        localStorage.removeItem('kamioi_demo_account_type')
+      }
+    }
+  }, [user, loading])
+
   // Wait for auth initialization
   if (!isInitialized || loading) {
     console.log('?? ProtectedRoute - Waiting for auth initialization')
     return <LoadingSpinner />
   }
-  
+
   // Redirect to login if not authenticated
   if (!user) {
     console.log('?? ProtectedRoute - No user, redirecting to login')
